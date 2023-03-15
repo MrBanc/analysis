@@ -13,6 +13,7 @@ verbose = False
 
 CSV          = "data.csv"
 TEXT_SECTION = ".text"
+PLT_SECTION  = ".plt"
 APP          = "redis-server-static"
 
 
@@ -20,6 +21,12 @@ def print_verbose(msg, indent=0):
     
     if verbose:
         print(indent * "\t" + msg)
+
+def is_hex(s):
+    if not s or len(s) < 3:
+        return false
+
+    return s[:2] == "0x" and all(c.isdigit() or c.lower() in ('a', 'b', 'c', 'd', 'e', 'f') for c in s[2:])
 
 def str2bool(v):
 
@@ -39,6 +46,16 @@ def process_alias(name):
     if "libc_" in name:
         name = name.replace("libc_", "")
     return name
+
+def detect_clib_syscalls(operand, plt_boundaries):
+    if is_hex(operand):
+        operand = int(operand, 16)
+        if operand >= plt_boundaries[0] and operand < plt_boundaries[1]:
+            print(f"call to a lib: {operand}")
+        else:
+            print(f"call to regular function: {operand}")
+    # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
+    # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
 
 def backtrack_syscalls(index, ins):
 
@@ -63,7 +80,7 @@ def wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map):
     else:
         print_verbose("Ignore {}".format(nb_syscall))
 
-def disassemble(text_section, syscalls_set, inv_syscalls_map):
+def disassemble(text_section, plt_boundaries, syscalls_set, inv_syscalls_map):
     
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
@@ -87,6 +104,14 @@ def disassemble(text_section, syscalls_set, inv_syscalls_map):
             # Direct syscall int 0x80
             print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
             wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
+        elif ins.mnemonic == "call":
+            # Function call
+            print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
+            detect_clib_syscalls(ins.op_str, plt_boundaries)
+        # TODO: verify also with REX prefixes
+        elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
+            print_verbose("[DEBUG] a function call was not detected:")
+            print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
 
 def detect_syscalls(sect_it, syscalls_set, syscalls_map):
     for s in sect_it:
@@ -109,19 +134,26 @@ def main():
 
     verbose = args.verbose
     binary = lief.parse(args.app)
+
+    # TODO: verify it's an ELF64 file
     
     print_verbose("Analysing the ELF file. This may take some times...")
     syscalls_set = set()
     for sect_it in [binary.dynamic_symbols, binary.static_symbols, binary.symbols]:
         detect_syscalls(sect_it, syscalls_set, syscalls_map)
 
+    # TODO: use entry point instead of start of text section:
+    # entry_addr = binary.entrypoint
     text_section = binary.get_section(TEXT_SECTION)
-    if text_section is None:
-        sys.write("[ERROR] Text section is not found.")
+    plt_section = binary.get_section(PLT_SECTION)
+    if text_section is None or plt_section is None:
+        sys.stderr.write("[ERROR] Text and/or plt section are not found.\n")
         sys.exit(1)
 
+    plt_boundaries = [plt_section.virtual_address, plt_section.virtual_address + plt_section.size]
+
     inv_syscalls_map = {syscalls_map[k] : k for k in syscalls_map}
-    disassemble(text_section, syscalls_set, inv_syscalls_map)
+    disassemble(text_section, plt_boundaries, syscalls_set, inv_syscalls_map)
 
     if args.display:
         for k,v in syscalls_map.items():
