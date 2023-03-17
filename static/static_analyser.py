@@ -24,7 +24,7 @@ def print_verbose(msg, indent=0):
 
 def is_hex(s):
     if not s or len(s) < 3:
-        return false
+        return False
 
     return s[:2] == "0x" and all(c.isdigit() or c.lower() in ('a', 'b', 'c', 'd', 'e', 'f') for c in s[2:])
 
@@ -47,13 +47,34 @@ def process_alias(name):
         name = name.replace("libc_", "")
     return name
 
-def detect_clib_syscalls(operand, plt_boundaries):
+def detect_clib_syscalls(operand, plt_section, got_rel):
     if is_hex(operand):
         operand = int(operand, 16)
+        plt_boundaries = [plt_section.virtual_address, plt_section.virtual_address + plt_section.size]
         if operand >= plt_boundaries[0] and operand < plt_boundaries[1]:
-            print(f"call to a lib: {operand}")
+            # print(f"call to a lib: {operand}")
+            plt_offset = operand - plt_section.virtual_address
+
+            md = Cs(CS_ARCH_X86, CS_MODE_64)
+            md.detail = True
+
+            instr_1 = instr_2 = None
+            for instr in md.disasm(bytearray(plt_section.content)[plt_offset:], operand):
+                if instr_1 == None:
+                    instr_1 = instr
+                elif instr_2 == None:
+                    instr_2 = instr
+                else:
+                    break
+
+            got_rel_addr = int(instr_1.op_str.split()[-1][:-1], 16) + instr_2.address
+
+            for rel in got_rel:
+                if got_rel_addr == rel.address:
+                    print(f"call to lib function {rel.symbol.name}")
         else:
-            print(f"call to regular function: {operand}")
+            pass
+            # print(f"call to regular function: {operand}")
     # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
     # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
 
@@ -80,7 +101,7 @@ def wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map):
     else:
         print_verbose("Ignore {}".format(nb_syscall))
 
-def disassemble(text_section, plt_boundaries, syscalls_set, inv_syscalls_map):
+def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_map):
     
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
@@ -106,8 +127,8 @@ def disassemble(text_section, plt_boundaries, syscalls_set, inv_syscalls_map):
             wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
         elif ins.mnemonic == "call":
             # Function call
-            print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
-            detect_clib_syscalls(ins.op_str, plt_boundaries)
+            # print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
+            detect_clib_syscalls(ins.op_str, plt_section, got_rel)
         # TODO: verify also with REX prefixes
         elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
             print_verbose("[DEBUG] a function call was not detected:")
@@ -142,7 +163,7 @@ def main():
     for sect_it in [binary.dynamic_symbols, binary.static_symbols, binary.symbols]:
         detect_syscalls(sect_it, syscalls_set, syscalls_map)
 
-    # TODO: use entry point instead of start of text section:
+    # TODO: use entry point instead of start of text section? (not needed?)
     # entry_addr = binary.entrypoint
     text_section = binary.get_section(TEXT_SECTION)
     plt_section = binary.get_section(PLT_SECTION)
@@ -150,10 +171,10 @@ def main():
         sys.stderr.write("[ERROR] Text and/or plt section are not found.\n")
         sys.exit(1)
 
-    plt_boundaries = [plt_section.virtual_address, plt_section.virtual_address + plt_section.size]
+    got_rel = binary.pltgot_relocations
 
     inv_syscalls_map = {syscalls_map[k] : k for k in syscalls_map}
-    disassemble(text_section, plt_boundaries, syscalls_set, inv_syscalls_map)
+    disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_map)
 
     if args.display:
         for k,v in syscalls_map.items():
