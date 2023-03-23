@@ -9,77 +9,27 @@ import argparse
 from syscalls import *
 from capstone import *
 
-verbose = False
+import globals
+
+from libraries import *
+from utils import *
+
+#verbose = True
+#app     = "redis-server-static"
 
 CSV          = "data.csv"
 TEXT_SECTION = ".text"
 PLT_SECTION  = ".plt"
-APP          = "redis-server-static"
 
-
-def print_verbose(msg, indent=0):
-    
-    if verbose:
-        print(indent * "\t" + msg)
-
-def is_hex(s):
-    if not s or len(s) < 3:
-        return False
-
-    return s[:2] == "0x" and all(c.isdigit() or c.lower() in ('a', 'b', 'c', 'd', 'e', 'f') for c in s[2:])
-
-def str2bool(v):
-
-    if isinstance(v, bool):
-       return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def process_alias(name):
-    
     if name.startswith("__"):
         name = re.sub('^_*', '', name)
     if "libc_" in name:
         name = name.replace("libc_", "")
     return name
 
-def detect_clib_syscalls(operand, plt_section, got_rel):
-    if is_hex(operand):
-        operand = int(operand, 16)
-        plt_boundaries = [plt_section.virtual_address, plt_section.virtual_address + plt_section.size]
-        if operand >= plt_boundaries[0] and operand < plt_boundaries[1]:
-            # print(f"call to a lib: {operand}")
-            plt_offset = operand - plt_section.virtual_address
-
-            md = Cs(CS_ARCH_X86, CS_MODE_64)
-            md.detail = True
-
-            instr_1 = instr_2 = None
-            for instr in md.disasm(bytearray(plt_section.content)[plt_offset:], operand):
-                if instr_1 == None:
-                    instr_1 = instr
-                elif instr_2 == None:
-                    instr_2 = instr
-                else:
-                    break
-
-            got_rel_addr = int(instr_1.op_str.split()[-1][:-1], 16) + instr_2.address
-
-            for rel in got_rel:
-                if got_rel_addr == rel.address:
-                    print(f"call to lib function {rel.symbol.name}")
-        else:
-            pass
-            # print(f"call to regular function: {operand}")
-    # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-    # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
-
 def backtrack_syscalls(index, ins):
-
     for i in range(index-1, 0, -1):
         
         b = ins[i].bytes
@@ -102,7 +52,6 @@ def wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map):
         print_verbose("Ignore {}".format(nb_syscall))
 
 def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_map):
-    
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
 
@@ -128,7 +77,7 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
         elif ins.mnemonic == "call":
             # Function call
             # print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
-            detect_clib_syscalls(ins.op_str, plt_section, got_rel)
+            detect_lib_syscalls(ins.op_str, plt_section, got_rel)
         # TODO: verify also with REX prefixes
         elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
             print_verbose("[DEBUG] a function call was not detected:")
@@ -144,17 +93,18 @@ def detect_syscalls(sect_it, syscalls_set, syscalls_map):
             syscalls_set.add(name)
 
 def main():
-    global verbose
+    globals.initialize() 
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--app','-a', help='Path to application',required=True, default=APP)
+    parser.add_argument('--app','-a', help='Path to application',required=True, default=globals.app)
     parser.add_argument('--verbose', '-v', type=str2bool, nargs='?', const=True, help='Verbose mode', default=True)
     parser.add_argument('--display', '-d', type=str2bool, nargs='?', const=True, help='Display syscalls', default=True)
     parser.add_argument('--csv', '-c', type=str2bool, nargs='?', const=True, help='Output csv', default=True)
     args = parser.parse_args()
 
-    verbose = args.verbose
-    binary = lief.parse(args.app)
+    globals.verbose = args.verbose
+    globals.app = args.app
+    binary = lief.parse(globals.app)
 
     # TODO: verify it's an ELF64 file
     
