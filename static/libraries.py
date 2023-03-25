@@ -9,6 +9,8 @@ import globals
 from utils import *
 
 
+used_libraries = None
+
 class LibFunLocation:
     def __init__(self, library, address):
         self._library = library
@@ -26,21 +28,32 @@ class LibFunLocation:
 def disassemble_lib_function(f_location):
     pass
 
-def find_used_library():
+def find_used_libraries():
     libs = []
-    ldd_output = subprocess.check_output(["ldd", globals.app])
-    for line in ldd_output.splitlines():
-        parts = line.decode("utf-8").split()
-        if "=>" in parts:
-            libs.append(parts[parts.index("=>") + 1])
-    
-    # return libs
-    sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
-    return ['/home/ben/codes/misc/my_stripped_libc.so.6']
-
+    try:
+        ldd_output = subprocess.run(["ldd", globals.app], check=True, capture_output=True)
+        for line in ldd_output.splitlines():
+            parts = line.decode("utf-8").split()
+            if "=>" in parts:
+                libs.append(parts[parts.index("=>") + 1])
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write('[ERROR] ldd command returned with an error: ' + e.stderr.decode("utf-8") + '\nDo you want to continue without analysing the linked libraries? (Y/n) ')
+        ans = input()
+        while ans.lower() != "y":
+            if ans.lower() == "n":
+                sys.exit(1)
+            else:
+                ans = input("Please answer with y or n\n")
+    return libs
+    # sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
+    # return ['/home/ben/codes/misc/my_stripped_libc.so.6']
+ 
 def lib_fun_location(f_name):
+    global used_libraries
+    if used_libraries == None:
+        used_libraries = find_used_libraries()
     locations = []
-    for lib in find_used_library():
+    for lib in used_libraries:
         lib_binary = lief.parse(lib)
         for item in lib_binary.dynamic_symbols:
             if item.name == f_name:
@@ -78,7 +91,7 @@ def detect_lib_syscalls(operand, plt_section, got_rel):
             for rel in got_rel:
                 if got_rel_addr == rel.address:
                     f_location = lib_fun_location(rel.symbol.name)
-                    print(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
+                    # print(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
                     disassemble_lib_function(f_location)
         else:
             pass
