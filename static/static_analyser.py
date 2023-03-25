@@ -107,7 +107,7 @@ def main():
     globals.app = args.app
     binary = lief.parse(globals.app)
 
-    if binary.format != lief.EXE_FORMATS.ELF || binary.header.identity_class =! lief.ELF.ELF_CLASS.CLASS64:
+    if binary.format != lief.EXE_FORMATS.ELF or binary.header.identity_class != lief.ELF.ELF_CLASS.CLASS64:
         sys.stderr.write("[ERROR] the given binary is not a CLASS64 ELF file.\n")
         sys.exit(1)
 
