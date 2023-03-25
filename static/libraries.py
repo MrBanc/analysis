@@ -1,3 +1,4 @@
+import sys
 import subprocess
 import lief
 
@@ -33,7 +34,9 @@ def find_used_library():
         if "=>" in parts:
             libs.append(parts[parts.index("=>") + 1])
     
-    return libs
+    # return libs
+    sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
+    return ['/home/ben/codes/misc/my_stripped_libc.so.6']
 
 def lib_fun_location(f_name):
     locations = []
@@ -79,7 +82,8 @@ def detect_lib_syscalls(operand, plt_section, got_rel):
                     disassemble_lib_function(f_location)
         else:
             pass
-            # print(f"call to regular function: {operand}")
+    else:
+        sys.stderr.write(f"[WARNING] Instruction not implemented yet: call {operand}\n")
     # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
     # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
 
