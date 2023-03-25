@@ -80,8 +80,9 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
             detect_lib_syscalls(ins.op_str, plt_section, got_rel)
         # TODO: verify also with REX prefixes
         elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
-            print_verbose("[DEBUG] a function call was not detected:")
-            print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
+            pass # It also detect jmp instructions...
+            # print_verbose("[DEBUG] a function call was not detected:")
+            # print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
 
 def detect_syscalls(sect_it, syscalls_set, syscalls_map):
     for s in sect_it:
@@ -106,8 +107,10 @@ def main():
     globals.app = args.app
     binary = lief.parse(globals.app)
 
-    # TODO: verify it's an ELF64 file
-    
+    if binary.format != lief.EXE_FORMATS.ELF || binary.header.identity_class =! lief.ELF.ELF_CLASS.CLASS64:
+        sys.stderr.write("[ERROR] the given binary is not a CLASS64 ELF file.\n")
+        sys.exit(1)
+
     print_verbose("Analysing the ELF file. This may take some times...")
     syscalls_set = set()
     for sect_it in [binary.dynamic_symbols, binary.static_symbols, binary.symbols]:
