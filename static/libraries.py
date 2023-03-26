@@ -2,6 +2,8 @@ import sys
 import subprocess
 import lief
 
+from copy import copy
+from os.path import exists
 from capstone import *
 
 import globals
@@ -10,6 +12,8 @@ from utils import *
 
 
 used_libraries = None
+
+LIB_PATHS = ['/lib64/']
 
 class LibFunLocation:
     def __init__(self, library, address):
@@ -24,6 +28,16 @@ class LibFunLocation:
     def address(self):
         return self._address
 
+    def __str__(self):
+        return self._library + ": " + str(hex(self._address))
+
+    # to print a table of objects
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other):
+        return self._library == other.library and self._address == other.address
+
 
 def disassemble_lib_function(f_location):
     pass
@@ -32,12 +46,32 @@ def find_used_libraries():
     libs = []
     try:
         ldd_output = subprocess.run(["ldd", globals.app], check=True, capture_output=True)
-        for line in ldd_output.splitlines():
+        for line in ldd_output.stdout.splitlines():
             parts = line.decode("utf-8").split()
             if "=>" in parts:
                 libs.append(parts[parts.index("=>") + 1])
     except subprocess.CalledProcessError as e:
-        sys.stderr.write('[ERROR] ldd command returned with an error: ' + e.stderr.decode("utf-8") + '\nDo you want to continue without analysing the linked libraries? (Y/n) ')
+        print_verbose('[ERROR] ldd command returned with an error: ' + e.stderr.decode("utf-8") + 'Trying to find the libraries path manually...')
+        libs = find_used_libraries_manually()
+    return libs
+    # sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
+    # return ['/home/ben/codes/misc/my_stripped_libc.so.6']
+ 
+def find_used_libraries_manually():
+    binary = lief.parse(globals.app)
+    lib_names = binary.libraries
+    libs = [] # full path of the lib
+    
+    for path in LIB_PATHS:
+        lib_names_copy = copy(lib_names)
+        for name in lib_names_copy:
+            if exists(path + name):
+                libs.append(path + name)
+                lib_names.remove(name)
+
+    # TODO: either add more paths in LIB_PATHS or use subprocess to run `locate` (and maybe let the user choose?)
+    if len(lib_names) > 0:
+        sys.stderr.write(f"[ERROR] The following libraries couldn't be found: {lib_names}\nDo you want to continue without analysing these linked libraries? (Y/n) ")
         ans = input()
         while ans.lower() != "y":
             if ans.lower() == "n":
@@ -45,9 +79,7 @@ def find_used_libraries():
             else:
                 ans = input("Please answer with y or n\n")
     return libs
-    # sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
-    # return ['/home/ben/codes/misc/my_stripped_libc.so.6']
- 
+
 def lib_fun_location(f_name):
     global used_libraries
     if used_libraries == None:
@@ -57,7 +89,10 @@ def lib_fun_location(f_name):
         lib_binary = lief.parse(lib)
         for item in lib_binary.dynamic_symbols:
             if item.name == f_name:
-                locations.append(LibFunLocation(lib, item.value))
+                loc = LibFunLocation(lib, item.value)
+                # some symbols are present multiple times with the same values
+                if loc not in locations:
+                    locations.append(loc)
     
     if locations == []:
         sys.stderr.write(f"[WARNING] No library function was found for {f_name}. Continuing...\n")
@@ -91,7 +126,8 @@ def detect_lib_syscalls(operand, plt_section, got_rel):
             for rel in got_rel:
                 if got_rel_addr == rel.address:
                     f_location = lib_fun_location(rel.symbol.name)
-                    # print(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
+                    if len(f_location) > 0:
+                        print(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
                     disassemble_lib_function(f_location)
         else:
             pass
