@@ -1,5 +1,6 @@
 import globals
 
+DEBUG = True
 
 def print_verbose(msg, indent=0):
     if globals.verbose:
@@ -21,3 +22,6 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+def print_debug(s):
+    if DEBUG:
+        print("[DEBUG] " + s)
