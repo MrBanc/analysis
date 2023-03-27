@@ -58,7 +58,6 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
     insns = md.disasm(bytearray(text_section.content), text_section.virtual_address)
     list_inst = list()
     for i, ins in enumerate(insns):
-        
         b = ins.bytes
         list_inst.append(ins)
 
@@ -74,7 +73,8 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
             # Direct syscall int 0x80
             print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
             wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
-        elif ins.mnemonic == "call":
+        # TODO: be sure to detect all lib calls. This may not be enough. Do some research
+        elif ins.mnemonic == "call" or ins.mnemonic == "jmp":
             # Function call
             # print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
             detect_lib_syscalls(ins.op_str, plt_section, got_rel)
