@@ -87,6 +87,7 @@ def lib_fun_location(f_name):
     locations = []
     for lib in used_libraries:
         lib_binary = lief.parse(lib)
+        # TODO: this is slow ass code right here. Should optimise this (saving the result or idk)
         for item in lib_binary.dynamic_symbols:
             if item.name == f_name:
                 loc = LibFunLocation(lib, item.value)
@@ -106,33 +107,40 @@ def detect_lib_syscalls(operand, plt_section, got_rel):
         operand = int(operand, 16)
         plt_boundaries = [plt_section.virtual_address, plt_section.virtual_address + plt_section.size]
         if operand >= plt_boundaries[0] and operand < plt_boundaries[1]:
-            # print(f"call to a lib: {operand}")
             plt_offset = operand - plt_section.virtual_address
 
             md = Cs(CS_ARCH_X86, CS_MODE_64)
             md.detail = True
 
-            instr_1 = instr_2 = None
+            # The instruction at the address pointed to by the operand is a
+            # jump to a `.got` entry. With the address of this `.got`
+            # relocation entry, it is possible to identify the function that
+            # will be called. The jump instruction is of the form 'qword ptr
+            # [rip + 0x1234]', so the next instruction is also stored in order
+            # to have the value of the instruction pointer.
+            instr_at_address = instr_next = None
             for instr in md.disasm(bytearray(plt_section.content)[plt_offset:], operand):
-                if instr_1 == None:
-                    instr_1 = instr
-                elif instr_2 == None:
-                    instr_2 = instr
+                if instr_at_address == None:
+                    instr_at_address = instr
+                elif instr_next == None:
+                    instr_next = instr
                 else:
                     break
 
-            got_rel_addr = int(instr_1.op_str.split()[-1][:-1], 16) + instr_2.address
+            got_rel_addr = int(instr_at_address.op_str.split()[-1][:-1], 16) + instr_next.address
 
             for rel in got_rel:
                 if got_rel_addr == rel.address:
                     f_location = lib_fun_location(rel.symbol.name)
                     if len(f_location) > 0:
-                        print(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
+                        print_debug(f"Function {rel.symbol.name} is present in {f_location[0].library} at address {hex(f_location[0].address)}")
                     disassemble_lib_function(f_location)
         else:
             pass
     else:
-        sys.stderr.write(f"[WARNING] Instruction not implemented yet: call {operand}\n")
+        pass
+        print_debug(f"[WARNING] Instruction not implemented yet: call {operand}\n")
+        # sys.stderr.write(f"[WARNING] Instruction not implemented yet: call {operand}\n")
     # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
     # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
 
