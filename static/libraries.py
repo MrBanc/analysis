@@ -87,7 +87,7 @@ def lib_fun_location(f_name):
     locations = []
     for lib in used_libraries:
         lib_binary = lief.parse(lib)
-        # TODO: this is slow ass code right here. Should optimise this (saving the result or idk)
+        # TODO: slow code here. Should optimise (saving the result or idk)
         for item in lib_binary.dynamic_symbols:
             if item.name == f_name:
                 loc = LibFunLocation(lib, item.value)
@@ -139,7 +139,7 @@ def detect_lib_syscalls(operand, plt_section, got_rel):
             pass
     else:
         pass
-        print_debug(f"[WARNING] Instruction not implemented yet: call {operand}\n")
+        # print_debug(f"[WARNING] Instruction not implemented yet: call {operand}\n")
         # sys.stderr.write(f"[WARNING] Instruction not implemented yet: call {operand}\n")
     # print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
     # wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
