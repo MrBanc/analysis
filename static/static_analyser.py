@@ -40,9 +40,11 @@ def backtrack_syscalls(index, ins):
 
         # Another syscall is called, break
         if b[0] == 0xcd and b[1] == 0x80:
-            return -1
+            break
+    return -1
 
 def wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map):
+    print_debug("syscall detected at instruction: " + str(list_inst[-1]))
     nb_syscall = backtrack_syscalls(i, list_inst)
     if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
         name = inv_syscalls_map[nb_syscall]
@@ -55,6 +57,8 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
 
+    # TODO: adapt the code around the fact that md.disasm may not return the
+    # entirety of the requested instructions.
     insns = md.disasm(bytearray(text_section.content), text_section.virtual_address)
     list_inst = list()
     for i, ins in enumerate(insns):
