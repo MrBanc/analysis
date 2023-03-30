@@ -78,13 +78,14 @@ def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_m
             print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
             wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
         # TODO: be sure to detect all lib calls. This may not be enough. Do some research
+        # TODO: add other types of jump (create a function that takes mnemonic and return bool)
         elif ins.mnemonic == "call" or ins.mnemonic == "jmp":
             # Function call
             # print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
             detect_lib_syscalls(ins.op_str, plt_section, got_rel)
         # TODO: verify also with REX prefixes
         elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
-            pass # It also detect jmp instructions...
+            pass
             # print_verbose("[DEBUG] a function call was not detected:")
             # print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
 
