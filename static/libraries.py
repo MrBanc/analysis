@@ -54,14 +54,16 @@ def find_used_libraries():
         print_verbose('[ERROR] ldd command returned with an error: ' + e.stderr.decode("utf-8") + 'Trying to find the libraries path manually...')
         libs = find_used_libraries_manually()
     return libs
-    # sys.stderr.write("[DEBUG] Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.\n")
+    # print_debug("Using a stripped version of libc.so.6 without taking into account the actual library used by the binary.")
     # return ['/home/ben/codes/misc/my_stripped_libc.so.6']
  
 def find_used_libraries_manually():
     binary = lief.parse(globals.app)
     lib_names = binary.libraries
     libs = [] # full path of the lib
-    
+
+    # TODO: also look in environment variable `LD_LIBRARY_PATH` and possibly
+    # look which path the linker used by the binary uses.
     for path in LIB_PATHS:
         lib_names_copy = copy(lib_names)
         for name in lib_names_copy:
