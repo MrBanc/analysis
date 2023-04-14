@@ -40,7 +40,7 @@ class LibraryAnalyser:
 
         self.__plt_section = binary.get_section(PLT_SECTION)
         if self.__plt_section is None:
-            raise StaticAnalyserException(".plt section is not found.")
+            raise StaticAnalyserException(".plt section not found.")
 
         self.__got_rel = binary.pltgot_relocations
         if self.__got_rel is None:

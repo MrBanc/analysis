@@ -5,6 +5,7 @@ import globals
 from library_analyser import LibraryAnalyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
+from utils import *
 
 class CodeAnalyser:
     """
@@ -44,15 +45,15 @@ class CodeAnalyser:
             if b[0] == 0x0f and b[1] == 0x05:
                 # Direct syscall SYSCALL
                 print_verbose("DIRECT SYSCALL (x86_64): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-                wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
+                self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
             elif b[0] == 0x0f and b[1] == 0x34:
                 # Direct syscall SYSENTER
                 print_verbose("SYSENTER: 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-                wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
+                self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
             elif b[0] == 0xcd and b[1] == 0x80:
                 # Direct syscall int 0x80
                 print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-                wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
+                self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
             # TODO: be sure to detect all lib calls. This may not be enough. Do some research
             # TODO: add other types of jump (create a function that takes mnemonic and return bool)
             elif ins.mnemonic == "call" or ins.mnemonic == "jmp":
@@ -81,7 +82,7 @@ class CodeAnalyser:
 
     def wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set, inv_syscalls_map):
         print_debug("syscall detected at instruction: " + str(list_inst[-1]))
-        nb_syscall = backtrack_syscalls(i, list_inst)
+        nb_syscall = self.backtrack_syscalls(i, list_inst)
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
             print_verbose("Found: {}: {}\n".format(name, nb_syscall))
