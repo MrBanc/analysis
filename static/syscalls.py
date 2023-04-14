@@ -1,3 +1,25 @@
+# TODO
+""" """
+
+def detect_syscalls_in_sym_table(sect_it, syscalls_set, syscalls_map):
+    for s in sect_it:
+        name = s.name
+        if name in alias_syscalls_map:
+            name = alias_syscalls_map[name]
+        
+        if name in syscalls_map:
+            syscalls_set.add(name)
+
+def process_alias(name):
+    if name.startswith("__"):
+        name = re.sub('^_*', '', name)
+    if "libc_" in name:
+        name = name.replace("libc_", "")
+    return name
+
+def get_inverse_syscalls_map():
+    return {syscalls_map[k] : k for k in syscalls_map}
+
 syscalls_map = {
     "read":                   0,
     "write":                  1,

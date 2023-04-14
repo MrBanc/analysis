@@ -1,3 +1,10 @@
+"""
+Main file of the program.
+
+Parses the input, calls the elf and code analyser and prints the results.
+"""
+
+# TODO: check if all these imports are needed
 import os
 import re
 import csv
@@ -6,97 +13,17 @@ import sys
 import json
 import argparse
 
-from syscalls import *
-from capstone import *
-
 import globals
 
-from libraries import *
 from utils import *
-
-#verbose = True
-#app     = "redis-server-static"
-
-CSV          = "data.csv"
-TEXT_SECTION = ".text"
-PLT_SECTION  = ".plt"
+from syscalls import *
+from code_analyser import CodeAnalyser
+from elf_analyser import get_syscalls_from_symbols
+from custom_exception import StaticAnalyserException
 
 
-def process_alias(name):
-    if name.startswith("__"):
-        name = re.sub('^_*', '', name)
-    if "libc_" in name:
-        name = name.replace("libc_", "")
-    return name
+CSV = "data.csv"
 
-def backtrack_syscalls(index, ins):
-    for i in range(index-1, 0, -1):
-        
-        b = ins[i].bytes
-        print_verbose("-> 0x{:x}:{} {}".format(ins[i].address, ins[i].mnemonic, ins[i].op_str), indent=1)
-        # MOV in EAX
-        if b[0] == 0xb8:
-            return int(b[1])
-
-        # Another syscall is called, break
-        if b[0] == 0xcd and b[1] == 0x80:
-            break
-    return -1
-
-def wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map):
-    print_debug("syscall detected at instruction: " + str(list_inst[-1]))
-    nb_syscall = backtrack_syscalls(i, list_inst)
-    if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
-        name = inv_syscalls_map[nb_syscall]
-        print_verbose("Found: {}: {}\n".format(name, nb_syscall))
-        syscalls_set.add(name)
-    else:
-        print_verbose("Ignore {}".format(nb_syscall))
-
-def disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_map):
-    md = Cs(CS_ARCH_X86, CS_MODE_64)
-    md.detail = True
-
-    # TODO: adapt the code around the fact that md.disasm may not return the
-    # entirety of the requested instructions.
-    insns = md.disasm(bytearray(text_section.content), text_section.virtual_address)
-    list_inst = list()
-    for i, ins in enumerate(insns):
-        b = ins.bytes
-        list_inst.append(ins)
-
-        if b[0] == 0x0f and b[1] == 0x05:
-            # Direct syscall SYSCALL
-            print_verbose("DIRECT SYSCALL (x86_64): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-            wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
-        elif b[0] == 0x0f and b[1] == 0x34:
-            # Direct syscall SYSENTER
-            print_verbose("SYSENTER: 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-            wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
-        elif b[0] == 0xcd and b[1] == 0x80:
-            # Direct syscall int 0x80
-            print_verbose("DIRECT SYSCALL (x86): 0x{:x} {} {}".format(ins.address, ins.mnemonic, ins.op_str))
-            wrapper_backtrack_syscalls(i, list_inst, syscalls_set, inv_syscalls_map)
-        # TODO: be sure to detect all lib calls. This may not be enough. Do some research
-        # TODO: add other types of jump (create a function that takes mnemonic and return bool)
-        elif ins.mnemonic == "call" or ins.mnemonic == "jmp":
-            # Function call
-            # print(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
-            detect_lib_syscalls(ins.op_str, plt_section, got_rel)
-        # TODO: verify also with REX prefixes
-        elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
-            pass
-            # print_verbose("[DEBUG] a function call was not detected:")
-            # print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} {ins.op_str}")
-
-def detect_syscalls(sect_it, syscalls_set, syscalls_map):
-    for s in sect_it:
-        name = s.name
-        if name in alias_syscalls_map:
-            name = alias_syscalls_map[name]
-        
-        if name in syscalls_map:
-            syscalls_set.add(name)
 
 def main():
     globals.initialize() 
@@ -112,27 +39,23 @@ def main():
     globals.app = args.app
     binary = lief.parse(globals.app)
 
-    if binary.format != lief.EXE_FORMATS.ELF or binary.header.identity_class != lief.ELF.ELF_CLASS.CLASS64:
-        sys.stderr.write("[ERROR] the given binary is not a CLASS64 ELF file.\n")
-        sys.exit(1)
-
     print_verbose("Analysing the ELF file. This may take some times...")
-    syscalls_set = set()
-    for sect_it in [binary.dynamic_symbols, binary.static_symbols, binary.symbols]:
-        detect_syscalls(sect_it, syscalls_set, syscalls_map)
 
-    # TODO: use entry point instead of start of text section? (not needed?)
-    # entry_addr = binary.entrypoint
-    text_section = binary.get_section(TEXT_SECTION)
-    plt_section = binary.get_section(PLT_SECTION)
-    if text_section is None or plt_section is None:
-        sys.stderr.write("[ERROR] Text and/or plt section are not found.\n")
+    try:
+        syscalls_set = set()
+        get_syscalls_from_symbols(binary, syscalls_set)
+
+        # TODO: use entry point instead of start of text section? (not needed?)
+        # entry_addr = binary.entrypoint
+
+        code_analyser = CodeAnalyser(binary)
+
+        inv_syscalls_map = get_inverse_syscalls_map()
+        code_analyser.get_used_syscalls(syscalls_set, inv_syscalls_map)
+    except StaticAnalyserException as e:
+        sys.stderr.write(f"[ERROR] {e}\n")
         sys.exit(1)
 
-    got_rel = binary.pltgot_relocations
-
-    inv_syscalls_map = {syscalls_map[k] : k for k in syscalls_map}
-    disassemble(text_section, plt_section, got_rel, syscalls_set, inv_syscalls_map)
 
     if args.display:
         for k,v in syscalls_map.items():
