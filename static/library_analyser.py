@@ -138,6 +138,7 @@ class LibraryAnalyser:
             ldd_output = subprocess.run(["ldd", globals.app], check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
+                # TODO: sometimes lib path is not after "=>" (see todo.md)
                 if "=>" in parts:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
