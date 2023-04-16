@@ -1,12 +1,15 @@
 # TODO
 """ """
 
-def detect_syscalls_in_sym_table(sect_it, syscalls_set, syscalls_map):
+import re
+
+def detect_syscalls_in_sym_table(sect_it, syscalls_set):
     for s in sect_it:
         name = s.name
-        if name in alias_syscalls_map:
+        name_value = alias_syscalls_map.get(name)
+        if name_value is not None:
             name = alias_syscalls_map[name]
-        
+
         if name in syscalls_map:
             syscalls_set.add(name)
 

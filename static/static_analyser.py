@@ -8,14 +8,12 @@ Parses the input, calls the elf and code analyser and prints the results.
 import os
 import re
 import csv
-import lief
 import sys
 import json
 import argparse
+import lief
 
-import globals
-
-from utils import *
+import utils
 from syscalls import *
 from code_analyser import CodeAnalyser
 from elf_analyser import get_syscalls_from_symbols
@@ -26,20 +24,22 @@ CSV = "data.csv"
 
 
 def main():
-    globals.initialize() 
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--app','-a', help='Path to application',required=True, default=globals.app)
-    parser.add_argument('--verbose', '-v', type=str2bool, nargs='?', const=True, help='Verbose mode', default=True)
-    parser.add_argument('--display', '-d', type=str2bool, nargs='?', const=True, help='Display syscalls', default=True)
-    parser.add_argument('--csv', '-c', type=str2bool, nargs='?', const=True, help='Output csv', default=True)
+    parser.add_argument('--app','-a', help='Path to application',required=True,
+                        default=utils.app)
+    parser.add_argument('--verbose', '-v', type=utils.str2bool, nargs='?',
+                        const=True, help='Verbose mode', default=True)
+    parser.add_argument('--display', '-d', type=utils.str2bool, nargs='?',
+                        const=True, help='Display syscalls', default=True)
+    parser.add_argument('--csv', '-c', type=utils.str2bool, nargs='?', const=True,
+                        help='Output csv', default=True)
     args = parser.parse_args()
 
-    globals.verbose = args.verbose
-    globals.app = args.app
-    binary = lief.parse(globals.app)
+    utils.verbose = args.verbose
+    utils.app = args.app
+    binary = lief.parse(utils.app)
 
-    print_verbose("Analysing the ELF file. This may take some times...")
+    utils.print_verbose("Analysing the ELF file. This may take some times...")
 
     try:
         syscalls_set = set()
@@ -60,9 +60,9 @@ def main():
     if args.display:
         for k,v in syscalls_map.items():
             if k in syscalls_set:
-                print_verbose("{} : {}".format(k,v))
+                utils.print_verbose(f"{k} : {v}")
 
-    print_verbose("Total number of syscalls: " + str(len(syscalls_set)))
+    utils.print_verbose("Total number of syscalls: " + str(len(syscalls_set)))
 
     if args.csv:
         print("# syscall, used")
@@ -70,7 +70,7 @@ def main():
             value = "N"
             if k in syscalls_set:
                 value = "Y"
-            print("{},{}".format(v,value))
+            print(f"{v},{value}")
 
 if __name__== "__main__":
-    main()  
+    main()

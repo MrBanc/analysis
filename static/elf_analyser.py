@@ -4,8 +4,6 @@ Utilities to store information about and analyse the ELF 64-bit executable.
 
 import lief
 
-import globals
-
 from syscalls import *
 
 
@@ -14,9 +12,11 @@ PLT_SECTION  = ".plt"
 
 
 def is_valid_binary(binary):
-    return binary is not None and binary.format == lief.EXE_FORMATS.ELF and binary.header.identity_class == lief.ELF.ELF_CLASS.CLASS64
+    return (binary is not None
+            and binary.format == lief.EXE_FORMATS.ELF
+            and binary.header.identity_class == lief.ELF.ELF_CLASS.CLASS64)
 
 def get_syscalls_from_symbols(binary, syscalls_set):
-    for sect_it in [binary.dynamic_symbols, binary.static_symbols, binary.symbols]:
-        detect_syscalls_in_sym_table(sect_it, syscalls_set, syscalls_map)
-
+    for sect_it in [binary.dynamic_symbols, binary.static_symbols,
+                    binary.symbols]:
+        detect_syscalls_in_sym_table(sect_it, syscalls_set)
