@@ -4,12 +4,7 @@ Main file of the program.
 Parses the input, calls the elf and code analyser and prints the results.
 """
 
-# TODO: check if all these imports are needed
-import os
-import re
-import csv
 import sys
-import json
 import argparse
 import lief
 
