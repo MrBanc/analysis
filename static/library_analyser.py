@@ -8,7 +8,7 @@ from typing import Dict
 import lief
 from capstone import *
 
-from utils import *
+import utils
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
 
@@ -53,7 +53,7 @@ class LibraryAnalyser:
         self.__find_used_libraries()
 
     def is_lib_call(self, operand):
-        if is_hex(operand):
+        if utils.is_hex(operand):
             operand = int(operand, 16)
             plt_boundaries = [self.__plt_section.virtual_address,
                               self.__plt_section.virtual_address
@@ -80,8 +80,9 @@ class LibraryAnalyser:
         # (et jusqu'à quelle profondeure) (-> une fonction de CallGraph
         # pourrait me dire si il faut analyser plus loin ou pas)
         if functions:
-            print_debug(f"Function {functions[0].name} is present in "
-                        f"{functions[0].library_path} at address {hex(functions[0].address)}")
+            utils.print_debug(f"Function {functions[0].name} is present in "
+                              f"{functions[0].library_path} at address "
+                              f"{hex(functions[0].address)}")
 
         # Use callgraph...
 
@@ -130,7 +131,7 @@ class LibraryAnalyser:
     def __add_used_library(self, lib_path):
         lib_name = lib_path.split("/")[-1]
         if lib_name not in self.__used_libraries:
-            print_verbose("[WARNING] A library path was added for a library "
+            utils.print_verbose("[WARNING] A library path was added for a library "
                           "that was not detected by `lief`.")
 
         lib_binary = lief.parse(lib_path)
@@ -147,7 +148,7 @@ class LibraryAnalyser:
         # add_used_library('/home/ben/codes/misc/my_stripped_libc.so.6')
         # return
         try:
-            ldd_output = subprocess.run(["ldd", app],
+            ldd_output = subprocess.run(["ldd", utils.app],
                                         check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
@@ -155,12 +156,12 @@ class LibraryAnalyser:
                 if "=>" in parts:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
-                print_verbose("[ERROR] The `ldd` command didn't find all the "
+                utils.print_verbose("[ERROR] The `ldd` command didn't find all the "
                               "libraries used.\nTrying to find the remaining "
                               "libraries' path manually...")
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
-            print_verbose("[ERROR] ldd command returned with an error: "
+            utils.print_verbose("[ERROR] ldd command returned with an error: "
                           + e.stderr.decode("utf-8")
                           + "Trying to find the libraries' path manually...")
             self.__find_used_libraries_manually()

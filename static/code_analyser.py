@@ -1,9 +1,9 @@
 from capstone import *
 
+import utils
 from library_analyser import LibraryAnalyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
-from utils import *
 
 class CodeAnalyser:
     """
@@ -44,20 +44,22 @@ class CodeAnalyser:
 
             if b[0] == 0x0f and b[1] == 0x05:
                 # Direct syscall SYSCALL
-                print_verbose(f"DIRECT SYSCALL (x86_64): 0x{hex(ins.address)} "
-                              f"{ins.mnemonic} {ins.op_str}")
+                utils.print_verbose(f"DIRECT SYSCALL (x86_64): "
+                                    f"0x{hex(ins.address)} {ins.mnemonic} "
+                                    f"{ins.op_str}")
                 self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif b[0] == 0x0f and b[1] == 0x34:
                 # Direct syscall SYSENTER
-                print_verbose(f"SYSENTER: 0x{hex(ins.address)} {ins.mnemonic} "
-                              f"{ins.op_str}")
+                utils.print_verbose(f"SYSENTER: 0x{hex(ins.address)} "
+                                    f"{ins.mnemonic} {ins.op_str}")
                 self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif b[0] == 0xcd and b[1] == 0x80:
                 # Direct syscall int 0x80
-                print_verbose(f"DIRECT SYSCALL (x86): 0x{hex(ins.address)} "
-                              f"{ins.mnemonic} {ins.op_str}")
+                utils.print_verbose(f"DIRECT SYSCALL (x86): "
+                                    f"0x{hex(ins.address)} {ins.mnemonic} "
+                                    f"{ins.op_str}")
                 self.wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             # TODO: be sure to detect all lib calls. This may not be enough. Do some research
@@ -72,15 +74,15 @@ class CodeAnalyser:
             # TODO: verify also with REX prefixes
             elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
                 pass
-                # print_verbose("[DEBUG] a function call was not detected:")
-                # print_verbose(f"[DEBUG] 0x{ins.address:x}: {ins.mnemonic} "
-                #               f"{ins.op_str}")
+                # utils.print_debug("a function call was not detected:")
+                # utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
+                #                   f"{ins.op_str}")
 
     def backtrack_syscalls(self, index, ins):
         for i in range(index-1, 0, -1):
             b = ins[i].bytes
-            print_verbose(f"-> 0x{hex(ins[i].address)}:{ins[i].mnemonic} "
-                          f"{ins[i].op_str}", indent=1)
+            utils.print_verbose(f"-> 0x{hex(ins[i].address)}:{ins[i].mnemonic}"
+                                f" {ins[i].op_str}", indent=1)
             # MOV in EAX
             if b[0] == 0xb8:
                 return int(b[1])
@@ -91,11 +93,12 @@ class CodeAnalyser:
         return -1
 
     def wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set, inv_syscalls_map):
-        print_debug("syscall detected at instruction: " + str(list_inst[-1]))
+        utils.print_debug("syscall detected at instruction: "
+                          + str(list_inst[-1]))
         nb_syscall = self.backtrack_syscalls(i, list_inst)
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
-            print_verbose(f"Found: {name}: {nb_syscall}\n")
+            utils.print_verbose(f"Found: {name}: {nb_syscall}\n")
             syscalls_set.add(name)
         else:
-            print_verbose(f"Ignore {nb_syscall}")
+            utils.print_verbose(f"Ignore {nb_syscall}")
