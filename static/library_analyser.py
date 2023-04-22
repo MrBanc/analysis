@@ -11,6 +11,7 @@ from capstone import *
 import utils
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
+from code_analysis import CodeAnalyser
 
 
 LIB_PATHS = ['/lib64/']
@@ -22,7 +23,7 @@ class Library:
     callable_fun_addresses: Dict[str, int]
 
 @dataclass
-class LibFunction:
+class FunLibInfo:
     name: str
     library_path: str
     address: int
@@ -84,7 +85,11 @@ class LibraryAnalyser:
                               f"{functions[0].library_path} at address "
                               f"{hex(functions[0].address)}")
 
-        # Use callgraph...
+        for f in functions:
+            if not self.__call_raph.need_to_analyze_deeper(f):
+                continue
+            CodeAnalyser.disassemble me suis arrêté ici, à continuer
+
 
     def __get_got_rel_address(self, int_operand):
         # The instruction at the address pointed to by the int_operand is a
@@ -112,7 +117,7 @@ class LibraryAnalyser:
         functions = []
         for lib in self.__used_libraries.values():
             if f_name in lib.callable_fun_addresses:
-                to_add = LibFunction(name=f_name, library_path=lib.path,
+                to_add = FunLibInfo(name=f_name, library_path=lib.path,
                                     address=lib.callable_fun_addresses[f_name])
                 # sometimes there are duplicates.
                 if to_add not in functions:
@@ -157,8 +162,8 @@ class LibraryAnalyser:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
                 utils.print_verbose("[ERROR] The `ldd` command didn't find all the "
-                              "libraries used.\nTrying to find the remaining "
-                              "libraries' path manually...")
+                                    "libraries used.\nTrying to find the remaining "
+                                    "libraries' path manually...")
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
             utils.print_verbose("[ERROR] ldd command returned with an error: "
