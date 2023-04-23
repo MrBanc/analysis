@@ -32,3 +32,14 @@ def str2bool(v):
 def print_debug(s):
     if DEBUG:
         print("[DEBUG] " + s)
+
+def f_name_from_path(path):
+    """Returns the file name from a full path (after the last slash)
+
+    Parameters
+    ----------
+    path: str
+        unix-like path of a file
+    """
+
+    return path.split("/")[-1]
