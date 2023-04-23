@@ -12,6 +12,7 @@ import utils
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
 from code_analysis import CodeAnalyser
+from syscalls import get_inverse_syscalls_map
 
 
 LIB_PATHS = ['/lib64/']
@@ -21,6 +22,7 @@ LIB_PATHS = ['/lib64/']
 class Library:
     path: str
     callable_fun_addresses: Dict[str, int]
+    code_analyser: CodeAnalyser
 
 @dataclass
 class FunLibInfo:
@@ -29,10 +31,16 @@ class FunLibInfo:
     address: int
 
 class LibraryAnalyser:
+    """Class use to store information about and analyse the shared libraries
+    used by the ELF executable.
     """
-    Class use to store information about and analyse the shared libraries used
-    by the ELF executable.
-    """
+    # TODO:
+    # Class docstrings should contain the following information:
+
+    # A brief summary of its purpose and behavior
+    # Any public methods, along with a brief description
+    # Any class properties (attributes)
+    # Anything related to the interface for subclassers, if the class is intended to be subclassed
 
     def __init__(self, binary):
         if not is_valid_binary(binary):
@@ -50,6 +58,7 @@ class LibraryAnalyser:
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
 
+        # dict: name -> Library
         self.__used_libraries = dict.fromkeys(binary.libraries)
         self.__find_used_libraries()
 
@@ -77,6 +86,17 @@ class LibraryAnalyser:
                 return self.__find_function_with_name(rel.symbol.name)
 
     def get_used_syscalls(self, syscalls_set, functions):
+        """Main method of the Library Analyser. Updates the syscall set
+        passed as argument after analysing the given function(s).
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analyzed
+        functions: FunLibInfo
+            functions to analyze
+        """
+
         # TODO: verifier qu'on a pas déjà fait une analyse sur cette fonction
         # (et jusqu'à quelle profondeure) (-> une fonction de CallGraph
         # pourrait me dire si il faut analyser plus loin ou pas)
@@ -85,10 +105,24 @@ class LibraryAnalyser:
                               f"{functions[0].library_path} at address "
                               f"{hex(functions[0].address)}")
 
+        md = Cs(CS_ARCH_X86, CS_MODE_64)
+        md.detail = True
+
         for f in functions:
             if not self.__call_raph.need_to_analyze_deeper(f):
                 continue
-            CodeAnalyser.disassemble me suis arrêté ici, à continuer
+
+            lib_name = utils.f_name_from_path(f.library_path)
+            if self.__used_libraries[lib_name].code_analyser is None:
+                self.__used_libraries[lib_name].code_analyser = CodeAnalyser(
+                        f.library_path)
+
+            text_section = (self.__used_libraries[lib_name].code_analyser
+                            .get_text_section())
+            offset = ... faire un truc similaire à ce qu on avait avec plt_offset
+            insns = md.disasm(bytearray(text_section.content)[truc avec offset],
+                                   text_section.virtual_address + offset probablement)
+            CodeAnalyser.disassemble(insns, syscalls_set, get_inverse_syscalls_map(), [])
 
 
     def __get_got_rel_address(self, int_operand):
@@ -134,7 +168,7 @@ class LibraryAnalyser:
         return functions
 
     def __add_used_library(self, lib_path):
-        lib_name = lib_path.split("/")[-1]
+        lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
             utils.print_verbose("[WARNING] A library path was added for a library "
                           "that was not detected by `lief`.")
@@ -144,7 +178,8 @@ class LibraryAnalyser:
         for item in lib_binary.dynamic_symbols:
             callable_fun_addresses[item.name] = item.value
         self.__used_libraries[lib_name] = Library(
-                path=lib_path, callable_fun_addresses=callable_fun_addresses)
+                path=lib_path, callable_fun_addresses=callable_fun_addresses,
+                code_analyser=None)
 
 
     def __find_used_libraries(self):

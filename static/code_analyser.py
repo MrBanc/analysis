@@ -19,28 +19,37 @@ class CodeAnalyser:
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
 
-        self.__text_section = binary.get_section(TEXT_SECTION)
-        if self.__text_section is None:
-            raise StaticAnalyserException(".text section is not found.")
-
         try:
             self.__lib_analyser = LibraryAnalyser(binary)
         except StaticAnalyserException as e:
             raise e
 
-    def get_used_syscalls(self, syscalls_set, inv_syscalls_map):
+    def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
+        """Main method of the Code Analyser. Updates the syscall set
+        passed as argument after analysing the .text of the binary.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analyzed
+        inv_syscalls_map : dict(int -> str)
+            the syscall map defined in syscalls.py but with keys and values
+            swapped
+        """
+
         md = Cs(CS_ARCH_X86, CS_MODE_64)
         md.detail = True
 
         # TODO: adapt the code around the fact that md.disasm may not return the
         # entirety of the requested instructions. (or find a parameter in Cs
         # that enables continuing the analysis in case of error)
-        self.disassemble(md.disasm(bytearray(self.__text_section.content),
-                                     self.__text_section.virtual_address),
+        text_section = self.get_text_section()
+
+        self.disassemble(md.disasm(bytearray(text_section.content),
+                                   text_section.virtual_address),
                          syscalls_set, inv_syscalls_map)
 
-    @staticmethod
-    def disassemble(insns, syscalls_set, inv_syscalls_map, fun_called=None):
+    def disassemble(self, insns, syscalls_set, inv_syscalls_map, fun_called=None):
         me suis arrêté ici : TODO prendre en compte fun_called (pour library_analyser)
         list_inst = []
         for i, ins in enumerate(insns):
@@ -51,18 +60,33 @@ class CodeAnalyser:
                 self.__wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             # TODO: be sure to detect all lib calls. This may not be enough. Do some research
-            elif self.__is_call_or_jmp(ins.mnemonic):
+            elif self.__is_jmp(ins.mnemonic) or ins.mnemonic == "call":
                 if self.__lib_analyser.is_lib_call(ins.op_str):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
             # TODO: verify also with REX prefixes
-            elif b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a:
+            elif (b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a
+                  or ins.mnemonic == "syscall"):
                 pass
-                # utils.print_debug("a function call was not detected:")
-                # utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
-                #                   f"{ins.op_str}")
+                utils.print_debug("a function call or syscall was not "
+                                  "detected:")
+                utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
+                                  f"{ins.op_str}")
+
+    def get_text_section(self):
+        """Returns the .text section (as given by the lief library)
+
+        Raises
+        ------
+        StaticAnalyserException
+            If the .text section is not found.
+        """
+        text_section = binary.get_section(TEXT_SECTION)
+        if text_section is None:
+            raise StaticAnalyserException(".text section is not found.")
+        return text_section
 
     def __backtrack_syscalls(self, index, ins):
         for i in range(index-1, 0, -1):
@@ -109,7 +133,7 @@ class CodeAnalyser:
             return true
         return false
 
-    def __is_call_or_jmp(self, mnemonic):
+    def __is_jmp(self, mnemonic):
         # TODO: add other types of jump (see
         # /home/ben/Documents/TFE/docs/intel-asd-manual-vol-1-2abcd-3abcd.pdf)
-        return mnemonic == "call" or mnemonic == "jmp"
+        return mnemonic == "jmp"
