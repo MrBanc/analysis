@@ -46,7 +46,8 @@ def main():
         code_analyser = CodeAnalyser(binary)
 
         inv_syscalls_map = get_inverse_syscalls_map()
-        code_analyser.get_used_syscalls_text_section(syscalls_set, inv_syscalls_map)
+        code_analyser.get_used_syscalls_text_section(syscalls_set,
+                                                     inv_syscalls_map)
     except StaticAnalyserException as e:
         sys.stderr.write(f"[ERROR] {e}\n")
         sys.exit(1)

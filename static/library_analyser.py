@@ -11,8 +11,9 @@ from capstone import *
 import utils
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
-from code_analysis import CodeAnalyser
+from code_analyser import CodeAnalyser
 from syscalls import get_inverse_syscalls_map
+from call_graph import CallGraph
 
 
 LIB_PATHS = ['/lib64/']
@@ -62,6 +63,8 @@ class LibraryAnalyser:
         self.__used_libraries = dict.fromkeys(binary.libraries)
         self.__find_used_libraries()
 
+        self.__call_graph = CallGraph()
+
     def is_lib_call(self, operand):
         if utils.is_hex(operand):
             operand = int(operand, 16)
@@ -77,6 +80,24 @@ class LibraryAnalyser:
         return False
 
     def get_function_called(self, operand):
+        """Returns the function that would be called by jumping to the address
+        given in the .plt section.
+
+        Note that the return value is a list in case multiple functions are
+        detected to correspond to this .plt entry and the exact function that
+        will be called in the list is not known.
+
+        Parameters
+        ----------
+        operand : str
+            address in the .plt section in hexadecimal
+
+        Returns
+        -------
+        called_functions : list of FunLibInfo
+            function(s) that would be called
+        """
+
         operand = int(operand, 16)
 
         got_rel_addr = self.__get_got_rel_address(operand)
@@ -93,37 +114,46 @@ class LibraryAnalyser:
         ----------
         syscalls_set : set of str
             set of syscalls used by the program analyzed
-        functions: FunLibInfo
+        functions : list of FunLibInfo
             functions to analyze
         """
 
-        # TODO: verifier qu'on a pas déjà fait une analyse sur cette fonction
-        # (et jusqu'à quelle profondeure) (-> une fonction de CallGraph
-        # pourrait me dire si il faut analyser plus loin ou pas)
-        if functions:
-            utils.print_debug(f"Function {functions[0].name} is present in "
-                              f"{functions[0].library_path} at address "
-                              f"{hex(functions[0].address)}")
+        # to avoid modifying the parameter given by the caller
+        funs_to_analyze = functions.copy()
 
-        md = Cs(CS_ARCH_X86, CS_MODE_64)
-        md.detail = True
+        funs_called = []
+        function_syscalls = set()
+        for f in funs_to_analyze:
+            utils.print_debug(f"Function {f} is present in "
+                              f"{f.library_path} at address "
+                              f"{hex(f.address)}")
 
-        for f in functions:
-            if not self.__call_raph.need_to_analyze_deeper(f):
+            if not self.__call_graph.need_to_analyze_deeper(f):
+                syscalls_set.update(self.__call_graph
+                                    .get_registered_syscalls(f))
                 continue
 
-            lib_name = utils.f_name_from_path(f.library_path)
-            if self.__used_libraries[lib_name].code_analyser is None:
-                self.__used_libraries[lib_name].code_analyser = CodeAnalyser(
-                        f.library_path)
+            # get syscalls and functions used directly in the function code
+            if self.__call_graph.calls_registered(f):
+                funs_called = self.__call_graph.get_called_funs(f)
+            else:
+                # Initialize the CodeAnalyser if not done already
+                lib_name = utils.f_name_from_path(f.library_path)
+                if self.__used_libraries[lib_name].code_analyser is None:
+                    self.__used_libraries[lib_name].code_analyser = (
+                            CodeAnalyser(f.library_path))
 
-            text_section = (self.__used_libraries[lib_name].code_analyser
-                            .get_text_section())
-            offset = ... faire un truc similaire à ce qu on avait avec plt_offset
-            insns = md.disasm(bytearray(text_section.content)[truc avec offset],
-                                   text_section.virtual_address + offset probablement)
-            CodeAnalyser.disassemble(insns, syscalls_set, get_inverse_syscalls_map(), [])
+                insns = self.__get_function_insns(f)
+                CodeAnalyser.disassemble(insns, function_syscalls,
+                                         get_inverse_syscalls_map(),
+                                         funs_called)
 
+            # get all the syscalls used by the called function (until maximum
+            # depth reached)
+            self.get_used_syscalls(function_syscalls, funs_called)
+            self.__call_graph.register_syscalls(f, function_syscalls)
+
+            syscalls_set.update(function_syscalls)
 
     def __get_got_rel_address(self, int_operand):
         # The instruction at the address pointed to by the int_operand is a
@@ -170,8 +200,8 @@ class LibraryAnalyser:
     def __add_used_library(self, lib_path):
         lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
-            utils.print_verbose("[WARNING] A library path was added for a library "
-                          "that was not detected by `lief`.")
+            utils.print_verbose("[WARNING] A library path was added for a "
+                                "library that was not detected by `lief`.")
 
         lib_binary = lief.parse(lib_path)
         callable_fun_addresses = {}
@@ -196,16 +226,16 @@ class LibraryAnalyser:
                 if "=>" in parts:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
-                utils.print_verbose("[ERROR] The `ldd` command didn't find all the "
-                                    "libraries used.\nTrying to find the remaining "
-                                    "libraries' path manually...")
+                utils.print_verbose("[ERROR] The `ldd` command didn't find all"
+                                    "the libraries used.\nTrying to find the "
+                                    "remaining libraries' path manually...")
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
             utils.print_verbose("[ERROR] ldd command returned with an error: "
                           + e.stderr.decode("utf-8")
                           + "Trying to find the libraries' path manually...")
             self.__find_used_libraries_manually()
-     
+
     def __find_used_libraries_manually(self):
         lib_names = [name for name,
                      lib in self.__used_libraries.items() if lib is None]
@@ -231,3 +261,29 @@ class LibraryAnalyser:
                     sys.exit(1)
                 else:
                     ans = input("Please answer with y or n\n")
+
+    def __get_function_insns(self, function):
+        """Return the instructions of a function.
+
+        Parameters
+        ----------
+        function : FunLibInfo
+            the function to return instructions from
+
+        Returns
+        -------
+        insns : class generator of capstone
+            the instructions of the function
+        """
+
+        # TODO: omg je peux directement avec la fonction avec lief...
+        # mais alors il faut que je stoque la taille bref c'est chiant en fait c'est peut-être plus facile de faire sans et de regarder où est la suivante ? Jsp
+        lib_name = utils.f_name_from_path(function.library_path)
+
+        text_section = (self.__used_libraries[lib_name].code_analyser
+                        .get_text_section())
+        text_offset = function.address - text_section.virtual_address
+        # TODO: c'est faux ! Il faut s'arrêter avant la prochaine fonction (ou la fin de la section .text)
+        utils.print_debug("fonction __get_function_insns est pas terminée.")
+        return self.__md.disasm(bytearray(text_section.content)[text_offset:],
+                                   text_section.virtual_address + text_offset)
