@@ -136,6 +136,8 @@ class LibraryAnalyser:
             # get syscalls and functions used directly in the function code
             if self.__call_graph.calls_registered(f):
                 funs_called = self.__call_graph.get_called_funs(f)
+                syscalls_set.update(self.__call_graph.
+                                    get_registered_syscalls(f))
             else:
                 # Initialize the CodeAnalyser if not done already
                 lib_name = utils.f_name_from_path(f.library_path)
@@ -147,11 +149,20 @@ class LibraryAnalyser:
                 CodeAnalyser.disassemble(insns, function_syscalls,
                                          get_inverse_syscalls_map(),
                                          funs_called)
+                self.__call_graph.register_calls(f, funs_called)
 
             # get all the syscalls used by the called function (until maximum
             # depth reached)
             self.get_used_syscalls(function_syscalls, funs_called)
             self.__call_graph.register_syscalls(f, function_syscalls)
+
+            # TODO: update analyzed_to_depth pour f. ça peut se faire avec une
+            # nouvelle fct dans call_graph en plus ou encore mieux, que le call
+            # graph le fasse tout seul. Je pourrais aussi faire en sorte que le
+            # call graph vérifie la valeur que quand on appelle
+            # `need_to_analyze_deeper`. prblm c'est qu'il ferait bc de travail
+            # pour r donc peut-être qu'il faudrait remplacer cette fonction par
+            # genre "get fct not fully analyzed" ou un truc du genre. à voir
 
             syscalls_set.update(function_syscalls)
 

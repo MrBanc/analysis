@@ -24,6 +24,8 @@ class CallGraph:
         # dict: concat(function name, "@", function lib) -> FunGraphInfo
         self.__functions = {}
 
+        # TODO: delete this and place the called functions in FunGraphInfo instead
+        # (so no need for an identifier)
         # represented as an adjacency list
         self.__graph = []
 
@@ -31,9 +33,8 @@ class CallGraph:
         self.__valid_function_parameter(function)
 
         key = self.__get_key(function)
-        return not (key in self.__functions
-                    and self.__functions[key].analyzed_to_depth
-                        >= self.__max_depth)
+        return (key not in self.__functions
+                or self.__functions[key].analyzed_to_depth < self.__max_depth)
 
     def register_calls(self, from_fun, to_funs):
         """Add calls (edges) to a function (node) in the graph.

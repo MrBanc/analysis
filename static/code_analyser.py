@@ -142,6 +142,7 @@ class CodeAnalyser:
         else:
             utils.print_verbose(f"Ignore {nb_syscall}")
 
+    # TODO: Peut-être que cette fonction aurait plus sa place dans syscalls.py ?
     def __is_syscall_instruction(self, ins):
         b = ins.bytes
         if b[0] == 0x0f and b[1] == 0x05:
