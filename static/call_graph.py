@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Set
+from typing import Set, List
 
 from custom_exception import StaticAnalyserException
 from library_analyser import FunLibInfo
@@ -7,9 +7,9 @@ from library_analyser import FunLibInfo
 
 @dataclass
 class FunGraphInfo:
-    identifier: int
     analyzed_to_depth: int
     used_syscalls: Set(str)
+    called_functions: List(FunLibInfo)
 
 class CallGraph:
     """TODO"""
@@ -24,17 +24,45 @@ class CallGraph:
         # dict: concat(function name, "@", function lib) -> FunGraphInfo
         self.__functions = {}
 
-        # TODO: delete this and place the called functions in FunGraphInfo instead
-        # (so no need for an identifier)
-        # represented as an adjacency list
-        self.__graph = []
+    def need_to_analyze_deeper(self, function, to_depth=-1):
+        """Returns true if the given function has not yet been analyzed to the
+        given depth or to the maximum depth if no depth has been given.
 
-    def need_to_analyze_deeper(self, function):
+        Parameters
+        ----------
+        function : FunLibInfo
+            the function to check
+        to_depth : int, optional
+            the depth to check
+        """
+
         self.__valid_function_parameter(function)
+        if to_depth == -1:
+            to_depth = self.__max_depth
 
         key = self.__get_key(function)
         return (key not in self.__functions
-                or self.__functions[key].analyzed_to_depth < self.__max_depth)
+                or self.__functions[key].analyzed_to_depth < to_depth)
+
+    def confirm_analyzed_depth(self, function, depth):
+        """The caller confirms that the function given has been analyzed to at
+        least the given depth. If the analyzed depth of this function in the
+        graph is below the given value, it will thus be updated to reflect this
+        confirmation (by updating it to the given value).
+
+        Parameters
+        ----------
+        function : FunLibInfo
+            the function that is claimed to have been analyzed
+        depth : int
+            the claimed value of the function's analyzed depth
+        """
+
+        self.__valid_function_parameter(function)
+
+        key = self.__get_key(function)
+        self.__functions[key].analyzed_to_depth = max(
+                depth, self.__functions[key].analyzed_to_depth)
 
     def register_calls(self, from_fun, to_funs):
         """Add calls (edges) to a function (node) in the graph.
@@ -52,16 +80,18 @@ class CallGraph:
         self.__valid_function_parameter(from_fun)
         self.__add_node(from_fun)
         for to_f in to_funs:
+            to_key = self.__get_key(from_fun)
+
             self.__valid_function_parameter(to_f)
             self.__add_node(to_f)
 
             called_fun_min_depth = min(
-                    self.__functions[self.__get_key(to_f)].analyzed_to_depth,
+                    self.__functions[to_key].analyzed_to_depth,
                     called_fun_min_depth)
 
-            if to_f in self.__graph[self.__get_id(from_fun)]:
+            if to_f in (self.__functions[to_key].called_functions):
                 continue
-            self.__graph[self.__get_id(from_fun)].append(to_f)
+            self.__functions[to_key].called_functions.append(to_f)
 
         self.__functions[self.__get_key(from_fun)].analyzed_to_depth = (
                 called_fun_min_depth + 1)
@@ -100,7 +130,8 @@ class CallGraph:
             functions called by the given function
         """
 
-        return self.__graph[self.__get_id(function)]
+        key = self.__get_key(function)
+        return self.__functions[key].called_functions
 
     def register_syscalls(self, function, syscalls):
         """Add syscalls to the used syscalls of a function.
@@ -113,8 +144,8 @@ class CallGraph:
             the set of syscalls used by the function
         """
 
-        (self.__functions[self.__get_key(function)].used_syscalls
-         .update(syscalls))
+        key = self.__get_key(function)
+        self.__functions[key].used_syscalls.update(syscalls)
 
     def get_registered_syscalls(self, function):
         """Get the (registered) set of syscalls used by the given function.
@@ -130,18 +161,21 @@ class CallGraph:
             the (registered) set of syscalls used
         """
 
-        return self.__functions[self.__get_key(function)].used_syscalls
+        key = self.__get_key(function)
+        return self.__functions[key].used_syscalls
+
+    def get_max_depth(self):
+        """Getter function for max_depth"""
+        return self.__max_depth
 
     def __add_node(self, function):
         key = self.__get_key(function)
         if key in self.__functions:
             return
 
-        self.__functions[key] = FunGraphInfo(identifier=len(self.__graph),
-                                             analyzed_to_depth=0,
-                                             used_syscalls = set())
-
-        self.__graph.append([])
+        self.__functions[key] = FunGraphInfo(analyzed_to_depth=0,
+                                             used_syscalls=set(),
+                                             called_functions=[])
 
     def __valid_function_parameter(self, function):
         if not isinstance(function, FunLibInfo):
@@ -150,6 +184,3 @@ class CallGraph:
 
     def __get_key(self, function):
         return function.library_path + "@" + function.name
-
-    def __get_id(self, function):
-        return self.__functions[self.__get_key(function)].identifier

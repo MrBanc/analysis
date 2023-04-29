@@ -121,14 +121,31 @@ class LibraryAnalyser:
         # to avoid modifying the parameter given by the caller
         funs_to_analyze = functions.copy()
 
+        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyze,
+                                           self.__call_graph.get_max_depth())
+
+    def __get_used_syscalls_recursive(self, syscalls_set, functions, to_depth):
+        """Helper method for get_used_syscalls. Updates the syscall set
+        passed as argument after analysing the given function(s) until the
+        given depth.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analyzed
+        functions : list of FunLibInfo
+            functions to analyze
+        to_depth : int
+            to which depth the functions need to be analyzed
+        """
         funs_called = []
         function_syscalls = set()
-        for f in funs_to_analyze:
+        for f in functions:
             utils.print_debug(f"Function {f} is present in "
                               f"{f.library_path} at address "
                               f"{hex(f.address)}")
 
-            if not self.__call_graph.need_to_analyze_deeper(f):
+            if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
                 syscalls_set.update(self.__call_graph
                                     .get_registered_syscalls(f))
                 continue
@@ -153,18 +170,13 @@ class LibraryAnalyser:
 
             # get all the syscalls used by the called function (until maximum
             # depth reached)
-            self.get_used_syscalls(function_syscalls, funs_called)
+            self.__get_used_syscalls_recursive(function_syscalls, funs_called,
+                                               to_depth - 1)
             self.__call_graph.register_syscalls(f, function_syscalls)
 
-            # TODO: update analyzed_to_depth pour f. ça peut se faire avec une
-            # nouvelle fct dans call_graph en plus ou encore mieux, que le call
-            # graph le fasse tout seul. Je pourrais aussi faire en sorte que le
-            # call graph vérifie la valeur que quand on appelle
-            # `need_to_analyze_deeper`. prblm c'est qu'il ferait bc de travail
-            # pour r donc peut-être qu'il faudrait remplacer cette fonction par
-            # genre "get fct not fully analyzed" ou un truc du genre. à voir
-
+            # update syscalls set and confirm the analysis in the call graph
             syscalls_set.update(function_syscalls)
+            self.__call_graph.confirm_analyzed_depth(f, to_depth)
 
     def __get_got_rel_address(self, int_operand):
         # The instruction at the address pointed to by the int_operand is a
