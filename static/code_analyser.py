@@ -1,3 +1,5 @@
+import lief
+from capstone import *
 
 import utils
 from library_analyser import LibraryAnalyser, FunLibInfo
@@ -13,14 +15,15 @@ class CodeAnalyser:
     syscalls used by shared library calls.
     """
 
-    def __init__(self, binary):
-        if not is_valid_binary(binary):
+    def __init__(self, path):
+        self.__path = path
+        self.__binary = lief.parse(path)
+
+        if not is_valid_binary(self.__binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
-        self.__binary = binary
-
         try:
-            self.__lib_analyser = LibraryAnalyser(binary)
+            self.__lib_analyser = LibraryAnalyser(self.__binary)
         except StaticAnalyserException as e:
             raise e
 
@@ -52,7 +55,8 @@ class CodeAnalyser:
                                    text_section.virtual_address),
                          syscalls_set, inv_syscalls_map)
 
-    def disassemble(self, insns, syscalls_set, inv_syscalls_map, funs_called=None):
+    def disassemble(self, insns, syscalls_set, inv_syscalls_map,
+                    funs_called=None):
         """Main function of the Code Analyser. Updates the syscall set and the
         list of functions called after analysing the given instructions.
 
@@ -92,13 +96,12 @@ class CodeAnalyser:
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
                 elif funs_called_set and ins.mnemonic == "call":
-                    # TODO: should not be the name of the function but the FunLibInfo
-                    f_name = self.__get_function_called(ins.op_str)
-                    if f_name:
-                        funs_called_set.add(f_name)
+                    f = self.__get_function_called(ins.op_str)
+                    if f:
+                        funs_called_set.add(f)
             # TODO: verify also with REX prefixes
-            elif (b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a or ins.mnemonic == "syscall"):
-                pass
+            elif (b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a
+                  or ins.mnemonic == "syscall"):
                 utils.print_debug("a function call or syscall was not "
                                   "detected:")
                 utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
@@ -131,7 +134,8 @@ class CodeAnalyser:
                 break
         return -1
 
-    def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set, inv_syscalls_map):
+    def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,
+                                     inv_syscalls_map):
         utils.print_debug("syscall detected at instruction: "
                           + str(list_inst[-1]))
         nb_syscall = self.__backtrack_syscalls(i, list_inst)
@@ -190,7 +194,9 @@ class CodeAnalyser:
             self.__address_to_fun_map = {}
             for item in self.__binary.functions:
                 self.__address_to_fun_map[item.address] = FunLibInfo(
-                        name=item.name, lib_path) # a continuer
+                        name=item.name,
+                        library_path=self.__path,
+                        boundaries=[item.address, item.address + item.size])
 
         if operand not in self.__address_to_fun_map:
             utils.print_verbose("[ERROR] A function was called but couln't be "

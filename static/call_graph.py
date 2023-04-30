@@ -1,15 +1,20 @@
 from dataclasses import dataclass
 from typing import Set, List
 
+import library_analyser
 from custom_exception import StaticAnalyserException
-from library_analyser import FunLibInfo
 
+
+# TODO: le fait que les fct demandent FunLibInfo en argument est pas ouf (par
+# rapport au principes de l'OOP). On pourrait sûrement se contenter de donner
+# le nom de la fonciton la plupart du temps, sinon faire plusieurs arguments
+# avec les fields de la datastructure
 
 @dataclass
 class FunGraphInfo:
     analyzed_to_depth: int
-    used_syscalls: Set(str)
-    called_functions: List(FunLibInfo)
+    used_syscalls: Set[str]
+    called_functions: List(library_analyser.FunLibInfo)
 
 class CallGraph:
     """TODO"""
@@ -178,7 +183,7 @@ class CallGraph:
                                              called_functions=[])
 
     def __valid_function_parameter(self, function):
-        if not isinstance(function, FunLibInfo):
+        if not isinstance(function, library_analyser.FunLibInfo):
             raise StaticAnalyserException("functions passed to call graph need"
                                           " to be instances of FunLibInfo.")
 

@@ -43,7 +43,7 @@ def main():
         # TODO: use entry point instead of start of text section? (not needed?)
         # entry_addr = binary.entrypoint
 
-        code_analyser = CodeAnalyser(binary)
+        code_analyser = CodeAnalyser(utils.app)
 
         inv_syscalls_map = get_inverse_syscalls_map()
         code_analyser.get_used_syscalls_text_section(syscalls_set,

@@ -3,7 +3,7 @@
 
 import argparse
 
-DEBUG = False
+DEBUG = True
 
 # global variables
 verbose = False

@@ -3,15 +3,15 @@ import subprocess
 from copy import copy
 from os.path import exists
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, List
 
 import lief
 from capstone import *
 
 import utils
+import code_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
-from code_analyser import CodeAnalyser
 from syscalls import get_inverse_syscalls_map
 from call_graph import CallGraph
 
@@ -22,14 +22,14 @@ LIB_PATHS = ['/lib64/']
 @dataclass
 class Library:
     path: str
-    callable_fun_addresses: Dict[str, int]
-    code_analyser: CodeAnalyser
+    callable_fun_boundaries: Dict[str, List[int]]
+    code_analyser: code_analyser.CodeAnalyser
 
 @dataclass
 class FunLibInfo:
     name: str
     library_path: str
-    address: int
+    boundaries: int
 
 class LibraryAnalyser:
     """Class use to store information about and analyse the shared libraries
@@ -41,7 +41,8 @@ class LibraryAnalyser:
     # A brief summary of its purpose and behavior
     # Any public methods, along with a brief description
     # Any class properties (attributes)
-    # Anything related to the interface for subclassers, if the class is intended to be subclassed
+    # Anything related to the interface for subclassers, if the class is
+    # intended to be subclassed
 
     def __init__(self, binary):
         if not is_valid_binary(binary):
@@ -66,6 +67,27 @@ class LibraryAnalyser:
         self.__call_graph = CallGraph()
 
     def is_lib_call(self, operand):
+        """Supposing that the operand given is used for a jmp or call
+        instruction, returns true if the result of this instruction is a
+        library function call.
+
+        Note: This function as well as `get_function_called` shall probably be
+        replaced in the future and used `binary.imported_functions` with `lief`
+        instead. Indeed, currently, this function only detects jumps or call to
+        the classical organization of the .plt section, but some variations
+        exists (like .plt.sec).
+
+        Parameters
+        ----------
+        operand : str
+            the operand of a jmp or call instruction
+
+        Returns
+        -------
+        is_lib_call : bool
+            True if the result of the instruction is a library function call
+        """
+
         if utils.is_hex(operand):
             operand = int(operand, 16)
             plt_boundaries = [self.__plt_section.virtual_address,
@@ -87,6 +109,9 @@ class LibraryAnalyser:
         detected to correspond to this .plt entry and the exact function that
         will be called in the list is not known.
 
+        Note: This function as well as `is_lib_call` shall probably be replaced
+        in the future and used `binary.imported_functions` with `lief` instead.
+
         Parameters
         ----------
         operand : str
@@ -105,6 +130,10 @@ class LibraryAnalyser:
         for rel in self.__got_rel:
             if got_rel_addr == rel.address:
                 return self.__find_function_with_name(rel.symbol.name)
+
+        sys.stderr.write(f"[WARNING] A function name couldn't be found for "
+                         f"the .plt slot at address {hex(operand)}\n")
+        return []
 
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
@@ -143,7 +172,7 @@ class LibraryAnalyser:
         for f in functions:
             utils.print_debug(f"Function {f} is present in "
                               f"{f.library_path} at address "
-                              f"{hex(f.address)}")
+                              f"{hex(f.boundaries[0])}")
 
             if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
                 syscalls_set.update(self.__call_graph
@@ -160,12 +189,12 @@ class LibraryAnalyser:
                 lib_name = utils.f_name_from_path(f.library_path)
                 if self.__used_libraries[lib_name].code_analyser is None:
                     self.__used_libraries[lib_name].code_analyser = (
-                            CodeAnalyser(f.library_path))
+                            code_analyser.CodeAnalyser(f.library_path))
 
                 insns = self.__get_function_insns(f)
-                CodeAnalyser.disassemble(insns, function_syscalls,
-                                         get_inverse_syscalls_map(),
-                                         funs_called)
+                self.__used_libraries[lib_name].code_analyser.disassemble(
+                        insns, function_syscalls, get_inverse_syscalls_map(),
+                        funs_called)
                 self.__call_graph.register_calls(f, funs_called)
 
             # get all the syscalls used by the called function (until maximum
@@ -179,6 +208,7 @@ class LibraryAnalyser:
             self.__call_graph.confirm_analyzed_depth(f, to_depth)
 
     def __get_got_rel_address(self, int_operand):
+
         # The instruction at the address pointed to by the int_operand is a
         # jump to a `.got` entry. With the address of this `.got` relocation
         # entry, it is possible to identify the function that will be called.
@@ -203,9 +233,9 @@ class LibraryAnalyser:
     def __find_function_with_name(self, f_name):
         functions = []
         for lib in self.__used_libraries.values():
-            if f_name in lib.callable_fun_addresses:
+            if f_name in lib.callable_fun_boundaries:
                 to_add = FunLibInfo(name=f_name, library_path=lib.path,
-                                    address=lib.callable_fun_addresses[f_name])
+                                boundaries=lib.callable_fun_boundaries[f_name])
                 # sometimes there are duplicates.
                 if to_add not in functions:
                     functions.append(to_add)
@@ -227,11 +257,16 @@ class LibraryAnalyser:
                                 "library that was not detected by `lief`.")
 
         lib_binary = lief.parse(lib_path)
-        callable_fun_addresses = {}
+        callable_fun_boundaries = {}
         for item in lib_binary.dynamic_symbols:
-            callable_fun_addresses[item.name] = item.value
+            # I could use `item.is_function` to only store functions but it
+            # seem to be unaccurate (for example strncpy is not considered a
+            # function). Anyway, the memory footprint wouldn't have been much
+            # different.
+            callable_fun_boundaries[item.name] = [item.value,
+                                                  item.value + item.size]
         self.__used_libraries[lib_name] = Library(
-                path=lib_path, callable_fun_addresses=callable_fun_addresses,
+                path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
 
 
@@ -299,14 +334,12 @@ class LibraryAnalyser:
             the instructions of the function
         """
 
-        # TODO: omg je peux directement avec la fonction avec lief...
-        # mais alors il faut que je stoque la taille bref c'est chiant en fait c'est peut-être plus facile de faire sans et de regarder où est la suivante ? Jsp
         lib_name = utils.f_name_from_path(function.library_path)
 
         text_section = (self.__used_libraries[lib_name].code_analyser
                         .get_text_section())
-        text_offset = function.address - text_section.virtual_address
-        # TODO: c'est faux ! Il faut s'arrêter avant la prochaine fonction (ou la fin de la section .text)
-        utils.print_debug("fonction __get_function_insns est pas terminée.")
-        return self.__md.disasm(bytearray(text_section.content)[text_offset:],
-                                   text_section.virtual_address + text_offset)
+        text_offset = function.boundaries[0] - text_section.virtual_address
+        function_size = function.boundaries[1] - function.boundaries[0]
+        return self.__md.disasm(
+                bytearray(text_section.content)[text_offset:function_size],
+                text_section.virtual_address + text_offset)
