@@ -1,7 +1,4 @@
-from dataclasses import dataclass
-from typing import Set, List
-
-import library_analyser
+from function_dataclasses import FunLibInfo, FunGraphInfo
 from custom_exception import StaticAnalyserException
 
 
@@ -9,12 +6,6 @@ from custom_exception import StaticAnalyserException
 # rapport au principes de l'OOP). On pourrait sûrement se contenter de donner
 # le nom de la fonciton la plupart du temps, sinon faire plusieurs arguments
 # avec les fields de la datastructure
-
-@dataclass
-class FunGraphInfo:
-    analyzed_to_depth: int
-    used_syscalls: Set[str]
-    called_functions: List(library_analyser.FunLibInfo)
 
 class CallGraph:
     """TODO"""
@@ -66,6 +57,9 @@ class CallGraph:
         self.__valid_function_parameter(function)
 
         key = self.__get_key(function)
+        if key not in self.__functions:
+            self.__add_node(function)
+
         self.__functions[key].analyzed_to_depth = max(
                 depth, self.__functions[key].analyzed_to_depth)
 
@@ -83,12 +77,17 @@ class CallGraph:
         called_fun_min_depth = 0
 
         self.__valid_function_parameter(from_fun)
-        self.__add_node(from_fun)
+
+        from_key = self.__get_key(from_fun)
+        if from_key not in self.__functions:
+            self.__add_node(from_fun)
+
         for to_f in to_funs:
             to_key = self.__get_key(from_fun)
 
             self.__valid_function_parameter(to_f)
-            self.__add_node(to_f)
+            if to_key not in self.__functions:
+                self.__add_node(to_f)
 
             called_fun_min_depth = min(
                     self.__functions[to_key].analyzed_to_depth,
@@ -98,7 +97,7 @@ class CallGraph:
                 continue
             self.__functions[to_key].called_functions.append(to_f)
 
-        self.__functions[self.__get_key(from_fun)].analyzed_to_depth = (
+        self.__functions[from_key].analyzed_to_depth = (
                 called_fun_min_depth + 1)
 
     def calls_registered(self, function):
@@ -119,7 +118,8 @@ class CallGraph:
         self.__valid_function_parameter(function)
 
         key = self.__get_key(function)
-        return self.__functions[key].analyzed_to_depth >= 1
+        return (key in self.__functions
+                and self.__functions[key].analyzed_to_depth >= 1)
 
     def get_called_funs(self, function):
         """Get the functions called by the given function
@@ -136,6 +136,9 @@ class CallGraph:
         """
 
         key = self.__get_key(function)
+        if key not in self.__functions:
+            return []
+
         return self.__functions[key].called_functions
 
     def register_syscalls(self, function, syscalls):
@@ -150,6 +153,9 @@ class CallGraph:
         """
 
         key = self.__get_key(function)
+        if key not in self.__functions:
+            self.__add_node(function)
+
         self.__functions[key].used_syscalls.update(syscalls)
 
     def get_registered_syscalls(self, function):
@@ -167,6 +173,9 @@ class CallGraph:
         """
 
         key = self.__get_key(function)
+        if key not in self.__functions:
+            return set()
+
         return self.__functions[key].used_syscalls
 
     def get_max_depth(self):
@@ -175,17 +184,14 @@ class CallGraph:
 
     def __add_node(self, function):
         key = self.__get_key(function)
-        if key in self.__functions:
-            return
-
         self.__functions[key] = FunGraphInfo(analyzed_to_depth=0,
                                              used_syscalls=set(),
                                              called_functions=[])
 
     def __valid_function_parameter(self, function):
-        if not isinstance(function, library_analyser.FunLibInfo):
+        if not isinstance(function, FunLibInfo):
             raise StaticAnalyserException("functions passed to call graph need"
                                           " to be instances of FunLibInfo.")
 
     def __get_key(self, function):
-        return function.library_path + "@" + function.name
+        return function.name + "@" + function.library_path

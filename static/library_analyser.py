@@ -3,7 +3,7 @@ import subprocess
 from copy import copy
 from os.path import exists
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import lief
 from capstone import *
@@ -14,6 +14,7 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
 from syscalls import get_inverse_syscalls_map
 from call_graph import CallGraph
+from function_dataclasses import FunLibInfo
 
 
 LIB_PATHS = ['/lib64/']
@@ -23,13 +24,7 @@ LIB_PATHS = ['/lib64/']
 class Library:
     path: str
     callable_fun_boundaries: Dict[str, List[int]]
-    code_analyser: code_analyser.CodeAnalyser
-
-@dataclass
-class FunLibInfo:
-    name: str
-    library_path: str
-    boundaries: int
+    code_analyser: Any
 
 class LibraryAnalyser:
     """Class use to store information about and analyse the shared libraries
@@ -195,6 +190,7 @@ class LibraryAnalyser:
                 self.__used_libraries[lib_name].code_analyser.disassemble(
                         insns, function_syscalls, get_inverse_syscalls_map(),
                         funs_called)
+                utils.print_debug(f"functions called: {funs_called}")
                 self.__call_graph.register_calls(f, funs_called)
 
             # get all the syscalls used by the called function (until maximum
@@ -285,7 +281,7 @@ class LibraryAnalyser:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
                 utils.print_verbose("[ERROR] The `ldd` command didn't find all"
-                                    "the libraries used.\nTrying to find the "
+                                    " the libraries used.\nTrying to find the "
                                     "remaining libraries' path manually...")
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
@@ -338,8 +334,8 @@ class LibraryAnalyser:
 
         text_section = (self.__used_libraries[lib_name].code_analyser
                         .get_text_section())
-        text_offset = function.boundaries[0] - text_section.virtual_address
-        function_size = function.boundaries[1] - function.boundaries[0]
+        f_start_offset = function.boundaries[0] - text_section.virtual_address
+        f_end_offset = function.boundaries[1] - text_section.virtual_address
         return self.__md.disasm(
-                bytearray(text_section.content)[text_offset:function_size],
-                text_section.virtual_address + text_offset)
+                bytearray(text_section.content)[f_start_offset:f_end_offset],
+                text_section.virtual_address + f_start_offset)

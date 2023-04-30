@@ -2,9 +2,10 @@ import lief
 from capstone import *
 
 import utils
-from library_analyser import LibraryAnalyser, FunLibInfo
+import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
+from function_dataclasses import FunLibInfo
 
 class CodeAnalyser:
     """
@@ -23,7 +24,7 @@ class CodeAnalyser:
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
         try:
-            self.__lib_analyser = LibraryAnalyser(self.__binary)
+            self.__lib_analyser = library_analyser.LibraryAnalyser(self.__binary)
         except StaticAnalyserException as e:
             raise e
 
@@ -75,7 +76,7 @@ class CodeAnalyser:
         """
 
         funs_called_set = None
-        if funs_called:
+        if funs_called is not None:
             funs_called_set = set(funs_called)
 
         list_inst = []
@@ -91,11 +92,13 @@ class CodeAnalyser:
                 if self.__lib_analyser.is_lib_call(ins.op_str):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
-                    if funs_called_set:
+                    if funs_called_set is not None:
                         funs_called_set.update(called_function)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
-                elif funs_called_set and ins.mnemonic == "call":
+                elif funs_called_set is not None and ins.mnemonic == "call":
+                    if self.__path == "/lib64/libc.so.6":
+                        utils.print_debug(f"fct detected dans puts: {ins.mnemonic} {ins.op_str}")
                     f = self.__get_function_called(ins.op_str)
                     if f:
                         funs_called_set.add(f)
@@ -106,6 +109,9 @@ class CodeAnalyser:
                                   "detected:")
                 utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
                                   f"{ins.op_str}")
+
+        if funs_called_set is not None:
+            funs_called = list(funs_called_set)
 
     def get_text_section(self):
         """Returns the .text section (as given by the lief library)
@@ -193,10 +199,13 @@ class CodeAnalyser:
         if self.__address_to_fun_map is None:
             self.__address_to_fun_map = {}
             for item in self.__binary.functions:
-                self.__address_to_fun_map[item.address] = FunLibInfo(
-                        name=item.name,
-                        library_path=self.__path,
-                        boundaries=[item.address, item.address + item.size])
+                self.__address_to_fun_map[item.address] = (
+                        library_analyser.FunLibInfo(
+                            name=item.name,
+                            library_path=self.__path,
+                            boundaries=[item.address, item.address + item.size]
+                            )
+                        )
 
         if operand not in self.__address_to_fun_map:
             utils.print_verbose("[ERROR] A function was called but couln't be "

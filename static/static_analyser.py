@@ -11,7 +11,7 @@ import lief
 import utils
 from syscalls import *
 from code_analyser import CodeAnalyser
-from elf_analyser import get_syscalls_from_symbols
+from elf_analyser import get_syscalls_from_symbols, is_valid_binary
 from custom_exception import StaticAnalyserException
 
 
@@ -32,11 +32,17 @@ def main():
 
     utils.verbose = args.verbose
     utils.app = args.app
-    binary = lief.parse(utils.app)
-
-    utils.print_verbose("Analysing the ELF file. This may take some times...")
 
     try:
+        binary = lief.parse(utils.app)
+        if not is_valid_binary(binary):
+            raise StaticAnalyserException("The given binary is not a CLASS64 "
+                                          "ELF file.")
+
+
+        utils.print_verbose("Analysing the ELF file. This may take some "
+                            "times...")
+
         syscalls_set = set()
         get_syscalls_from_symbols(binary, syscalls_set)
 
