@@ -165,9 +165,9 @@ class LibraryAnalyser:
         funs_called = []
         function_syscalls = set()
         for f in functions:
-            utils.print_debug(f"Function {f} is present in "
-                              f"{f.library_path} at address "
-                              f"{hex(f.boundaries[0])}")
+            # utils.print_debug(f"Function {f.name} is present in "
+            #                   f"{f.library_path} at address "
+            #                   f"{hex(f.boundaries[0])}")
 
             if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
                 syscalls_set.update(self.__call_graph

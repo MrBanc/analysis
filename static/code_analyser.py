@@ -24,7 +24,8 @@ class CodeAnalyser:
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
         try:
-            self.__lib_analyser = library_analyser.LibraryAnalyser(self.__binary)
+            self.__lib_analyser = library_analyser.LibraryAnalyser(self
+                                                                   .__binary)
         except StaticAnalyserException as e:
             raise e
 
@@ -70,14 +71,15 @@ class CodeAnalyser:
         inv_syscalls_map : dict(int -> str)
             the syscall map defined in syscalls.py but with keys and values
             swapped
-        funs_called : None or list of FunLibInfo optional
+        funs_called : None or list of FunLibInfo, optional
             if a list is given, the functions called by the given instructions
             will be added in this list
         """
 
-        funs_called_set = None
         if funs_called is not None:
-            funs_called_set = set(funs_called)
+            detect_functions = True
+        else:
+            detect_functions = False
 
         list_inst = []
         for i, ins in enumerate(insns):
@@ -92,16 +94,16 @@ class CodeAnalyser:
                 if self.__lib_analyser.is_lib_call(ins.op_str):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
-                    if funs_called_set is not None:
-                        funs_called_set.update(called_function)
+                    if detect_functions:
+                        for f in called_function:
+                            if f not in funs_called:
+                                funs_called.append(f)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
-                elif funs_called_set is not None and ins.mnemonic == "call":
-                    if self.__path == "/lib64/libc.so.6":
-                        utils.print_debug(f"fct detected dans puts: {ins.mnemonic} {ins.op_str}")
+                elif detect_functions and ins.mnemonic == "call":
                     f = self.__get_function_called(ins.op_str)
-                    if f:
-                        funs_called_set.add(f)
+                    if f and f not in funs_called:
+                        funs_called.append(f)
             # TODO: verify also with REX prefixes
             elif (b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a
                   or ins.mnemonic == "syscall"):
@@ -109,9 +111,6 @@ class CodeAnalyser:
                                   "detected:")
                 utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
                                   f"{ins.op_str}")
-
-        if funs_called_set is not None:
-            funs_called = list(funs_called_set)
 
     def get_text_section(self):
         """Returns the .text section (as given by the lief library)
@@ -194,23 +193,28 @@ class CodeAnalyser:
             function that would be called
         """
 
-        operand = int(operand, 16)
+        if utils.is_hex(operand):
+            operand = int(operand, 16)
 
-        if self.__address_to_fun_map is None:
-            self.__address_to_fun_map = {}
-            for item in self.__binary.functions:
-                self.__address_to_fun_map[item.address] = (
-                        library_analyser.FunLibInfo(
-                            name=item.name,
-                            library_path=self.__path,
-                            boundaries=[item.address, item.address + item.size]
+            if self.__address_to_fun_map is None:
+                self.__address_to_fun_map = {}
+                for item in self.__binary.functions:
+                    self.__address_to_fun_map[item.address] = (
+                            library_analyser.FunLibInfo(
+                                name=item.name,
+                                library_path=self.__path,
+                                boundaries=[item.address,
+                                            item.address + item.size]
+                                )
                             )
-                        )
 
-        if operand not in self.__address_to_fun_map:
-            utils.print_verbose("[ERROR] A function was called but couln't be "
-                                "found. This is probably due to an indirect "
-                                "address call.")
+            if operand not in self.__address_to_fun_map:
+                utils.print_verbose("[ERROR] A function was called but couln't"
+                                    " be found. This is probably due to an "
+                                    "indirect address call.")
+                return None
+
+            return self.__address_to_fun_map[operand]
+        else:
+            # TODO
             return None
-
-        return self.__address_to_fun_map[operand]
