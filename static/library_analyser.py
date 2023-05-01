@@ -45,10 +45,13 @@ class LibraryAnalyser:
                                           "ELF file.")
 
         self.__plt_section = binary.get_section(PLT_SECTION)
+        # TODO: should not return an error. It is possible that the binary has
+        # no plt section...
         if self.__plt_section is None:
             raise StaticAnalyserException(".plt section not found.")
 
         self.__got_rel = binary.pltgot_relocations
+        # TODO: should not return an error?
         if self.__got_rel is None:
             raise StaticAnalyserException(".got relocations not found.")
 
@@ -195,8 +198,9 @@ class LibraryAnalyser:
 
             # get all the syscalls used by the called function (until maximum
             # depth reached)
-            self.__get_used_syscalls_recursive(function_syscalls, funs_called,
-                                               to_depth - 1)
+            if to_depth > 1:
+                self.__get_used_syscalls_recursive(function_syscalls,
+                                                   funs_called, to_depth - 1)
             self.__call_graph.register_syscalls(f, function_syscalls)
 
             # update syscalls set and confirm the analysis in the call graph
