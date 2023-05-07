@@ -30,8 +30,8 @@ class CodeAnalyser:
             self.__lib_analyser = library_analyser.LibraryAnalyser(self
                                                                    .__binary)
         except StaticAnalyserException as e:
-            sys.stderr.write(f"[ERROR] library analyser couldn't be created: "
-                             f"{e}\n")
+            sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
+                             f"couldn't be created: {e}\n")
             self.__has_dyn_libraries = False
 
         # only used if `binary` is a library used by the main analyzed binary.
