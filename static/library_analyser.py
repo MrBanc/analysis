@@ -46,13 +46,10 @@ class LibraryAnalyser:
                                           "ELF file.")
 
         self.__plt_section = binary.get_section(PLT_SECTION)
-        # TODO: should not return an error. It is possible that the binary has
-        # no plt section...
         if self.__plt_section is None:
             raise StaticAnalyserException(".plt section not found.")
 
         self.__got_rel = binary.pltgot_relocations
-        # TODO: should not return an error?
         if self.__got_rel is None:
             raise StaticAnalyserException(".got relocations not found.")
 
@@ -184,6 +181,11 @@ class LibraryAnalyser:
                 syscalls_set.update(self.__call_graph.
                                     get_registered_syscalls(f))
             else:
+                cur_depth = self.__call_graph.get_max_depth() - to_depth
+                utils.log(f"D-{cur_depth}: {f.name}@"
+                          f"{utils.f_name_from_path(f.library_path)}",
+                          "lib_functions.log", cur_depth)
+
                 # Initialize the CodeAnalyser if not done already
                 lib_name = utils.f_name_from_path(f.library_path)
                 if self.__used_libraries[lib_name].code_analyser is None:
@@ -285,14 +287,15 @@ class LibraryAnalyser:
                 if "=>" in parts:
                     self.__add_used_library(parts[parts.index("=>") + 1])
             if not all(self.__used_libraries.values()):
-                utils.print_verbose("[ERROR] The `ldd` command didn't find all"
-                                    " the libraries used.\nTrying to find the "
-                                    "remaining libraries' path manually...")
+                utils.print_verbose("[WARNING] The `ldd` command didn't find "
+                                    "all the libraries used.\nTrying to find "
+                                    "the remaining libraries' path manually..."
+                                    )
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
-            utils.print_verbose("[ERROR] ldd command returned with an error: "
-                          + e.stderr.decode("utf-8")
-                          + "Trying to find the libraries' path manually...")
+            utils.print_verbose("[WARNING] ldd command returned with an error:"
+                                " " + e.stderr.decode("utf-8") + "Trying to "
+                                "find the libraries' path manually...")
             self.__find_used_libraries_manually()
 
     def __find_used_libraries_manually(self):

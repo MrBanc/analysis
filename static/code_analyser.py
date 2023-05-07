@@ -134,8 +134,8 @@ class CodeAnalyser:
     def __backtrack_syscalls(self, index, ins):
         for i in range(index-1, 0, -1):
             b = ins[i].bytes
-            utils.print_verbose(f"-> 0x{hex(ins[i].address)}:{ins[i].mnemonic}"
-                                f" {ins[i].op_str}", indent=1)
+            utils.log(f"-> 0x{hex(ins[i].address)}:{ins[i].mnemonic} "
+                      f"{ins[i].op_str}", "backtrack.log", indent=1)
             # MOV in EAX
             if b[0] == 0xb8:
                 return int(b[1])
@@ -152,30 +152,31 @@ class CodeAnalyser:
         nb_syscall = self.__backtrack_syscalls(i, list_inst)
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
-            utils.print_verbose(f"Found: {name}: {nb_syscall}\n")
+            utils.print_verbose(f"Syscall found: {name}: {nb_syscall}")
+            utils.log(f"Found: {name}: {nb_syscall}\n", "backtrack.log")
             syscalls_set.add(name)
         else:
-            utils.print_verbose(f"Ignore {nb_syscall}")
+            utils.log(f"Ignore {nb_syscall}", "backtrack.log")
+            utils.print_verbose(f"Syscall instruction found but ignored: "
+                                f"{nb_syscall}")
 
     # TODO: Peut-être que cette fonction aurait plus sa place dans syscalls.py ?
     def __is_syscall_instruction(self, ins):
         b = ins.bytes
         if b[0] == 0x0f and b[1] == 0x05:
             # Direct syscall SYSCALL
-            utils.print_verbose(f"DIRECT SYSCALL (x86_64): "
-                                f"0x{hex(ins.address)} {ins.mnemonic} "
-                                f"{ins.op_str}")
+            utils.log(f"DIRECT SYSCALL (x86_64): 0x{hex(ins.address)} "
+                      f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
             return True
         if b[0] == 0x0f and b[1] == 0x34:
             # Direct syscall SYSENTER
-            utils.print_verbose(f"SYSENTER: 0x{hex(ins.address)} "
-                                f"{ins.mnemonic} {ins.op_str}")
+            utils.log(f"SYSENTER: 0x{hex(ins.address)} {ins.mnemonic} "
+                      f"{ins.op_str}", "backtrack.log")
             return True
         if b[0] == 0xcd and b[1] == 0x80:
             # Direct syscall int 0x80
-            utils.print_verbose(f"DIRECT SYSCALL (x86): "
-                                f"0x{hex(ins.address)} {ins.mnemonic} "
-                                f"{ins.op_str}")
+            utils.log(f"DIRECT SYSCALL (x86): 0x{hex(ins.address)} "
+                      f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
             return True
         return False
 
@@ -215,9 +216,9 @@ class CodeAnalyser:
                             )
 
             if operand not in self.__address_to_fun_map:
-                utils.print_verbose("[ERROR] A function was called but couln't"
-                                    " be found. This is probably due to an "
-                                    "indirect address call.")
+                utils.print_verbose("[WARNING] A function was called but "
+                                    "couln't be found. This is probably due "
+                                    "to an indirect address call.")
                 return None
 
             return self.__address_to_fun_map[operand]

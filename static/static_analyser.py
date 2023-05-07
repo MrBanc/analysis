@@ -26,12 +26,22 @@ def main():
                         const=True, help='Verbose mode', default=True)
     parser.add_argument('--display', '-d', type=utils.str2bool, nargs='?',
                         const=True, help='Display syscalls', default=True)
-    parser.add_argument('--csv', '-c', type=utils.str2bool, nargs='?', const=True,
-                        help='Output csv', default=True)
+    parser.add_argument('--csv', '-c', type=utils.str2bool, nargs='?',
+                        const=True, help='Output csv', default=True)
+    parser.add_argument('--log', '-l', type=utils.str2bool, nargs='?',
+                        const=True, help='Log mode', default=False)
+    parser.add_argument('--log-to-stdout', '-L', type=utils.str2bool,
+                        nargs='?', const=True, help='Log to output',
+                        default=False)
     args = parser.parse_args()
 
     utils.verbose = args.verbose
     utils.app = args.app
+    utils.use_log_file = not args.log_to_stdout
+    utils.logging = args.log
+    if utils.logging:
+        utils.clean_logs()
+    # import pdb; pdb.set_trace()
 
     try:
         binary = lief.parse(utils.app)
@@ -62,7 +72,7 @@ def main():
     if args.display:
         for k,v in syscalls_map.items():
             if k in syscalls_set:
-                utils.print_verbose(f"{k} : {v}")
+                print(f"{k} : {v}")
 
     utils.print_verbose("Total number of syscalls: " + str(len(syscalls_set)))
 
