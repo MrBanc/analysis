@@ -1,3 +1,5 @@
+import sys
+
 import lief
 from capstone import *
 
@@ -19,6 +21,7 @@ class CodeAnalyser:
     def __init__(self, path):
         self.__path = path
         self.__binary = lief.parse(path)
+        self.__has_dyn_libraries = bool(self.__binary.libraries)
 
         if not is_valid_binary(self.__binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
@@ -27,7 +30,9 @@ class CodeAnalyser:
             self.__lib_analyser = library_analyser.LibraryAnalyser(self
                                                                    .__binary)
         except StaticAnalyserException as e:
-            raise e
+            sys.stderr.write(f"[ERROR] library analyser couldn't be created: "
+                             f"{e}\n")
+            self.__has_dyn_libraries = False
 
         # only used if `binary` is a library used by the main analyzed binary.
         self.__address_to_fun_map = None
@@ -91,7 +96,8 @@ class CodeAnalyser:
                                                 inv_syscalls_map)
             # TODO: be sure to detect all lib calls. This may not be enough. Do some research
             elif self.__is_jmp(ins.mnemonic) or ins.mnemonic == "call":
-                if self.__lib_analyser.is_lib_call(ins.op_str):
+                if (self.__has_dyn_libraries
+                    and self.__lib_analyser.is_lib_call(ins.op_str)):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
                     if detect_functions:
