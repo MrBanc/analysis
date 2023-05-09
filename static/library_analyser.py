@@ -40,7 +40,7 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
-    def __init__(self, binary):
+    def __init__(self, binary, call_graph_depth=-1):
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -60,7 +60,10 @@ class LibraryAnalyser:
         self.__used_libraries = dict.fromkeys(binary.libraries)
         self.__find_used_libraries()
 
-        self.__call_graph = CallGraph()
+        if call_graph_depth > 0:
+            self.__call_graph = CallGraph(call_graph_depth)
+        else:
+            self.__call_graph = CallGraph()
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -163,14 +166,21 @@ class LibraryAnalyser:
         to_depth : int
             to which depth the functions need to be analyzed
         """
+
+        max_depth = self.__call_graph.get_max_depth()
         funs_called = []
         function_syscalls = set()
         for f in functions:
+            cur_depth = max_depth - to_depth
+            # utils.log(str(self.__call_graph), "lib_functions.log")
             # utils.print_debug(f"Function {f.name} is present in "
             #                   f"{f.library_path} at address "
             #                   f"{hex(f.boundaries[0])}")
 
             if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
+                utils.log(f"D-{cur_depth}: {f.name}@"
+                          f"{utils.f_name_from_path(f.library_path)} - stop",
+                          "lib_functions.log", cur_depth)
                 syscalls_set.update(self.__call_graph
                                     .get_registered_syscalls(f))
                 continue
@@ -181,11 +191,9 @@ class LibraryAnalyser:
                 syscalls_set.update(self.__call_graph.
                                     get_registered_syscalls(f))
             else:
-                cur_depth = self.__call_graph.get_max_depth() - to_depth
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)}",
                           "lib_functions.log", cur_depth)
-
                 # Initialize the CodeAnalyser if not done already
                 lib_name = utils.f_name_from_path(f.library_path)
                 if self.__used_libraries[lib_name].code_analyser is None:
@@ -201,14 +209,13 @@ class LibraryAnalyser:
 
             # get all the syscalls used by the called function (until maximum
             # depth reached)
-            if to_depth > 1:
-                self.__get_used_syscalls_recursive(function_syscalls,
-                                                   funs_called, to_depth - 1)
+            if to_depth > 0:
+                tree_leafs_reached = self.__get_used_syscalls_recursive(
+                        function_syscalls, funs_called, to_depth - 1)
             self.__call_graph.register_syscalls(f, function_syscalls)
 
             # update syscalls set and confirm the analysis in the call graph
             syscalls_set.update(function_syscalls)
-            self.__call_graph.confirm_analyzed_depth(f, to_depth)
 
     def __get_got_rel_address(self, int_operand):
 
