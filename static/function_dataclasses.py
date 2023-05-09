@@ -38,8 +38,11 @@ class FunGraphInfo:
         `analyzed_to_depth`
     called_functions: list of FunLibInfo
         the registered functions that are (directly) called by this function
+    called_by: list of FunLibInfo
+        the registered functions that call this function
     """
 
     analyzed_to_depth: int
     used_syscalls: Set[str]
     called_functions: List[FunLibInfo]
+    called_by: List[FunLibInfo]
