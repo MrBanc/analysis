@@ -160,7 +160,7 @@ class CodeAnalyser:
             utils.log(f"Found: {name}: {nb_syscall}\n", "backtrack.log")
             syscalls_set.add(name)
         else:
-            utils.log(f"Ignore {nb_syscall}", "backtrack.log")
+            utils.log(f"Ignore {nb_syscall}\n", "backtrack.log")
             utils.print_verbose(f"Syscall instruction found but ignored: "
                                 f"{nb_syscall}")
 
