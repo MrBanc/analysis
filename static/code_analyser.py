@@ -18,7 +18,7 @@ class CodeAnalyser:
     syscalls used by shared library calls.
     """
 
-    def __init__(self, path):
+    def __init__(self, path, call_graph_depth=-1):
         self.__path = path
         self.__binary = lief.parse(path)
         self.__has_dyn_libraries = bool(self.__binary.libraries)
@@ -27,8 +27,12 @@ class CodeAnalyser:
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
         try:
-            self.__lib_analyser = library_analyser.LibraryAnalyser(self
-                                                                   .__binary)
+            if call_graph_depth > 0:
+                self.__lib_analyser = library_analyser.LibraryAnalyser(
+                        self.__binary, call_graph_depth)
+            else:
+                self.__lib_analyser = library_analyser.LibraryAnalyser(
+                        self.__binary)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")

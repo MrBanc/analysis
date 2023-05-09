@@ -33,6 +33,9 @@ def main():
     parser.add_argument('--log-to-stdout', '-L', type=utils.str2bool,
                         nargs='?', const=True, help='Log to output',
                         default=False)
+    parser.add_argument('--call-graph-depth', '-D', type=int, nargs='?',
+                        const=True, help='Maximum depth for the call graph',
+                        default=-1)
     args = parser.parse_args()
 
     utils.verbose = args.verbose
@@ -41,6 +44,7 @@ def main():
     utils.logging = args.log
     if utils.logging:
         utils.clean_logs()
+    call_graph_depth = args.call_graph_depth
     # import pdb; pdb.set_trace()
 
     try:
@@ -59,7 +63,10 @@ def main():
         # TODO: use entry point instead of start of text section? (not needed?)
         # entry_addr = binary.entrypoint
 
-        code_analyser = CodeAnalyser(utils.app)
+        if call_graph_depth > 0:
+            code_analyser = CodeAnalyser(utils.app, args.call_graph_depth)
+        else:
+            code_analyser = CodeAnalyser(utils.app)
 
         inv_syscalls_map = get_inverse_syscalls_map()
         code_analyser.get_used_syscalls_text_section(syscalls_set,
