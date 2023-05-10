@@ -40,7 +40,8 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
-    def __init__(self, binary, call_graph_depth=None):
+    def __init__(self, binary, call_graph_depth=None,
+                 max_backtrack_insns=None):
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -61,6 +62,9 @@ class LibraryAnalyser:
         self.__find_used_libraries()
 
         self.__call_graph = CallGraph(call_graph_depth)
+
+        self.__call_graph_depth = call_graph_depth
+        self.__max_backtrack_insns = max_backtrack_insns
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -170,14 +174,12 @@ class LibraryAnalyser:
         for f in functions:
             cur_depth = max_depth - to_depth
             # utils.log(str(self.__call_graph), "lib_functions.log")
-            # utils.print_debug(f"Function {f.name} is present in "
-            #                   f"{f.library_path} at address "
-            #                   f"{hex(f.boundaries[0])}")
 
             if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - stop",
                           "lib_functions.log", cur_depth)
+
                 syscalls_set.update(self.__call_graph
                                     .get_registered_syscalls(f))
                 continue
@@ -191,17 +193,19 @@ class LibraryAnalyser:
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)}",
                           "lib_functions.log", cur_depth)
+
                 # Initialize the CodeAnalyser if not done already
                 lib_name = utils.f_name_from_path(f.library_path)
                 if self.__used_libraries[lib_name].code_analyser is None:
                     self.__used_libraries[lib_name].code_analyser = (
-                            code_analyser.CodeAnalyser(f.library_path))
+                            code_analyser.CodeAnalyser(
+                                f.library_path, self.__call_graph_depth,
+                                self.__max_backtrack_insns))
 
                 insns = self.__get_function_insns(f)
                 self.__used_libraries[lib_name].code_analyser.disassemble(
                         insns, function_syscalls, get_inverse_syscalls_map(),
                         funs_called)
-                utils.print_debug(f"functions called: {funs_called}")
                 self.__call_graph.register_calls(f, funs_called)
 
             # get all the syscalls used by the called function (until maximum

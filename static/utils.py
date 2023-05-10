@@ -62,7 +62,6 @@ def clean_logs():
     if DEBUG:
         open(log_dir_path + "debug.log", "w").close()
 
-
 def is_hex(s):
     if not s or len(s) < 3:
         return False

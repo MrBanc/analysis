@@ -31,7 +31,8 @@ class CodeAnalyser:
                                           "ELF file.")
         try:
             self.__lib_analyser = library_analyser.LibraryAnalyser(
-                    self.__binary, call_graph_depth)
+                    self.__binary, call_graph_depth,
+                    self.__max_backtrack_insns)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")
@@ -135,7 +136,8 @@ class CodeAnalyser:
         return text_section
 
     def __backtrack_syscalls(self, index, list_ins):
-        for i in range(index-1, 0, -1):
+        last_ins_index = max(0, index-1-self.__max_backtrack_insns)
+        for i in range(index-1, last_ins_index, -1):
             b = list_ins[i].bytes
             utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic} "
                       f"{list_ins[i].op_str}", "backtrack.log", indent=1)
