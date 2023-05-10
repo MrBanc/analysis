@@ -2,7 +2,8 @@ import sys
 
 import lief
 from capstone import *
-from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
+from capstone.x86_const import (X86_INS_INVALID, X86_INS_DATA16,
+                                X86_GRP_BRANCH_RELATIVE)
 
 import utils
 import library_analyser
@@ -128,8 +129,11 @@ class CodeAnalyser:
             if self.__is_syscall_instruction(ins):
                 self.__wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
-            # TODO: be sure to detect all lib calls. This may not be enough. Do some research
-            elif self.__is_jmp(ins.mnemonic) or ins.mnemonic == "call":
+            # CS_GRP_BRANCH_RELATIVE should be used but does not exist. Hope
+            # this doesn't create problems.
+            elif ins.group(X86_GRP_BRANCH_RELATIVE):
+                # TODO: verify that all jmp and call are indeed in
+                # branch_relative
                 if (self.__has_dyn_libraries
                     and self.__lib_analyser.is_lib_call(ins.op_str)):
                     called_function = self.__lib_analyser.get_function_called(
@@ -250,11 +254,6 @@ class CodeAnalyser:
                       f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
             return True
         return False
-
-    def __is_jmp(self, mnemonic):
-        # TODO: add other types of jump (see
-        # /home/ben/Documents/TFE/docs/intel-asd-manual-vol-1-2abcd-3abcd.pdf)
-        return mnemonic == "jmp"
 
     def __get_function_called(self, operand):
         """Returns the function that would be called by jumping to the address
