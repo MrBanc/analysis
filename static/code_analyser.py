@@ -78,9 +78,6 @@ class CodeAnalyser:
             swapped
         """
 
-        self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
-        self.__md.detail = True
-
         # TODO: adapt the code around the fact that md.disasm may not return the
         # entirety of the requested instructions. (or find a parameter in Cs
         # that enables continuing the analysis in case of error)
