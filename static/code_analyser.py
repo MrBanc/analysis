@@ -18,6 +18,27 @@ class CodeAnalyser:
     syscalls used by shared library calls.
     """
 
+    # Used to detect the syscall identifier.
+    # The "high byte" (for example 'ah') is not considered. It could be,
+    # to be exhaustive, but it would be unlikely to store the syscall id using
+    # this identifier (and the code should be modified).
+    __registers = {'eax':  {'rax','eax','ax','al'},
+                 'ebx':  {'rbx','ebx','bx','bl'},
+                 'ecx':  {'rcx','ecx','cx','cl'},
+                 'edx':  {'rdx','edx','dx','dl'},
+                 'esi':  {'rsi','esi','si','sil'},
+                 'edi':  {'rdi','edi','di','dil'},
+                 'ebp':  {'rbp','ebp','bp','bpl'},
+                 'esp':  {'rsp','esp','sp','spl'},
+                 'r8d':  {'r8','r8d','r8w','r8b'},
+                 'r9d':  {'r9','r9d','r9w','r9b'},
+                 'r10d': {'r10','r10d','r10w','r10b'},
+                 'r11d': {'r11','r11d','r11w','r11b'},
+                 'r12d': {'r12','r12d','r12w','r12b'},
+                 'r13d': {'r13','r13d','r13w','r13b'},
+                 'r14d': {'r14','r14d','r14w','r14b'},
+                 'r15d': {'r15','r15d','r15w','r15b'}}
+
     def __init__(self, path, call_graph_depth=None, max_backtrack_insns=None):
         self.__path = path
         self.__binary = lief.parse(path)
@@ -41,6 +62,9 @@ class CodeAnalyser:
         # only used if `binary` is a library used by the main analyzed binary.
         self.__address_to_fun_map = None
 
+        self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
+        self.__md.detail = True
+
     def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
         """Entry point of the Code Analyser. Updates the syscall set
         passed as argument after analysing the .text of the binary.
@@ -54,15 +78,15 @@ class CodeAnalyser:
             swapped
         """
 
-        md = Cs(CS_ARCH_X86, CS_MODE_64)
-        md.detail = True
+        self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
+        self.__md.detail = True
 
         # TODO: adapt the code around the fact that md.disasm may not return the
         # entirety of the requested instructions. (or find a parameter in Cs
         # that enables continuing the analysis in case of error)
         text_section = self.get_text_section()
 
-        self.disassemble(md.disasm(bytearray(text_section.content),
+        self.disassemble(self.__md.disasm(bytearray(text_section.content),
                                    text_section.virtual_address),
                          syscalls_set, inv_syscalls_map)
 
@@ -136,14 +160,45 @@ class CodeAnalyser:
         return text_section
 
     def __backtrack_syscalls(self, index, list_ins):
+        focus_reg = 'eax'
+
         last_ins_index = max(0, index-1-self.__max_backtrack_insns)
         for i in range(index-1, last_ins_index, -1):
-            b = list_ins[i].bytes
             utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic} "
                       f"{list_ins[i].op_str}", "backtrack.log", indent=1)
-            # MOV in EAX
-            if b[0] == 0xb8:
-                return int(b[1])
+
+            op_strings = list_ins[i].op_str.split(",")
+
+            regs_write = list_ins[i].regs_access()[1]
+            for r in regs_write:
+                if self.__md.reg_name(r) not in self.__registers[focus_reg]:
+                    continue
+                if len(op_strings) != 2:
+                    utils.log(f"[Operation not supported]",
+                              "backtrack.log", indent=2)
+                    return -1
+
+                op_strings[1] = op_strings[1].strip()
+
+                if utils.is_hex(op_strings[1]):
+                    return int(op_strings[1], 16)
+                elif op_strings[1].isdigit():
+                    return int(op_strings[1])
+                elif self.__is_reg(op_strings[1]):
+                    focus_reg = self.__get_reg_key(op_strings[1])
+                    utils.log(f"[Shifting focus to {focus_reg}]",
+                              "backtrack.log", indent=2)
+                else:
+                    # TODO au moins qque instructions les plus utilisées
+                    utils.log(f"[Operation not supported]",
+                              "backtrack.log", indent=2)
+                    return -1
+
+
+            # b = list_ins[i].bytes
+            # # MOV in EAX
+            # if b[0] == 0xb8:
+            #     return int(b[1])
 
             # TODO: je pense que c'est à supprimer mais je vais demander à
             # Gaulthier pk il avait fait ça pour être sûr
@@ -232,3 +287,51 @@ class CodeAnalyser:
         else:
             # TODO
             return None
+
+    def __is_reg(self, string):
+        """Returns true if the given string is the name of a (x86_64 general
+        purpose) register identifier.
+
+        Parameters
+        ----------
+        string : str
+            the string that may contain a register identifier
+
+        Returns
+        -------
+        is_reg : bool
+            True if the string is a register identifier
+        """
+
+        for reg_ids in self.__registers.values():
+            if string in reg_ids:
+                return True
+
+        return False
+
+    def __get_reg_key(self, reg_id):
+        """Given a register identifier, returns the key to have access to this
+        register in the `__registers` variable.
+
+        Parameters
+        ----------
+        reg_id : str
+            the string contains a register identifier
+
+        Raises
+        ------
+        StaticAnalyserException
+            If the given reg_id is not a register id
+
+        Returns
+        -------
+        reg_key : str
+            the key for this register
+        """
+
+        for reg_key, reg_ids in self.__registers.items():
+            if reg_id in reg_ids:
+                return reg_key
+
+        raise StaticAnalyserException(f"{reg_id}, the given reg_id does not "
+                                      f"correspond to a register id.")
