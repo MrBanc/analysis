@@ -34,8 +34,10 @@ def main():
                         nargs='?', const=True, help='Log to output',
                         default=False)
     parser.add_argument('--call-graph-depth', '-D', type=int, nargs='?',
-                        const=True, help='Maximum depth for the call graph',
-                        default=-1)
+                        const=True, help='Maximum depth for the call graph')
+    parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
+                        const=True, help='Maximum number of instructions to '
+                        'check before a syscall instruction to find its id')
     args = parser.parse_args()
 
     utils.verbose = args.verbose
@@ -44,7 +46,6 @@ def main():
     utils.logging = args.log
     if utils.logging:
         utils.clean_logs()
-    call_graph_depth = args.call_graph_depth
     # import pdb; pdb.set_trace()
 
     try:
@@ -63,10 +64,9 @@ def main():
         # TODO: use entry point instead of start of text section? (not needed?)
         # entry_addr = binary.entrypoint
 
-        if call_graph_depth > 0:
-            code_analyser = CodeAnalyser(utils.app, args.call_graph_depth)
-        else:
-            code_analyser = CodeAnalyser(utils.app)
+        code_analyser = CodeAnalyser(utils.app,
+                                     args.call_graph_depth,
+                                     args.max_backtrack_insns)
 
         inv_syscalls_map = get_inverse_syscalls_map()
         code_analyser.get_used_syscalls_text_section(syscalls_set,

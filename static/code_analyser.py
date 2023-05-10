@@ -18,21 +18,20 @@ class CodeAnalyser:
     syscalls used by shared library calls.
     """
 
-    def __init__(self, path, call_graph_depth=-1):
+    def __init__(self, path, call_graph_depth=None, max_backtrack_insns=None):
         self.__path = path
         self.__binary = lief.parse(path)
         self.__has_dyn_libraries = bool(self.__binary.libraries)
+        self.__max_backtrack_insns = (max_backtrack_insns
+                                      if max_backtrack_insns is not None
+                                      else 20)
 
         if not is_valid_binary(self.__binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
         try:
-            if call_graph_depth > 0:
-                self.__lib_analyser = library_analyser.LibraryAnalyser(
-                        self.__binary, call_graph_depth)
-            else:
-                self.__lib_analyser = library_analyser.LibraryAnalyser(
-                        self.__binary)
+            self.__lib_analyser = library_analyser.LibraryAnalyser(
+                    self.__binary, call_graph_depth)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")
@@ -135,18 +134,20 @@ class CodeAnalyser:
             raise StaticAnalyserException(".text section is not found.")
         return text_section
 
-    def __backtrack_syscalls(self, index, ins):
+    def __backtrack_syscalls(self, index, list_ins):
         for i in range(index-1, 0, -1):
-            b = ins[i].bytes
-            utils.log(f"-> 0x{hex(ins[i].address)}:{ins[i].mnemonic} "
-                      f"{ins[i].op_str}", "backtrack.log", indent=1)
+            b = list_ins[i].bytes
+            utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic} "
+                      f"{list_ins[i].op_str}", "backtrack.log", indent=1)
             # MOV in EAX
             if b[0] == 0xb8:
                 return int(b[1])
 
-            # Another syscall is called, break
-            if b[0] == 0xcd and b[1] == 0x80:
-                break
+            # TODO: je pense que c'est à supprimer mais je vais demander à
+            # Gaulthier pk il avait fait ça pour être sûr
+            # # Another syscall is called, break
+            # if __is_syscall_instruction(list_ins):
+            #     break
         return -1
 
     def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,

@@ -10,7 +10,8 @@ from custom_exception import StaticAnalyserException
 class CallGraph:
     """TODO"""
 
-    def __init__(self, max_depth=10):
+    def __init__(self, max_depth=None):
+        max_depth = max_depth if max_depth is not None else 10
         if not isinstance(max_depth, int) or max_depth < 0:
             raise StaticAnalyserException("max_depth must be a positive "
                                           "integer.")

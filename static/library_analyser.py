@@ -40,7 +40,7 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
-    def __init__(self, binary, call_graph_depth=-1):
+    def __init__(self, binary, call_graph_depth=None):
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -60,10 +60,7 @@ class LibraryAnalyser:
         self.__used_libraries = dict.fromkeys(binary.libraries)
         self.__find_used_libraries()
 
-        if call_graph_depth > 0:
-            self.__call_graph = CallGraph(call_graph_depth)
-        else:
-            self.__call_graph = CallGraph()
+        self.__call_graph = CallGraph(call_graph_depth)
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
