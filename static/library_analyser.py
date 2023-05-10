@@ -56,6 +56,9 @@ class LibraryAnalyser:
 
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
+        # This may lead to errors. So a warning is throwed if indeed data is
+        # found.
+        self.__md.skipdata = utils.skip_data
 
         # dict: name -> Library
         self.__used_libraries = dict.fromkeys(binary.libraries)

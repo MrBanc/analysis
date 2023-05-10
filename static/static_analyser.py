@@ -38,6 +38,10 @@ def main():
     parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
                         const=True, help='Maximum number of instructions to '
                         'check before a syscall instruction to find its id')
+    parser.add_argument('--skip-data', '-s', type=utils.str2bool, nargs='?',
+                        const=True, help='Automatically skip data in code and '
+                        'try to find the next instruction (may lead to '
+                        'errors)', default=False)
     args = parser.parse_args()
 
     utils.verbose = args.verbose
@@ -46,6 +50,7 @@ def main():
     utils.logging = args.log
     if utils.logging:
         utils.clean_logs()
+    utils.skip_data = args.skip_data
     # import pdb; pdb.set_trace()
 
     try:

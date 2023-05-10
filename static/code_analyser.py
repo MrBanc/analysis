@@ -2,6 +2,7 @@ import sys
 
 import lief
 from capstone import *
+from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
 import library_analyser
@@ -64,6 +65,9 @@ class CodeAnalyser:
 
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
+        # This may lead to errors. So a warning is throwed if indeed data is
+        # found.
+        self.__md.skipdata = utils.skip_data
 
     def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
         """Entry point of the Code Analyser. Updates the syscall set
@@ -116,6 +120,11 @@ class CodeAnalyser:
             b = ins.bytes
             list_inst.append(ins)
 
+            if ins.id in (X86_INS_DATA16, X86_INS_INVALID):
+                sys.stderr.write(f"[WARNING] data instruction found in "
+                                 f"{self.__path} at address {ins.address}\n")
+                continue
+
             if self.__is_syscall_instruction(ins):
                 self.__wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
@@ -161,6 +170,9 @@ class CodeAnalyser:
 
         last_ins_index = max(0, index-1-self.__max_backtrack_insns)
         for i in range(index-1, last_ins_index, -1):
+            if list_ins[i].id in (X86_INS_DATA16, X86_INS_INVALID):
+                continue
+
             utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic} "
                       f"{list_ins[i].op_str}", "backtrack.log", indent=1)
 
