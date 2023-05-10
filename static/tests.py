@@ -12,8 +12,15 @@ md.skipdata = True
 insns = md.disasm(bytearray(text_section.content),
                   text_section.virtual_address)
 
+ins_jmp_list = []
+ins_other_list = []
 list_ins = []
 for i, ins in enumerate(insns):
     list_ins.append(ins)
-    if ins.id == X86_INS_DATA16:
-        print(f"wesh alors: {ins.id}")
+    if ins.id == 0:
+        continue
+    if CS_GRP_JUMP in ins.groups:
+        ins_jmp_list.append(ins)
+    else:
+        ins_other_list.append(ins)
+
