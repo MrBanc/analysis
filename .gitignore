@@ -1,4 +1,4 @@
 static/__pycache__/
 static/old/
-static/tests
+static/tests.py
 *.DS_STORE
