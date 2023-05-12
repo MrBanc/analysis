@@ -57,7 +57,7 @@ class CallGraph:
         ----------
         from_fun : FunLibInfo
             function to add calls to
-        to_funs : set of FunLibInfo (could also work with a list)
+        to_funs : list of FunLibInfo
             functions to add to the called functions of `from_fun`
         """
 
