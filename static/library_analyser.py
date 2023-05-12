@@ -214,8 +214,8 @@ class LibraryAnalyser:
             # get all the syscalls used by the called function (until maximum
             # depth reached)
             if to_depth > 0:
-                tree_leafs_reached = self.__get_used_syscalls_recursive(
-                        function_syscalls, funs_called, to_depth - 1)
+                self.__get_used_syscalls_recursive(function_syscalls,
+                                                   funs_called, to_depth - 1)
             self.__call_graph.register_syscalls(f, function_syscalls)
 
             # update syscalls set and confirm the analysis in the call graph
