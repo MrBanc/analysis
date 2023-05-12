@@ -9,7 +9,6 @@ import utils
 import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
-from function_dataclasses import FunLibInfo
 
 class CodeAnalyser:
     """
@@ -179,8 +178,8 @@ class CodeAnalyser:
             if list_ins[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue
 
-            utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic} "
-                      f"{list_ins[i].op_str}", "backtrack.log", indent=1)
+            utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic}"
+                      f" {list_ins[i].op_str}", "backtrack.log", indent=1)
 
             op_strings = list_ins[i].op_str.split(",")
 
@@ -189,7 +188,7 @@ class CodeAnalyser:
                 if self.__md.reg_name(r) not in self.__registers[focus_reg]:
                     continue
                 if len(op_strings) != 2:
-                    utils.log(f"[Operation not supported]",
+                    utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
                     return -1
 
@@ -197,15 +196,15 @@ class CodeAnalyser:
 
                 if utils.is_hex(op_strings[1]):
                     return int(op_strings[1], 16)
-                elif op_strings[1].isdigit():
+                if op_strings[1].isdigit():
                     return int(op_strings[1])
-                elif self.__is_reg(op_strings[1]):
+                if self.__is_reg(op_strings[1]):
                     focus_reg = self.__get_reg_key(op_strings[1])
                     utils.log(f"[Shifting focus to {focus_reg}]",
                               "backtrack.log", indent=2)
                 else:
                     # TODO au moins qque instructions les plus utilisées
-                    utils.log(f"[Operation not supported]",
+                    utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
                     return -1
 

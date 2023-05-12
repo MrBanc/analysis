@@ -229,7 +229,7 @@ class CallGraph:
         if key not in self.__functions:
             #TODO: may be a good idea to raise an exception as this should
             # never happen
-            return
+            return -1
 
         called_fun_min_depth = self.__max_depth
 
