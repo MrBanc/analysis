@@ -1,7 +1,6 @@
 from function_dataclasses import FunLibInfo, FunGraphInfo
 from custom_exception import StaticAnalyserException
 
-
 # TODO: le fait que les fct demandent FunLibInfo en argument est pas ouf (par
 # rapport au principes de l'OOP). On pourrait sûrement se contenter de donner
 # le nom de la fonciton la plupart du temps, sinon faire plusieurs arguments
@@ -240,6 +239,13 @@ class CallGraph:
             if called_key not in self.__functions:
                 #TODO: may be a good idea to raise an exception as this should
                 # never happen
+                continue
+
+            # For recursive function. The analyzed_to_depth value should not be
+            # considered because its value is not updated yet (because it is
+            # the value which is computed). It is ok to just ignore it as its
+            # value will not be (below) the minimum value after the update.
+            if called_key == key:
                 continue
 
             called_fun_min_depth = min(
