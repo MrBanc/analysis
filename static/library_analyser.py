@@ -17,7 +17,6 @@ from syscalls import get_inverse_syscalls_map
 from call_graph import CallGraph
 from function_dataclasses import FunLibInfo
 
-
 LIB_PATHS = ['/lib64/']
 
 
@@ -175,10 +174,12 @@ class LibraryAnalyser:
         funs_called = []
         function_syscalls = set()
         for f in functions:
+            utils.print_debug(f"analysing {f.name}")
             cur_depth = max_depth - to_depth
             # utils.log(str(self.__call_graph), "lib_functions.log")
 
             if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
+                utils.print_debug(f"{f.name} stop")
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - stop",
                           "lib_functions.log", cur_depth)
@@ -189,6 +190,9 @@ class LibraryAnalyser:
 
             # get syscalls and functions used directly in the function code
             if self.__call_graph.calls_registered(f):
+                utils.log(f"D-{cur_depth}: {f.name}@"
+                          f"{utils.f_name_from_path(f.library_path)} - done",
+                          "lib_functions.log", cur_depth)
                 funs_called = self.__call_graph.get_called_funs(f)
                 syscalls_set.update(self.__call_graph.
                                     get_registered_syscalls(f))
@@ -211,6 +215,7 @@ class LibraryAnalyser:
                         funs_called)
                 self.__call_graph.register_calls(f, funs_called)
 
+            utils.print_debug(f"{f.name} calls these: {funs_called}")
             # get all the syscalls used by the called function (until maximum
             # depth reached)
             if to_depth > 0:
