@@ -40,7 +40,7 @@ class CodeAnalyser:
                  'r14d': {'r14','r14d','r14w','r14b'},
                  'r15d': {'r15','r15d','r15w','r15b'}}
 
-    def __init__(self, path, call_graph_depth=None, max_backtrack_insns=None):
+    def __init__(self, path, max_backtrack_insns=None):
         self.__path = path
         self.__binary = lief.parse(path)
         self.__has_dyn_libraries = bool(self.__binary.libraries)
@@ -53,8 +53,7 @@ class CodeAnalyser:
                                           "ELF file.")
         try:
             self.__lib_analyser = library_analyser.LibraryAnalyser(
-                    self.__binary, call_graph_depth,
-                    self.__max_backtrack_insns)
+                    self.__binary, self.__max_backtrack_insns)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")
