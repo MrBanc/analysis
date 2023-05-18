@@ -4,7 +4,7 @@ import sys
 from copy import copy
 from os.path import exists
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 
 import lief
 from capstone import *
@@ -14,9 +14,32 @@ import code_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
 from syscalls import get_inverse_syscalls_map
-from function_dataclasses import FunLibInfo
 
 LIB_PATHS = ['/lib64/']
+
+
+@dataclass
+class FunLibInfo:
+    """Represent a library function. Store information related to the context
+    of the function inside the library.
+
+    Attributes
+    ----------
+    name : str
+        name of the function
+    library_path : str
+        absolute path of the library in which the function is
+    boundaries : list of two int
+        the start address and the end address (start + size) of the function
+        within the library binary
+    """
+
+    name: str
+    library_path: str
+    boundaries: List[int]
+
+    def __hash__(self):
+        return hash((self.name, self.library_path))
 
 
 @dataclass
