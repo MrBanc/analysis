@@ -48,7 +48,7 @@ def test_call_graph_stops():
         if is_stop_line(current_line):
             assert get_depth(next_line[0]) <= get_depth(current_line[0])
 
-def test_call_graph_stops():
+def test_call_graph_useful_analysis():
     """Checks that when a function is analyzed deeper, it results in a function
     actually being analyzed (otherwise, the analysis is useless).
 
