@@ -23,6 +23,9 @@ class FunLibInfo:
     library_path: str
     boundaries: List[int]
 
+    def __hash__(self):
+        return hash((self.name, self.library_path))
+
 @dataclass
 class FunGraphInfo:
     """Represent a library function. Store information related to the context
