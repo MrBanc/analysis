@@ -14,7 +14,6 @@ import code_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION
 from syscalls import get_inverse_syscalls_map
-from call_graph import CallGraph
 from function_dataclasses import FunLibInfo
 
 LIB_PATHS = ['/lib64/']
@@ -39,8 +38,7 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
-    def __init__(self, binary, call_graph_depth=None,
-                 max_backtrack_insns=None):
+    def __init__(self, binary, max_backtrack_insns=None):
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -63,10 +61,9 @@ class LibraryAnalyser:
         self.__used_libraries = dict.fromkeys(binary.libraries)
         self.__find_used_libraries()
 
-        self.__call_graph = CallGraph(call_graph_depth)
-
-        self.__call_graph_depth = call_graph_depth
         self.__max_backtrack_insns = max_backtrack_insns
+
+        self.__analyzed_functions = set()
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -152,13 +149,11 @@ class LibraryAnalyser:
         # to avoid modifying the parameter given by the caller
         funs_to_analyze = functions.copy()
 
-        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyze,
-                                           self.__call_graph.get_max_depth())
+        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyze, 0)
 
-    def __get_used_syscalls_recursive(self, syscalls_set, functions, to_depth):
+    def __get_used_syscalls_recursive(self, syscalls_set, functions, cur_depth):
         """Helper method for get_used_syscalls. Updates the syscall set
-        passed as argument after analysing the given function(s) until the
-        given depth.
+        passed as argument after analysing the given function(s).
 
         Parameters
         ----------
@@ -166,64 +161,47 @@ class LibraryAnalyser:
             set of syscalls used by the program analyzed
         functions : list of FunLibInfo
             functions to analyze
-        to_depth : int
-            to which depth the functions need to be analyzed
+        cur_depth : int
+            call depth. Only used for debug/log purpose
         """
 
-        max_depth = self.__call_graph.get_max_depth()
         funs_called = []
         function_syscalls = set()
         for f in functions:
             utils.print_debug(f"analysing {f.name}")
-            cur_depth = max_depth - to_depth
-            # utils.log(str(self.__call_graph), "lib_functions.log")
 
-            if not self.__call_graph.need_to_analyze_deeper(f, to_depth):
-                utils.print_debug(f"{f.name} stop")
-                utils.log(f"D-{cur_depth}: {f.name}@"
-                          f"{utils.f_name_from_path(f.library_path)} - stop",
-                          "lib_functions.log", cur_depth)
-
-                syscalls_set.update(self.__call_graph
-                                    .get_registered_syscalls(f))
-                continue
-
-            # get syscalls and functions used directly in the function code
-            if self.__call_graph.calls_registered(f):
+            if f in self.__analyzed_functions:
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - done",
                           "lib_functions.log", cur_depth)
-                funs_called = self.__call_graph.get_called_funs(f)
-                syscalls_set.update(self.__call_graph.
-                                    get_registered_syscalls(f))
-            else:
-                utils.log(f"D-{cur_depth}: {f.name}@"
-                          f"{utils.f_name_from_path(f.library_path)}",
-                          "lib_functions.log", cur_depth)
+                # TODO: To reuse the result of another program, here is where
+                # the syscalls_set need to be updated
+                continue
+            self.__analyzed_functions.add(f)
 
-                # Initialize the CodeAnalyser if not done already
-                lib_name = utils.f_name_from_path(f.library_path)
-                if self.__used_libraries[lib_name].code_analyser is None:
-                    self.__used_libraries[lib_name].code_analyser = (
-                            code_analyser.CodeAnalyser(
-                                f.library_path, self.__call_graph_depth,
-                                self.__max_backtrack_insns))
+            utils.log(f"D-{cur_depth}: {f.name}@"
+                      f"{utils.f_name_from_path(f.library_path)}",
+                      "lib_functions.log", cur_depth)
 
-                insns = self.__get_function_insns(f)
-                self.__used_libraries[lib_name].code_analyser.disassemble(
-                        insns, function_syscalls, get_inverse_syscalls_map(),
-                        funs_called)
-                self.__call_graph.register_calls(f, funs_called)
+            # Initialize the CodeAnalyser if not done already
+            lib_name = utils.f_name_from_path(f.library_path)
+            if self.__used_libraries[lib_name].code_analyser is None:
+                self.__used_libraries[lib_name].code_analyser = (
+                        code_analyser.CodeAnalyser(
+                            f.library_path, self.__max_backtrack_insns))
+
+            # Get syscalls and functions used directly in the function code
+            insns = self.__get_function_insns(f)
+            self.__used_libraries[lib_name].code_analyser.disassemble(
+                    insns, function_syscalls, get_inverse_syscalls_map(),
+                    funs_called)
 
             utils.print_debug(f"{f.name} calls these: {funs_called}")
-            # get all the syscalls used by the called function (until maximum
-            # depth reached)
-            if to_depth > 0:
-                self.__get_used_syscalls_recursive(function_syscalls,
-                                                   funs_called, to_depth - 1)
-            self.__call_graph.register_syscalls(f, function_syscalls)
+            # Get all the syscalls used by the called function
+            self.__get_used_syscalls_recursive(function_syscalls, funs_called,
+                                               cur_depth + 1)
 
-            # update syscalls set and confirm the analysis in the call graph
+            # Update syscalls set
             syscalls_set.update(function_syscalls)
 
     def __get_got_rel_address(self, int_operand):
