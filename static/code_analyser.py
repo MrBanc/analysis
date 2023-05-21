@@ -127,13 +127,7 @@ class CodeAnalyser:
             if self.__is_syscall_instruction(ins):
                 self.__wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
-            # CS_GRP_BRANCH_RELATIVE should be used but does not exist. Hope
-            # this doesn't create problems.
-            elif ins.group(X86_GRP_BRANCH_RELATIVE):
-                # TODO: verify that all jmp and call are indeed in
-                # branch_relative. (ah mais en fait c'est "relative" donc ca
-                # va forcément pas tous les détecter je pense. bref je
-                # regarde ça plus tard)
+            elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 if (self.__has_dyn_libraries
                     and self.__lib_analyser.is_lib_call(ins.op_str)):
                     called_function = self.__lib_analyser.get_function_called(
