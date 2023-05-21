@@ -12,10 +12,10 @@ from capstone import *
 import utils
 import code_analyser
 from custom_exception import StaticAnalyserException
-from elf_analyser import is_valid_binary, PLT_SECTION
+from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
-LIB_PATHS = ['/lib64/']
+LIB_PATHS = ['/lib64/', '/usr/local/lib/', '/usr/lib/']
 
 
 @dataclass
@@ -48,6 +48,7 @@ class Library:
     callable_fun_boundaries: Dict[str, List[int]]
     code_analyser: Any
 
+
 class LibraryAnalyser:
     """Class use to store information about and analyse the shared libraries
     used by the ELF executable.
@@ -61,14 +62,19 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
+    __analyzed_functions = set()
+
     def __init__(self, binary, max_backtrack_insns=None):
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
 
-        self.__plt_section = binary.get_section(PLT_SECTION)
-        if self.__plt_section is None:
-            raise StaticAnalyserException(".plt section not found.")
+        self.__plt_sec_section = binary.get_section(PLT_SEC_SECTION)
+        if self.__plt_sec_section is None:
+            self.__plt_section = binary.get_section(PLT_SECTION)
+            if self.__plt_section is None:
+                raise StaticAnalyserException(".plt and .plt.sec sections not "
+                                              "found.")
 
         self.__got_rel = binary.pltgot_relocations
         if self.__got_rel is None:
@@ -85,8 +91,6 @@ class LibraryAnalyser:
         self.__find_used_libraries()
 
         self.__max_backtrack_insns = max_backtrack_insns
-
-        self.__analyzed_functions = set()
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -110,11 +114,23 @@ class LibraryAnalyser:
             True if the result of the instruction is a library function call
         """
 
+        # Update: In fact it just detects if the call lead to the .plt or
+        # .plt.sec section. But it is possible that it does not lead to a
+        # library function. I think the behavior of the function can stay the
+        # same and rather change the name. It is in `get_function_called` that
+        # the distinction should occur. And then the calling function should
+        # determine wether the function it got is from the same program or not.
+
         if utils.is_hex(operand):
             operand = int(operand, 16)
-            plt_boundaries = [self.__plt_section.virtual_address,
-                              self.__plt_section.virtual_address
-                                        + self.__plt_section.size]
+            if self.__plt_sec_section:
+                plt_boundaries = [self.__plt_sec_section.virtual_address,
+                                  self.__plt_sec_section.virtual_address
+                                            + self.__plt_sec_section.size]
+            else:
+                plt_boundaries = [self.__plt_section.virtual_address,
+                                  self.__plt_section.virtual_address
+                                            + self.__plt_section.size]
             return plt_boundaries[0] <= operand < plt_boundaries[1]
         else:
             #TODO
@@ -145,13 +161,22 @@ class LibraryAnalyser:
             function(s) that would be called
         """
 
+        # Update: see update of `is_lib_call`
+
         operand = int(operand, 16)
 
         got_rel_addr = self.__get_got_rel_address(operand)
 
         for rel in self.__got_rel:
             if got_rel_addr == rel.address:
-                return self.__find_function_with_name(rel.symbol.name)
+                if (lief.ELF.RELOCATION_X86_64(rel.type)
+                    == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
+                    return self.__find_function_with_name(rel.symbol.name)
+                if (lief.ELF.RELOCATION_X86_64(rel.type)
+                    == lief.ELF.RELOCATION_X86_64.IRELATIVE):
+                    # TODO: a function from the same program should be send.
+                    # Changes in other functions should adapt around that
+                    return []
 
         sys.stderr.write(f"[WARNING] A function name couldn't be found for "
                          f"the .plt slot at address {hex(operand)}\n")
@@ -193,15 +218,19 @@ class LibraryAnalyser:
         for f in functions:
             utils.print_debug(f"analysing {f.name}")
 
-            if f in self.__analyzed_functions:
+            if f in LibraryAnalyser.__analyzed_functions:
+                # TODO: The depth or at least the indent should be incremented
+                # as well when changing libraries/programs
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - done",
                           "lib_functions.log", cur_depth)
                 # TODO: To reuse the result of another program, here is where
                 # the syscalls_set need to be updated
                 continue
-            self.__analyzed_functions.add(f)
+            LibraryAnalyser.__analyzed_functions.add(f)
 
+            # TODO: The depth or at least the indent should be incremented as
+            # well when changing libraries/programs
             utils.log(f"D-{cur_depth}: {f.name}@"
                       f"{utils.f_name_from_path(f.library_path)}",
                       "lib_functions.log", cur_depth)
@@ -229,31 +258,45 @@ class LibraryAnalyser:
 
     def __get_got_rel_address(self, int_operand):
 
-        # The instruction at the address pointed to by the int_operand is a
-        # jump to a `.got` entry. With the address of this `.got` relocation
-        # entry, it is possible to identify the function that will be called.
-        # The jump instruction is of the form 'qword ptr [rip + 0x1234]', so
-        # the next instruction is also stored in order to have the value of the
-        # instruction pointer.
-        instr_at_address = instr_next = None
-        plt_offset = int_operand - self.__plt_section.virtual_address
-        for instr in self.__md.disasm(
-                bytearray(self.__plt_section.content)[plt_offset:],
-                int_operand):
-            if instr_at_address is None:
-                instr_at_address = instr
-            elif instr_next is None:
-                instr_next = instr
-            else:
-                break
+        jmp_to_got_ins = next_ins = None
 
-        return (int(instr_at_address.op_str.split()[-1][:-1], 16)
-                + instr_next.address)
+        if not self.__plt_sec_section:
+            # The instruction at the address pointed to by the int_operand is a
+            # jump to a `.got` entry. With the address of this `.got`
+            # relocation entry, it is possible to identify the function that
+            # will be called. The jump instruction is of the form 'qword ptr
+            # [rip + 0x1234]', so the next instruction is also stored in order
+            # to have the value of the instruction pointer.
+            plt_offset = int_operand - self.__plt_section.virtual_address
+            insns = self.__md.disasm(
+                    bytearray(self.__plt_section.content)[plt_offset:],
+                    int_operand)
+            jmp_to_got_ins = next(insns)
+            next_ins = next(insns)
+        else:
+            # The same remark holds but the first instruction is now the
+            # instruction right after the address pointed by the int_operand
+            # and we work with the .plt.sec section instead.
+            plt_sec_offset = (int_operand
+                              - self.__plt_sec_section.virtual_address)
+            insns = self.__md.disasm(
+                    bytearray(self.__plt_sec_section.content)[plt_sec_offset:],
+                    int_operand)
+            next(insns) # skip the first instruction
+            jmp_to_got_ins = next(insns)
+            next_ins = next(insns)
+
+        return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
+                + next_ins.address)
 
     def __find_function_with_name(self, f_name):
         functions = []
         for lib in self.__used_libraries.values():
             if f_name in lib.callable_fun_boundaries:
+                if (len(lib.callable_fun_boundaries[f_name]) != 2
+                    or lib.callable_fun_boundaries[f_name][0]
+                    == lib.callable_fun_boundaries[f_name][1]):
+                    continue
                 to_add = FunLibInfo(name=f_name, library_path=lib.path,
                                 boundaries=lib.callable_fun_boundaries[f_name])
                 # sometimes there are duplicates.

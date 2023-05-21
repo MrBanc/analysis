@@ -7,8 +7,9 @@ import lief
 from syscalls import *
 
 
-TEXT_SECTION = ".text"
-PLT_SECTION  = ".plt"
+TEXT_SECTION     = ".text"
+PLT_SECTION      = ".plt"
+PLT_SEC_SECTION  = ".plt.sec"
 
 
 def is_valid_binary(binary):
