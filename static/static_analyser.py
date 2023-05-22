@@ -64,9 +64,6 @@ def main():
         syscalls_set = set()
         get_syscalls_from_symbols(binary, syscalls_set)
 
-        # TODO: use entry point instead of start of text section? (not needed?)
-        # entry_addr = binary.entrypoint
-
         code_analyser = CodeAnalyser(utils.app, args.max_backtrack_insns)
 
         inv_syscalls_map = get_inverse_syscalls_map()
