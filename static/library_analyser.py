@@ -15,7 +15,7 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
-LIB_PATHS = ['/lib64/', '/usr/local/lib/', '/usr/lib/']
+LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/', '/lib/', '/usr/lib/', '/usr/local/lib']
 
 
 @dataclass
