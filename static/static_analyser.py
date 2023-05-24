@@ -31,8 +31,8 @@ def main():
     parser.add_argument('--log', '-l', type=utils.str2bool, nargs='?',
                         const=True, help='Log mode', default=False)
     parser.add_argument('--log-to-stdout', '-L', type=utils.str2bool,
-                        nargs='?', const=True, help='Log to output',
-                        default=False)
+                        nargs='?', const=True, help='Print logs to the '
+                        'standard output', default=False)
     parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
                         const=True, help='Maximum number of instructions to '
                         'check before a syscall instruction to find its id')
@@ -45,8 +45,8 @@ def main():
     utils.verbose = args.verbose
     utils.app = args.app
     utils.use_log_file = not args.log_to_stdout
-    utils.logging = args.log
-    if utils.logging:
+    utils.logging = args.log if args.log_to_stdout is False else True
+    if utils.logging and utils.use_log_file:
         utils.clean_logs()
     utils.skip_data = args.skip_data
     # import pdb; pdb.set_trace()
