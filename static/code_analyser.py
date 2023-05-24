@@ -171,7 +171,7 @@ class CodeAnalyser:
             if list_ins[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue
 
-            utils.log(f"-> 0x{hex(list_ins[i].address)}:{list_ins[i].mnemonic}"
+            utils.log(f"-> {hex(list_ins[i].address)}:{list_ins[i].mnemonic}"
                       f" {list_ins[i].op_str}", "backtrack.log", indent=1)
 
             op_strings = list_ins[i].op_str.split(",")
@@ -234,17 +234,17 @@ class CodeAnalyser:
         b = ins.bytes
         if b[0] == 0x0f and b[1] == 0x05:
             # Direct syscall SYSCALL
-            utils.log(f"DIRECT SYSCALL (x86_64): 0x{hex(ins.address)} "
+            utils.log(f"DIRECT SYSCALL (x86_64): {hex(ins.address)} "
                       f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
             return True
         if b[0] == 0x0f and b[1] == 0x34:
             # Direct syscall SYSENTER
-            utils.log(f"SYSENTER: 0x{hex(ins.address)} {ins.mnemonic} "
+            utils.log(f"SYSENTER: {hex(ins.address)} {ins.mnemonic} "
                       f"{ins.op_str}", "backtrack.log")
             return True
         if b[0] == 0xcd and b[1] == 0x80:
             # Direct syscall int 0x80
-            utils.log(f"DIRECT SYSCALL (x86): 0x{hex(ins.address)} "
+            utils.log(f"DIRECT SYSCALL (x86): {hex(ins.address)} "
                       f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
             return True
         return False
