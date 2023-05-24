@@ -55,13 +55,15 @@ def log(msg, file_name, indent=0):
         print(indent * "\t" + msg)
 
 def clean_logs():
-    """Empty the content of the log files."""
+    """Empties the content of the log files."""
 
-    open(log_dir_path + "backtrack.log", "w").close()
-    open(log_dir_path + "lib_functions.log", "w").close()
+    with open(log_dir_path + "backtrack.log", "w", encoding="utf-8") as f:
+        f.truncate()
+    with open(log_dir_path + "lib_functions.log", "w", encoding="utf-8") as f:
+        f.truncate()
     # TODO: remove for final code
     if DEBUG:
-        open(log_dir_path + "debug.log", "w").close()
+        open(log_dir_path + "debug.log", "w", encoding="utf-8").close()
 
 def is_hex(s):
     if not s or len(s) < 3:
