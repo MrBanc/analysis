@@ -63,6 +63,7 @@ class LibraryAnalyser:
     # intended to be subclassed
 
     __analyzed_functions = set()
+    # TODO mettre une variable "libraries" partagée et du coup pour find used libraries on vérifierait d'abord si la librairie est pas déjà ici
 
     def __init__(self, binary, max_backtrack_insns=None):
         if not is_valid_binary(binary):
