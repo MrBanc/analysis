@@ -62,8 +62,11 @@ class LibraryAnalyser:
     # Anything related to the interface for subclassers, if the class is
     # intended to be subclassed
 
+    # set of FunLibInfo
     __analyzed_functions = set()
-    # TODO mettre une variable "libraries" partagée et du coup pour find used libraries on vérifierait d'abord si la librairie est pas déjà ici
+
+    # dict: name -> Library
+    __libraries = {}
 
     def __init__(self, binary, max_backtrack_insns=None):
         if not is_valid_binary(binary):
@@ -87,8 +90,7 @@ class LibraryAnalyser:
         # found.
         self.__md.skipdata = utils.skip_data
 
-        # dict: name -> Library
-        self.__used_libraries = dict.fromkeys(binary.libraries)
+        self.__used_libraries = binary.libraries
         self.__find_used_libraries()
 
         self.__max_backtrack_insns = max_backtrack_insns
@@ -238,14 +240,14 @@ class LibraryAnalyser:
 
             # Initialize the CodeAnalyser if not done already
             lib_name = utils.f_name_from_path(f.library_path)
-            if self.__used_libraries[lib_name].code_analyser is None:
-                self.__used_libraries[lib_name].code_analyser = (
+            if LibraryAnalyser.__libraries[lib_name].code_analyser is None:
+                LibraryAnalyser.__libraries[lib_name].code_analyser = (
                         code_analyser.CodeAnalyser(
                             f.library_path, self.__max_backtrack_insns))
 
             # Get syscalls and functions used directly in the function code
             insns = self.__get_function_insns(f)
-            self.__used_libraries[lib_name].code_analyser.disassemble(
+            LibraryAnalyser.__libraries[lib_name].code_analyser.disassemble(
                     insns, function_syscalls, get_inverse_syscalls_map(),
                     funs_called)
 
@@ -292,17 +294,19 @@ class LibraryAnalyser:
 
     def __find_function_with_name(self, f_name):
         functions = []
-        for lib in self.__used_libraries.values():
-            if f_name in lib.callable_fun_boundaries:
-                if (len(lib.callable_fun_boundaries[f_name]) != 2
-                    or lib.callable_fun_boundaries[f_name][0]
-                    == lib.callable_fun_boundaries[f_name][1]):
-                    continue
-                to_add = FunLibInfo(name=f_name, library_path=lib.path,
-                                boundaries=lib.callable_fun_boundaries[f_name])
-                # sometimes there are duplicates.
-                if to_add not in functions:
-                    functions.append(to_add)
+        for lib_name in self.__used_libraries:
+            lib = LibraryAnalyser.__libraries[lib_name]
+            if f_name not in lib.callable_fun_boundaries:
+                continue
+            if (len(lib.callable_fun_boundaries[f_name]) != 2
+                or lib.callable_fun_boundaries[f_name][0] >=
+                   lib.callable_fun_boundaries[f_name][1]):
+                continue
+            to_add = FunLibInfo(name=f_name, library_path=lib.path,
+                            boundaries=lib.callable_fun_boundaries[f_name])
+            # sometimes there are duplicates.
+            if to_add not in functions:
+                functions.append(to_add)
 
         if not functions:
             sys.stderr.write(f"[WARNING] No library function was found for "
@@ -317,8 +321,12 @@ class LibraryAnalyser:
     def __add_used_library(self, lib_path):
         lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
+            self.__used_libraries.append(lib_name)
             utils.print_verbose("[WARNING] A library path was added for a "
                                 "library that was not detected by `lief`.")
+
+        if lib_name in LibraryAnalyser.__libraries:
+            return
 
         lib_binary = lief.parse(lib_path)
         callable_fun_boundaries = {}
@@ -329,25 +337,23 @@ class LibraryAnalyser:
             # different.
             callable_fun_boundaries[item.name] = [item.value,
                                                   item.value + item.size]
-        self.__used_libraries[lib_name] = Library(
+        LibraryAnalyser.__libraries[lib_name] = Library(
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
 
 
     def __find_used_libraries(self):
-        # print_debug("Using a stripped version of libc.so.6 without taking "
-        #             "into account the actual library used by the binary.")
-        # add_used_library('/home/ben/codes/misc/my_stripped_libc.so.6')
-        # return
         try:
             ldd_output = subprocess.run(["ldd", utils.app],
                                         check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
-                # TODO: sometimes lib path is not after "=>" (see todo.md)
                 if "=>" in parts:
                     self.__add_used_library(parts[parts.index("=>") + 1])
-            if not all(self.__used_libraries.values()):
+                elif utils.f_name_from_path(parts[0]) in self.__used_libraries:
+                    self.__add_used_library(parts[0])
+            if not set(self.__used_libraries).issubset(LibraryAnalyser
+                                                       .__libraries.keys()):
                 utils.print_verbose("[WARNING] The `ldd` command didn't find "
                                     "all the libraries used.\nTrying to find "
                                     "the remaining libraries' path manually..."
@@ -360,8 +366,8 @@ class LibraryAnalyser:
             self.__find_used_libraries_manually()
 
     def __find_used_libraries_manually(self):
-        lib_names = [name for name,
-                     lib in self.__used_libraries.items() if lib is None]
+        lib_names = [lib for lib in self.__used_libraries
+                     if lib not in LibraryAnalyser.__libraries]
 
         # TODO: also look in environment variable `LD_LIBRARY_PATH` and possibly
         # look which path the linker used by the binary uses.
@@ -401,7 +407,7 @@ class LibraryAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        text_section = (self.__used_libraries[lib_name].code_analyser
+        text_section = (LibraryAnalyser.__libraries[lib_name].code_analyser
                         .get_text_section())
         f_start_offset = function.boundaries[0] - text_section.virtual_address
         f_end_offset = function.boundaries[1] - text_section.virtual_address
