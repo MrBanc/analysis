@@ -1,27 +1,9 @@
-# TODO
-""" """
-
-import re
-
-def detect_syscalls_in_sym_table(sect_it, syscalls_set):
-    for s in sect_it:
-        name = s.name
-        name_value = alias_syscalls_map.get(name)
-        if name_value is not None:
-            name = alias_syscalls_map[name]
-
-        if name in syscalls_map:
-            syscalls_set.add(name)
-
-def process_alias(name):
-    if name.startswith("__"):
-        name = re.sub('^_*', '', name)
-    if "libc_" in name:
-        name = name.replace("libc_", "")
-    return name
+"""Contains syscalls ID and their wrappers names and functions to use them."""
 
 def get_inverse_syscalls_map():
-    return {syscalls_map[k] : k for k in syscalls_map}
+    """Return the syscalls_map directory with keys and values swapped."""
+
+    return {ID: name for name, ID in syscalls_map.items()}
 
 syscalls_map = {
     "read":                   0,
