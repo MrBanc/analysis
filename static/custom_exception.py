@@ -1,3 +1,6 @@
+"""
+Exception class for the static analyser.
+"""
+
 class StaticAnalyserException(Exception):
-    # TODO
-    """ """
+    """Exception class for the static analyser"""

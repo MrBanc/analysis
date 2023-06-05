@@ -1,3 +1,9 @@
+"""
+Contains the LibraryAnalyser class and the LibFunction and Library dataclasses.
+
+Analyses the library usage of a binary.
+"""
+
 import subprocess
 import sys
 
@@ -19,7 +25,7 @@ LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/', '/lib/', '/usr/lib/'
 
 
 @dataclass
-class FunLibInfo:
+class LibFunction:
     """Represent a library function. Store information related to the context
     of the function inside the library.
 
@@ -36,6 +42,7 @@ class FunLibInfo:
 
     name: str
     library_path: str
+    # TODO tuple au lieu de list, non ?
     boundaries: List[int]
 
     def __hash__(self):
@@ -50,20 +57,27 @@ class Library:
 
 
 class LibraryAnalyser:
-    """Class use to store information about and analyse the shared libraries
-    used by the ELF executable.
+    """LibraryAnalyser(binary[, max_backtrack_insns]) -> CodeAnalyser
+
+    Class use to store information about and analyse the shared libraries
+    used by an ELF executable.
+
+    Public Methods
+    --------------
+    is_lib_call(self, operand) -> bool
+        Supposing that the operand given is used for a jmp or call instruction,
+        returns true if the result of this instruction is a library function
+        call.
+    get_function_called(self, operand) -> called_functions
+        Returns the function that would be called by jumping to the address
+        given in the `.plt` section.
+    get_used_syscalls(self, syscalls_set, functions)
+        Updates the syscall set passed as argument after analysing the given
+        function(s).
     """
-    # TODO:
-    # Class docstrings should contain the following information:
 
-    # A brief summary of its purpose and behavior
-    # Any public methods, along with a brief description
-    # Any class properties (attributes)
-    # Anything related to the interface for subclassers, if the class is
-    # intended to be subclassed
-
-    # set of FunLibInfo
-    __analyzed_functions = set()
+    # set of LibFunction
+    __analysed_functions = set()
 
     # dict: name -> Library
     __libraries = {}
@@ -144,7 +158,7 @@ class LibraryAnalyser:
 
     def get_function_called(self, operand):
         """Returns the function that would be called by jumping to the address
-        given in the .plt section.
+        given in the `.plt` section.
 
         Note that the return value is a list in case multiple functions are
         detected to correspond to this .plt entry and the exact function that
@@ -160,7 +174,7 @@ class LibraryAnalyser:
 
         Returns
         -------
-        called_functions : list of FunLibInfo
+        called_functions : list of LibFunction
             function(s) that would be called
         """
 
@@ -192,15 +206,15 @@ class LibraryAnalyser:
         Parameters
         ----------
         syscalls_set : set of str
-            set of syscalls used by the program analyzed
-        functions : list of FunLibInfo
-            functions to analyze
+            set of syscalls used by the program analysed
+        functions : list of LibFunction
+            functions to analyse
         """
 
         # to avoid modifying the parameter given by the caller
-        funs_to_analyze = functions.copy()
+        funs_to_analyse = functions.copy()
 
-        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyze, 0)
+        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse, 0)
 
     def __get_used_syscalls_recursive(self, syscalls_set, functions, cur_depth):
         """Helper method for get_used_syscalls. Updates the syscall set
@@ -209,9 +223,9 @@ class LibraryAnalyser:
         Parameters
         ----------
         syscalls_set : set of str
-            set of syscalls used by the program analyzed
-        functions : list of FunLibInfo
-            functions to analyze
+            set of syscalls used by the program analysed
+        functions : list of LibFunction
+            functions to analyse
         cur_depth : int
             call depth. Only used for debug/log purpose
         """
@@ -221,7 +235,7 @@ class LibraryAnalyser:
         for f in functions:
             utils.print_debug(f"analysing {f.name}")
 
-            if f in LibraryAnalyser.__analyzed_functions:
+            if f in LibraryAnalyser.__analysed_functions:
                 # TODO: The depth or at least the indent should be incremented
                 # as well when changing libraries/programs
                 utils.log(f"D-{cur_depth}: {f.name}@"
@@ -230,7 +244,7 @@ class LibraryAnalyser:
                 # TODO: To reuse the result of another program, here is where
                 # the syscalls_set need to be updated
                 continue
-            LibraryAnalyser.__analyzed_functions.add(f)
+            LibraryAnalyser.__analysed_functions.add(f)
 
             # TODO: The depth or at least the indent should be incremented as
             # well when changing libraries/programs
@@ -247,7 +261,7 @@ class LibraryAnalyser:
 
             # Get syscalls and functions used directly in the function code
             insns = self.__get_function_insns(f)
-            LibraryAnalyser.__libraries[lib_name].code_analyser.disassemble(
+            LibraryAnalyser.__libraries[lib_name].code_analyser.analyse_code(
                     insns, function_syscalls, get_inverse_syscalls_map(),
                     funs_called)
 
@@ -302,7 +316,7 @@ class LibraryAnalyser:
                 or lib.callable_fun_boundaries[f_name][0] >=
                    lib.callable_fun_boundaries[f_name][1]):
                 continue
-            to_add = FunLibInfo(name=f_name, library_path=lib.path,
+            to_add = LibFunction(name=f_name, library_path=lib.path,
                             boundaries=lib.callable_fun_boundaries[f_name])
             # sometimes there are duplicates.
             if to_add not in functions:
@@ -396,7 +410,7 @@ class LibraryAnalyser:
 
         Parameters
         ----------
-        function : FunLibInfo
+        function : LibFunction
             the function to return instructions from
 
         Returns

@@ -1,5 +1,4 @@
-# TODO
-""" """
+"""Contains analysis global parameters and helper functions"""
 
 import argparse
 
@@ -28,6 +27,10 @@ def print_verbose(msg, indent=0):
     """
     if verbose:
         print(indent * "\t" + msg)
+
+def print_debug(msg):
+    if DEBUG:
+        log(msg, "debug.log")
 
 def log(msg, file_name, indent=0):
     """Logs msg with the specified indentation into the log file, or to the
@@ -66,6 +69,18 @@ def clean_logs():
         open(log_dir_path + "debug.log", "w", encoding="utf-8").close()
 
 def is_hex(s):
+    """Returns True if the given string represents an hexadecimal number.
+
+    Parameters
+    ----------
+    s : str
+        string to check
+
+    Returns
+    -------
+    is_hex : bool
+        True if `s` is an hexadecimal number
+    """
     if not s or len(s) < 3:
         return False
 
@@ -74,6 +89,24 @@ def is_hex(s):
                                  for c in s[2:])
 
 def str2bool(v):
+    """Returns the boolean value represented in the parameter given.
+
+    Parameters
+    ----------
+    v : bool or str
+        value representing a boolean value
+
+    Raises
+    ------
+    arg_error : ArgumentTypeError
+        If the given value does not correspond to a boolean
+
+    Returns
+    -------
+    boolean : bool
+        the boolean value that `v` represents
+    """
+
     if isinstance(v, bool):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -81,11 +114,6 @@ def str2bool(v):
     if v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
     raise argparse.ArgumentTypeError('Boolean value expected.')
-
-def print_debug(msg):
-    if DEBUG:
-        log(msg, "debug.log")
-        # print("[DEBUG] " + msg)
 
 def f_name_from_path(path):
     """Returns the file name from a full path (after the last slash)

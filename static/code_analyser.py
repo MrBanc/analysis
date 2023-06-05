@@ -1,3 +1,9 @@
+"""
+Contains the CodeAnalyser class.
+
+Disassembles and analyses the code to detect syscalls.
+"""
+
 import sys
 
 import lief
@@ -11,12 +17,25 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
 
 class CodeAnalyser:
-    """
-    Class use to store information about and analyse the binary code.
+    """CodeAnalyser(path, max_backtrack_insns) -> CodeAnalyser
+
+    Class use to store information about and analyse the binary code to detect
+    syscalls.
 
     This class directly analyse what is inside the `.text` sectin of the ELF
     executable but it also uses `LibraryAnalyser` to (indirectly) analyse
     syscalls used by shared library calls.
+
+    Public Methods
+    --------------
+    get_used_syscalls_text_section(syscalls_set, inv_syscalls_map)
+        Updates the syscall set passed as argument after analysing the `.text`
+        of the binary.
+    analyse_code(self, insns, syscalls_set, inv_syscalls_map[, funs_called])
+        Updates the syscall set passed as argument after analysing the given
+        instructions.
+    get_text_section(self) -> lief.ELF.Section
+        Returns the .text section (as given by the lief library)
     """
 
     # Used to detect the syscall identifier.
@@ -59,7 +78,7 @@ class CodeAnalyser:
                              f"couldn't be created: {e}\n")
             self.__has_dyn_libraries = False
 
-        # only used if `binary` is a library used by the main analyzed binary.
+        # only used if `binary` is a library
         self.__address_to_fun_map = None
 
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
@@ -70,12 +89,12 @@ class CodeAnalyser:
 
     def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
         """Entry point of the Code Analyser. Updates the syscall set
-        passed as argument after analysing the .text of the binary.
+        passed as argument after analysing the `.text` of the binary.
 
         Parameters
         ----------
         syscalls_set : set of str
-            set of syscalls used by the program analyzed
+            set of syscalls used by the program analysed
         inv_syscalls_map : dict(int -> str)
             the syscall map defined in syscalls.py but with keys and values
             swapped
@@ -86,12 +105,12 @@ class CodeAnalyser:
         # that enables continuing the analysis in case of error)
         text_section = self.get_text_section()
 
-        self.disassemble(self.__md.disasm(bytearray(text_section.content),
+        self.analyse_code(self.__md.disasm(bytearray(text_section.content),
                                    text_section.virtual_address),
                          syscalls_set, inv_syscalls_map)
 
-    def disassemble(self, insns, syscalls_set, inv_syscalls_map,
-                    funs_called=None):
+    def analyse_code(self, insns, syscalls_set, inv_syscalls_map,
+                     funs_called=None):
         """Main function of the Code Analyser. Updates the syscall set and the
         list of functions called after analysing the given instructions.
 
@@ -100,11 +119,11 @@ class CodeAnalyser:
         insns : class generator of capstone
             list of instructions to analyse
         syscalls_set : set of str
-            set of syscalls used by the program analyzed
+            set of syscalls used by the program analysed
         inv_syscalls_map : dict(int -> str)
             the syscall map defined in syscalls.py but with keys and values
             swapped
-        funs_called : None or list of FunLibInfo, optional
+        funs_called : None or list of LibFunction, optional
             if a list is given, the functions called by the given instructions
             will be added in this list
         """
@@ -138,7 +157,7 @@ class CodeAnalyser:
                                 funs_called.append(f)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
-                elif detect_functions and ins.mnemonic == "call":
+                elif detect_functions and ins.group(CS_GRP_CALL):
                     f = self.__get_function_called(ins.op_str)
                     if f and f not in funs_called:
                         funs_called.append(f)
@@ -152,6 +171,11 @@ class CodeAnalyser:
 
     def get_text_section(self):
         """Returns the .text section (as given by the lief library)
+
+        Returns
+        -------
+        text_section : lief ELF section
+            the text section as given by lief
 
         Raises
         ------
@@ -201,17 +225,6 @@ class CodeAnalyser:
                               "backtrack.log", indent=2)
                     return -1
 
-
-            # b = list_ins[i].bytes
-            # # MOV in EAX
-            # if b[0] == 0xb8:
-            #     return int(b[1])
-
-            # TODO: je pense que c'est à supprimer mais je vais demander à
-            # Gaulthier pk il avait fait ça pour être sûr
-            # # Another syscall is called, break
-            # if __is_syscall_instruction(list_ins):
-            #     break
         return -1
 
     def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,
@@ -229,7 +242,6 @@ class CodeAnalyser:
             utils.print_verbose(f"Syscall instruction found but ignored: "
                                 f"{nb_syscall}")
 
-    # TODO: Peut-être que cette fonction aurait plus sa place dans syscalls.py ?
     def __is_syscall_instruction(self, ins):
         b = ins.bytes
         if b[0] == 0x0f and b[1] == 0x05:
@@ -260,7 +272,7 @@ class CodeAnalyser:
 
         Returns
         -------
-        called_function : FunLibInfo
+        called_function : LibFunction
             function that would be called
         """
 
@@ -271,7 +283,7 @@ class CodeAnalyser:
                 self.__address_to_fun_map = {}
                 for item in self.__binary.functions:
                     self.__address_to_fun_map[item.address] = (
-                            library_analyser.FunLibInfo(
+                            library_analyser.LibFunction(
                                 name=item.name,
                                 library_path=self.__path,
                                 boundaries=[item.address,
