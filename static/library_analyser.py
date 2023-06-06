@@ -234,8 +234,8 @@ class LibraryAnalyser:
 
     def __get_used_syscalls_recursive(self, syscalls_set, functions,
                                       cur_depth):
-        """Helper method for get_used_syscalls. Updates the syscall set
-        passed as argument after analysing the given function(s).
+        """Updates the syscall set passed as argument after analysing the given
+        function(s).
 
         Parameters
         ----------
