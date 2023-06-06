@@ -114,6 +114,8 @@ class LibraryAnalyser:
         self.__got_rel = binary.pltgot_relocations
         if self.__got_rel is None:
             raise StaticAnalyserException(".got relocations not found.")
+        self.__got_rel = {rel.address: rel
+                          for rel in self.__got_rel}
 
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
@@ -199,16 +201,15 @@ class LibraryAnalyser:
 
         got_rel_addr = self.__get_got_rel_address(operand)
 
-        for rel in self.__got_rel:
-            if got_rel_addr == rel.address:
-                if (lief.ELF.RELOCATION_X86_64(rel.type)
-                    == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
-                    return self.__find_function_with_name(rel.symbol.name)
-                if (lief.ELF.RELOCATION_X86_64(rel.type)
-                    == lief.ELF.RELOCATION_X86_64.IRELATIVE):
-                    # TODO: a function from the same program should be sent.
-                    # Changes in other functions should adapt around that
-                    return []
+        rel = self.__got_rel[got_rel_addr]
+        if (lief.ELF.RELOCATION_X86_64(rel.type)
+            == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
+            return self.__find_function_with_name(rel.symbol.name)
+        if (lief.ELF.RELOCATION_X86_64(rel.type)
+            == lief.ELF.RELOCATION_X86_64.IRELATIVE):
+            # TODO: a function from the same program should be sent.
+            # Changes in other functions should adapt around that
+            return []
 
         sys.stderr.write(f"[WARNING] A function name couldn't be found for "
                          f"the .plt slot at address {hex(operand)}\n")
