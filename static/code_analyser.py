@@ -186,27 +186,33 @@ class CodeAnalyser:
             utils.log(f"-> {hex(list_ins[i].address)}:{list_ins[i].mnemonic}"
                       f" {list_ins[i].op_str}", "backtrack.log", indent=1)
 
+            mnemonic = list_ins[i].mnemonic
             op_strings = list_ins[i].op_str.split(",")
 
             regs_write = list_ins[i].regs_access()[1]
             for r in regs_write:
                 if self.__md.reg_name(r) not in self.__registers[focus_reg]:
                     continue
-                if len(op_strings) != 2:
+
+                if mnemonic not in ("mov", "xor"):
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
                     return -1
 
+                op_strings[0] = op_strings[0].strip()
                 op_strings[1] = op_strings[1].strip()
 
-                if utils.is_hex(op_strings[1]):
-                    return int(op_strings[1], 16)
-                if op_strings[1].isdigit():
-                    return int(op_strings[1])
-                if self.__is_reg(op_strings[1]):
-                    focus_reg = self.__get_reg_key(op_strings[1])
-                    utils.log(f"[Shifting focus to {focus_reg}]",
-                              "backtrack.log", indent=2)
+                if mnemonic == "mov":
+                    if utils.is_hex(op_strings[1]):
+                        return int(op_strings[1], 16)
+                    if op_strings[1].isdigit():
+                        return int(op_strings[1])
+                    if self.__is_reg(op_strings[1]):
+                        focus_reg = self.__get_reg_key(op_strings[1])
+                        utils.log(f"[Shifting focus to {focus_reg}]",
+                                  "backtrack.log", indent=2)
+                elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
+                    return 0
                 else:
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
