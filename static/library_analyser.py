@@ -22,7 +22,7 @@ from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
 LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
-             '/lib/',   '/usr/lib/',   '/usr/local/lib']
+             '/lib/',   '/usr/lib/',   '/usr/local/lib/']
 
 
 @dataclass
@@ -346,6 +346,11 @@ class LibraryAnalyser:
         return functions
 
     def __add_used_library(self, lib_path):
+        if not exists(lib_path):
+            # Does not need to print an error message as if a library is really
+            # not found, it will be noticed elsewhere with more information
+            # than here.
+            return
         lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
             self.__used_libraries.append(lib_name)
@@ -408,15 +413,10 @@ class LibraryAnalyser:
 
         if len(lib_names) > 0:
             sys.stderr.write(f"[ERROR] The following libraries couldn't be "
-                             f"found: {lib_names}\nDo you want to continue "
-                             f"without analysing these linked libraries? "
-                             f"(Y/n) ")
-            ans = input()
-            while ans.lower() != "y":
-                if ans.lower() == "n":
-                    sys.exit(1)
-                else:
-                    ans = input("Please answer with y or n\n")
+                             f"found and therefore won't be analysed: "
+                             f"{lib_names}\n")
+            self.__used_libraries = [l for l in self.__used_libraries
+                                     if l not in lib_names]
 
     def __get_function_insns(self, function):
         """Return the instructions of a function.
