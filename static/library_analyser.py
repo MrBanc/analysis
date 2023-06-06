@@ -10,10 +10,10 @@ import sys
 from copy import copy
 from os.path import exists
 from dataclasses import dataclass
-from typing import Dict, List, Any, Set
+from typing import Dict, List, Any
 
 import lief
-from capstone import *
+from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 
 import utils
 import code_analyser
@@ -21,12 +21,13 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
-LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/', '/lib/', '/usr/lib/', '/usr/local/lib']
+LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
+             '/lib/',   '/usr/lib/',   '/usr/local/lib']
 
 
 @dataclass
 class LibFunction:
-    """Represent a library function. Store information related to the context
+    """Represents a library function. Stores information related to the context
     of the function inside the library.
 
     Attributes
@@ -42,7 +43,7 @@ class LibFunction:
 
     name: str
     library_path: str
-    # TODO tuple au lieu de list, non ?
+    # TODO use a tuple instead of a list
     boundaries: List[int]
 
     def __hash__(self):
@@ -51,6 +52,22 @@ class LibFunction:
 
 @dataclass
 class Library:
+    """Represents a library. Stores information related to the content of the
+    library and its location in the file system. It also contains the
+    CodeAnalyser of the library.
+
+    Attributes
+    ----------
+    path : str
+        absolute path of the library within the file system
+    callable_fun_boundaries : dict(str -> list of two int)
+        dictionary containing the boundaries of the exportable functions of the
+        library
+    code_analyser : CodeAnalyser
+        code analyser instance associated with the library. It will only be
+        instanciated if needed.
+    """
+
     path: str
     callable_fun_boundaries: Dict[str, List[int]]
     code_analyser: Any
@@ -133,9 +150,10 @@ class LibraryAnalyser:
 
         # Update: In fact it just detects if the call lead to the .plt or
         # .plt.sec section. But it is possible that it does not lead to a
-        # library function. I think the behavior of the function can stay the
-        # same and rather change the name. It is in `get_function_called` that
-        # the distinction should occur. And then the calling function should
+        # library function.
+        # TODO: I think the behavior of the function can stay the same and
+        # rather change the name. It is in `get_function_called` that the
+        # distinction should occur. And then the calling function should
         # determine wether the function it got is from the same program or not.
 
         if utils.is_hex(operand):
@@ -150,11 +168,8 @@ class LibraryAnalyser:
                                             + self.__plt_section.size]
             return plt_boundaries[0] <= operand < plt_boundaries[1]
         else:
-            #TODO
-            pass
-
-        # TODO: it is here temporarily while the else is not implemented
-        return False
+            #TODO: support inderect operands
+            return False
 
     def get_function_called(self, operand):
         """Returns the function that would be called by jumping to the address
@@ -178,7 +193,7 @@ class LibraryAnalyser:
             function(s) that would be called
         """
 
-        # Update: see update of `is_lib_call`
+        # TODO: see update of `is_lib_call`
 
         operand = int(operand, 16)
 
@@ -191,7 +206,7 @@ class LibraryAnalyser:
                     return self.__find_function_with_name(rel.symbol.name)
                 if (lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.IRELATIVE):
-                    # TODO: a function from the same program should be send.
+                    # TODO: a function from the same program should be sent.
                     # Changes in other functions should adapt around that
                     return []
 
@@ -216,7 +231,8 @@ class LibraryAnalyser:
 
         self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse, 0)
 
-    def __get_used_syscalls_recursive(self, syscalls_set, functions, cur_depth):
+    def __get_used_syscalls_recursive(self, syscalls_set, functions,
+                                      cur_depth):
         """Helper method for get_used_syscalls. Updates the syscall set
         passed as argument after analysing the given function(s).
 
@@ -235,19 +251,15 @@ class LibraryAnalyser:
         for f in functions:
             utils.print_debug(f"analysing {f.name}")
 
+            # TODO: The depth (or at least the indent in the logs) shouldn't
+            # restart from zero when changing libraries.
             if f in LibraryAnalyser.__analysed_functions:
-                # TODO: The depth or at least the indent should be incremented
-                # as well when changing libraries/programs
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - done",
                           "lib_functions.log", cur_depth)
-                # TODO: To reuse the result of another program, here is where
-                # the syscalls_set need to be updated
                 continue
             LibraryAnalyser.__analysed_functions.add(f)
 
-            # TODO: The depth or at least the indent should be incremented as
-            # well when changing libraries/programs
             utils.log(f"D-{cur_depth}: {f.name}@"
                       f"{utils.f_name_from_path(f.library_path)}",
                       "lib_functions.log", cur_depth)
@@ -383,8 +395,9 @@ class LibraryAnalyser:
         lib_names = [lib for lib in self.__used_libraries
                      if lib not in LibraryAnalyser.__libraries]
 
-        # TODO: also look in environment variable `LD_LIBRARY_PATH` and possibly
-        # look which path the linker used by the binary uses.
+        # TODO: also look in environment variable `LD_LIBRARY_PATH` and
+        # possibly look which path the linker used by the binary uses. Can also
+        # add more paths to `LIB_PATHS` and use a subprocess to use `locate`
         for path in LIB_PATHS:
             lib_names_copy = copy(lib_names)
             for name in lib_names_copy:
@@ -392,7 +405,6 @@ class LibraryAnalyser:
                     self.__add_used_library(path + name)
                     lib_names.remove(name)
 
-        # TODO: either add more paths in LIB_PATHS or use subprocess to run `locate` (and maybe let the user choose?)
         if len(lib_names) > 0:
             sys.stderr.write(f"[ERROR] The following libraries couldn't be "
                              f"found: {lib_names}\nDo you want to continue "

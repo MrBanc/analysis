@@ -9,7 +9,7 @@ import argparse
 import lief
 
 import utils
-from syscalls import *
+from syscalls import get_inverse_syscalls_map, syscalls_map
 from code_analyser import CodeAnalyser
 from elf_analyser import get_syscalls_from_symbols, is_valid_binary
 from custom_exception import StaticAnalyserException
@@ -19,6 +19,8 @@ CSV = "data.csv"
 
 
 def main():
+    """Parse the arguments, starts the analysis and print the results"""
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--app','-a', help='Path to application',required=True,
                         default=utils.app)

@@ -7,9 +7,8 @@ Disassembles and analyses the code to detect syscalls.
 import sys
 
 import lief
-from capstone import *
-from capstone.x86_const import (X86_INS_INVALID, X86_INS_DATA16,
-                                X86_GRP_BRANCH_RELATIVE)
+from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL
+from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
 import library_analyser
@@ -100,9 +99,6 @@ class CodeAnalyser:
             swapped
         """
 
-        # TODO: adapt the code around the fact that md.disasm may not return the
-        # entirety of the requested instructions. (or find a parameter in Cs
-        # that enables continuing the analysis in case of error)
         text_section = self.get_text_section()
 
         self.analyse_code(self.__md.disasm(bytearray(text_section.content),
@@ -135,12 +131,12 @@ class CodeAnalyser:
 
         list_inst = []
         for i, ins in enumerate(insns):
-            b = ins.bytes
             list_inst.append(ins)
 
             if ins.id in (X86_INS_DATA16, X86_INS_INVALID):
                 sys.stderr.write(f"[WARNING] data instruction found in "
-                                 f"{self.__path} at address {ins.address}\n")
+                                 f"{self.__path} at address "
+                                 f"{hex(ins.address)}\n")
                 continue
 
             if self.__is_syscall_instruction(ins):
@@ -152,22 +148,14 @@ class CodeAnalyser:
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
                     if detect_functions:
-                        for f in called_function:
-                            if f not in funs_called:
-                                funs_called.append(f)
+                        funs_called.extend([f for f in called_function
+                                            if f not in funs_called])
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
                 elif detect_functions and ins.group(CS_GRP_CALL):
                     f = self.__get_function_called(ins.op_str)
                     if f and f not in funs_called:
                         funs_called.append(f)
-            # TODO: verify also with REX prefixes
-            elif (b[0] == 0xe8 or b[0] == 0xff or b[0] == 0x9a
-                  or ins.mnemonic == "syscall"):
-                utils.print_debug("a function call or syscall was not "
-                                  "detected:")
-                utils.print_debug(f"0x{ins.address:x}: {ins.mnemonic} "
-                                  f"{ins.op_str}")
 
     def get_text_section(self):
         """Returns the .text section (as given by the lief library)
@@ -220,7 +208,6 @@ class CodeAnalyser:
                     utils.log(f"[Shifting focus to {focus_reg}]",
                               "backtrack.log", indent=2)
                 else:
-                    # TODO au moins qque instructions les plus utilisées
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
                     return -1

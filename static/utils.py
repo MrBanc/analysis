@@ -2,7 +2,7 @@
 
 import argparse
 
-DEBUG = True
+DEBUG = False
 log_dir_path = "../logs/"
 
 # global variables
@@ -29,6 +29,8 @@ def print_verbose(msg, indent=0):
         print(indent * "\t" + msg)
 
 def print_debug(msg):
+    """Used for debugging purposes only. Print debug messages"""
+
     if DEBUG:
         log(msg, "debug.log")
 
@@ -64,9 +66,9 @@ def clean_logs():
         f.truncate()
     with open(log_dir_path + "lib_functions.log", "w", encoding="utf-8") as f:
         f.truncate()
-    # TODO: remove for final code
     if DEBUG:
-        open(log_dir_path + "debug.log", "w", encoding="utf-8").close()
+        with open(log_dir_path + "debug.log", "w", encoding="utf-8") as f:
+            f.truncate()
 
 def is_hex(s):
     """Returns True if the given string represents an hexadecimal number.
