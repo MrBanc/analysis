@@ -61,14 +61,25 @@ class CodeAnalyser:
     def __init__(self, path, max_backtrack_insns=None):
         self.__path = path
         self.__binary = lief.parse(path)
+        if not is_valid_binary(self.__binary):
+            raise StaticAnalyserException("The given binary is not a CLASS64 "
+                                          "ELF file.")
         self.__has_dyn_libraries = bool(self.__binary.libraries)
         self.__max_backtrack_insns = (max_backtrack_insns
                                       if max_backtrack_insns is not None
                                       else 20)
+        self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
+        self.__md.detail = True
+        # This may lead to errors. So a warning is throwed if indeed data is
+        # found.
+        self.__md.skipdata = utils.skip_data
 
-        if not is_valid_binary(self.__binary):
-            raise StaticAnalyserException("The given binary is not a CLASS64 "
-                                          "ELF file.")
+        # only used if `binary` is a library
+        self.__address_to_fun_map = None
+
+        if not self.__has_dyn_libraries:
+            return
+
         try:
             self.__lib_analyser = library_analyser.LibraryAnalyser(
                     self.__binary, self.__max_backtrack_insns)
@@ -76,15 +87,6 @@ class CodeAnalyser:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")
             self.__has_dyn_libraries = False
-
-        # only used if `binary` is a library
-        self.__address_to_fun_map = None
-
-        self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
-        self.__md.detail = True
-        # This may lead to errors. So a warning is throwed if indeed data is
-        # found.
-        self.__md.skipdata = utils.skip_data
 
     def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
         """Entry point of the Code Analyser. Updates the syscall set
