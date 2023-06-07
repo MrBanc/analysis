@@ -22,7 +22,7 @@ class CodeAnalyser:
     syscalls.
 
     This class directly analyse what is inside the `.text` sectin of the ELF
-    executable but it also uses `LibraryAnalyser` to (indirectly) analyse
+    executable but it also uses `LibraryUsageAnalyser` to (indirectly) analyse
     syscalls used by shared library calls.
 
     Public Methods
@@ -81,7 +81,7 @@ class CodeAnalyser:
             return
 
         try:
-            self.__lib_analyser = library_analyser.LibraryAnalyser(
+            self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
                     self.__binary, self.__max_backtrack_insns)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "

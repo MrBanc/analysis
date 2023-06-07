@@ -1,5 +1,6 @@
 """
-Contains the LibraryAnalyser class and the LibFunction and Library dataclasses.
+Contains the LibraryUsageAnalyser class and the LibFunction and Library
+dataclasses.
 
 Analyses the library usage of a binary.
 """
@@ -73,8 +74,8 @@ class Library:
     code_analyser: Any
 
 
-class LibraryAnalyser:
-    """LibraryAnalyser(binary[, max_backtrack_insns]) -> CodeAnalyser
+class LibraryUsageAnalyser:
+    """LibraryUsageAnalyser(binary[, max_backtrack_insns]) -> CodeAnalyser
 
     Class use to store information about and analyse the shared libraries
     used by an ELF executable.
@@ -256,12 +257,12 @@ class LibraryAnalyser:
 
             # TODO: The depth (or at least the indent in the logs) shouldn't
             # restart from zero when changing libraries.
-            if f in LibraryAnalyser.__analysed_functions:
+            if f in LibraryUsageAnalyser.__analysed_functions:
                 utils.log(f"D-{cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - done",
                           "lib_functions.log", cur_depth)
                 continue
-            LibraryAnalyser.__analysed_functions.add(f)
+            LibraryUsageAnalyser.__analysed_functions.add(f)
 
             utils.log(f"D-{cur_depth}: {f.name}@"
                       f"{utils.f_name_from_path(f.library_path)}",
@@ -270,9 +271,10 @@ class LibraryAnalyser:
             # Get syscalls and functions used directly in the function code
             lib_name = utils.f_name_from_path(f.library_path)
             insns = self.__get_function_insns(f)
-            LibraryAnalyser.__libraries[lib_name].code_analyser.analyse_code(
-                    insns, function_syscalls, get_inverse_syscalls_map(),
-                    funs_called)
+
+            (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
+             .analyse_code(insns, function_syscalls,
+                           get_inverse_syscalls_map(), funs_called))
 
             utils.print_debug(f"{f.name} calls these: {funs_called}")
             # Get all the syscalls used by the called function
@@ -318,7 +320,7 @@ class LibraryAnalyser:
     def __find_function_with_name(self, f_name):
         functions = []
         for lib_name in self.__used_libraries:
-            lib = LibraryAnalyser.__libraries[lib_name]
+            lib = LibraryUsageAnalyser.__libraries[lib_name]
             if f_name not in lib.callable_fun_boundaries:
                 continue
             if (len(lib.callable_fun_boundaries[f_name]) != 2
@@ -354,7 +356,7 @@ class LibraryAnalyser:
                                 "library that was not detected by `lief`.")
 
 
-        if lib_name in LibraryAnalyser.__libraries:
+        if lib_name in LibraryUsageAnalyser.__libraries:
             return
 
         lib_binary = lief.parse(lib_path)
@@ -372,11 +374,11 @@ class LibraryAnalyser:
         # constructor will bring us back in this function and if the
         # __libraries variable does not contain the entry, an infinite loop
         # may occur.
-        LibraryAnalyser.__libraries[lib_name] = Library(
+        LibraryUsageAnalyser.__libraries[lib_name] = Library(
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
         code_analyser = ca.CodeAnalyser(lib_path, self.__max_backtrack_insns)
-        LibraryAnalyser.__libraries[lib_name].code_analyser = code_analyser
+        LibraryUsageAnalyser.__libraries[lib_name].code_analyser = code_analyser
 
 
     def __find_used_libraries(self):
@@ -389,7 +391,7 @@ class LibraryAnalyser:
                     self.__add_used_library(parts[parts.index("=>") + 1])
                 elif utils.f_name_from_path(parts[0]) in self.__used_libraries:
                     self.__add_used_library(parts[0])
-            if not set(self.__used_libraries).issubset(LibraryAnalyser
+            if not set(self.__used_libraries).issubset(LibraryUsageAnalyser
                                                        .__libraries.keys()):
                 utils.print_verbose("[WARNING] The `ldd` command didn't find "
                                     "all the libraries used.\nTrying to find "
@@ -404,7 +406,7 @@ class LibraryAnalyser:
 
     def __find_used_libraries_manually(self):
         lib_names = [lib for lib in self.__used_libraries
-                     if lib not in LibraryAnalyser.__libraries]
+                     if lib not in LibraryUsageAnalyser.__libraries]
 
         # TODO: also look in environment variable `LD_LIBRARY_PATH` and
         # possibly look which path the linker used by the binary uses. Can also
@@ -439,7 +441,7 @@ class LibraryAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        text_section = (LibraryAnalyser.__libraries[lib_name].code_analyser
+        text_section = (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
                         .get_text_section())
         f_start_offset = function.boundaries[0] - text_section.virtual_address
         f_end_offset = function.boundaries[1] - text_section.virtual_address
