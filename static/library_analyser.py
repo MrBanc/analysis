@@ -16,7 +16,7 @@ import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 
 import utils
-import code_analyser
+import code_analyser as ca
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
@@ -122,11 +122,13 @@ class LibraryAnalyser:
         # This may lead to errors. So a warning is throwed if indeed data is
         # found.
         self.__md.skipdata = utils.skip_data
+        self.__max_backtrack_insns = (max_backtrack_insns
+                                      if max_backtrack_insns is not None
+                                      else 20)
 
         self.__used_libraries = binary.libraries
         self.__find_used_libraries()
 
-        self.__max_backtrack_insns = max_backtrack_insns
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -265,14 +267,8 @@ class LibraryAnalyser:
                       f"{utils.f_name_from_path(f.library_path)}",
                       "lib_functions.log", cur_depth)
 
-            # Initialize the CodeAnalyser if not done already
-            lib_name = utils.f_name_from_path(f.library_path)
-            if LibraryAnalyser.__libraries[lib_name].code_analyser is None:
-                LibraryAnalyser.__libraries[lib_name].code_analyser = (
-                        code_analyser.CodeAnalyser(
-                            f.library_path, self.__max_backtrack_insns))
-
             # Get syscalls and functions used directly in the function code
+            lib_name = utils.f_name_from_path(f.library_path)
             insns = self.__get_function_insns(f)
             LibraryAnalyser.__libraries[lib_name].code_analyser.analyse_code(
                     insns, function_syscalls, get_inverse_syscalls_map(),
@@ -357,6 +353,7 @@ class LibraryAnalyser:
             utils.print_verbose("[WARNING] A library path was added for a "
                                 "library that was not detected by `lief`.")
 
+
         if lib_name in LibraryAnalyser.__libraries:
             return
 
@@ -369,9 +366,17 @@ class LibraryAnalyser:
             # different.
             callable_fun_boundaries[item.name] = [item.value,
                                                   item.value + item.size]
+
+        # The entry needs to be added to the __libraries class variable
+        # *before* creating the CodeAnalyser because calling the CodeAnalyser
+        # constructor will bring us back in this function and if the
+        # __libraries variable does not contain the entry, an infinite loop
+        # may occur.
         LibraryAnalyser.__libraries[lib_name] = Library(
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
+        code_analyser = ca.CodeAnalyser(lib_path, self.__max_backtrack_insns)
+        LibraryAnalyser.__libraries[lib_name].code_analyser = code_analyser
 
 
     def __find_used_libraries(self):
