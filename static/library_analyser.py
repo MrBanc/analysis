@@ -118,6 +118,7 @@ class LibraryUsageAnalyser:
         self.__got_rel = {rel.address: rel
                           for rel in self.__got_rel}
 
+        self.__binary_path = binary.name
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is
@@ -173,7 +174,7 @@ class LibraryUsageAnalyser:
                                             + self.__plt_section.size]
             return plt_boundaries[0] <= operand < plt_boundaries[1]
         else:
-            #TODO: support inderect operands
+            #TODO: support indirect operands
             return False
 
     def get_function_called(self, operand):
@@ -253,8 +254,6 @@ class LibraryUsageAnalyser:
         funs_called = []
         function_syscalls = set()
         for f in functions:
-            utils.print_debug(f"analysing {f.name}")
-
             # TODO: The depth (or at least the indent in the logs) shouldn't
             # restart from zero when changing libraries.
             if f in LibraryUsageAnalyser.__analysed_functions:
@@ -276,7 +275,6 @@ class LibraryUsageAnalyser:
              .analyse_code(insns, function_syscalls,
                            get_inverse_syscalls_map(), funs_called))
 
-            utils.print_debug(f"{f.name} calls these: {funs_called}")
             # Get all the syscalls used by the called function
             self.__get_used_syscalls_recursive(function_syscalls, funs_called,
                                                cur_depth + 1)
@@ -343,7 +341,7 @@ class LibraryUsageAnalyser:
 
         return functions
 
-    def __add_used_library(self, lib_path):
+    def __add_used_library(self, lib_path, show_warnings=True):
         if not exists(lib_path):
             # Does not need to print an error message as if a library is really
             # not found, it will be noticed elsewhere with more information
@@ -352,8 +350,12 @@ class LibraryUsageAnalyser:
         lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
             self.__used_libraries.append(lib_name)
-            utils.print_verbose("[WARNING] A library path was added for a "
-                                "library that was not detected by `lief`.")
+            if show_warnings:
+                utils.print_verbose(f"[WARNING]: The library path "
+                                    f"{utils.f_name_from_path(lib_path)} was "
+                                    f"added for {self.__binary_path}, which is"
+                                    f" a library that was not detected by "
+                                    f"`lief`.")
 
 
         if lib_name in LibraryUsageAnalyser.__libraries:
@@ -378,12 +380,17 @@ class LibraryUsageAnalyser:
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
         code_analyser = ca.CodeAnalyser(lib_path, self.__max_backtrack_insns)
-        LibraryUsageAnalyser.__libraries[lib_name].code_analyser = code_analyser
-
+        LibraryUsageAnalyser.__libraries[lib_name].code_analyser = \
+                code_analyser
 
     def __find_used_libraries(self):
+
+        # A binary sometimes uses the .plt section to call one of its own
+        # functions
+        self.__add_used_library(self.__binary_path, show_warnings=False)
+
         try:
-            ldd_output = subprocess.run(["ldd", utils.app],
+            ldd_output = subprocess.run(["ldd", self.__binary_path],
                                         check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
