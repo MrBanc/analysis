@@ -126,10 +126,10 @@ class CodeAnalyser:
             will be added in this list
         """
 
-        if funs_called is not None:
-            detect_functions = True
-        else:
+        if funs_called is None:
             detect_functions = False
+        else:
+            detect_functions = True
 
         list_inst = []
         for i, ins in enumerate(insns):
@@ -224,8 +224,8 @@ class CodeAnalyser:
 
     def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,
                                      inv_syscalls_map):
-        utils.print_debug("syscall detected at instruction: "
-                          + str(list_inst[-1]))
+        # utils.print_debug("syscall detected at instruction: "
+        #                   + str(list_inst[-1]))
         nb_syscall = self.__backtrack_syscalls(i, list_inst)
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
