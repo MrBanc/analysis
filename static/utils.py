@@ -2,6 +2,7 @@
 
 import argparse
 
+
 DEBUG = False
 log_dir_path = "../logs/"
 
@@ -11,6 +12,7 @@ app = "redis-server-static"
 use_log_file = True
 logging = False
 skip_data = False
+
 
 def print_verbose(msg, indent=0):
     """Prints msg with the specified indentation into the standard output if

@@ -49,6 +49,7 @@ def get_syscalls_from_symbols(binary, syscalls_set):
         __detect_syscalls_in_sym_table(sect_it, syscalls_set)
 
 def __detect_syscalls_in_sym_table(sect_it, syscalls_set):
+
     for s in sect_it:
         name = s.name
         name_value = alias_syscalls_map.get(name)

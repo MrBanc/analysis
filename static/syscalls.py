@@ -5,6 +5,7 @@ def get_inverse_syscalls_map():
 
     return {ID: name for name, ID in syscalls_map.items()}
 
+
 syscalls_map = {
     "read":                   0,
     "write":                  1,

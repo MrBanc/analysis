@@ -15,6 +15,7 @@ import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, TEXT_SECTION
 
+
 class CodeAnalyser:
     """CodeAnalyser(path, max_backtrack_insns) -> CodeAnalyser
 
@@ -58,7 +59,9 @@ class CodeAnalyser:
                  'r14d': {'r14','r14d','r14w','r14b'},
                  'r15d': {'r15','r15d','r15w','r15b'}}
 
+
     def __init__(self, path, max_backtrack_insns=None):
+
         self.__path = path
         self.__binary = lief.parse(path)
         if not is_valid_binary(self.__binary):
@@ -178,6 +181,7 @@ class CodeAnalyser:
         return text_section
 
     def __backtrack_syscalls(self, index, list_ins):
+
         focus_reg = 'eax'
 
         last_ins_index = max(0, index-1-self.__max_backtrack_insns)
@@ -224,6 +228,7 @@ class CodeAnalyser:
 
     def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,
                                      inv_syscalls_map):
+
         # utils.print_debug("syscall detected at instruction: "
         #                   + str(list_inst[-1]))
         nb_syscall = self.__backtrack_syscalls(i, list_inst)
@@ -238,6 +243,7 @@ class CodeAnalyser:
                                 f"{nb_syscall}")
 
     def __is_syscall_instruction(self, ins):
+
         b = ins.bytes
         if b[0] == 0x0f and b[1] == 0x05:
             # Direct syscall SYSCALL

@@ -22,6 +22,7 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
+
 LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
              '/lib/',   '/usr/lib/',   '/usr/local/lib/']
 
@@ -44,7 +45,6 @@ class LibFunction:
 
     name: str
     library_path: str
-    # TODO use a tuple instead of a list
     boundaries: List[int]
 
     def __hash__(self):
@@ -100,7 +100,9 @@ class LibraryUsageAnalyser:
     # dict: name -> Library
     __libraries = {}
 
+
     def __init__(self, binary, max_backtrack_insns=None):
+
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -130,7 +132,6 @@ class LibraryUsageAnalyser:
 
         self.__used_libraries = binary.libraries
         self.__find_used_libraries()
-
 
     def is_lib_call(self, operand):
         """Supposing that the operand given is used for a jmp or call
@@ -316,6 +317,7 @@ class LibraryUsageAnalyser:
                 + next_ins.address)
 
     def __find_function_with_name(self, f_name):
+
         functions = []
         for lib_name in self.__used_libraries:
             lib = LibraryUsageAnalyser.__libraries[lib_name]
@@ -342,6 +344,7 @@ class LibraryUsageAnalyser:
         return functions
 
     def __add_used_library(self, lib_path, show_warnings=True):
+
         if not exists(lib_path):
             # Does not need to print an error message as if a library is really
             # not found, it will be noticed elsewhere with more information
@@ -356,7 +359,6 @@ class LibraryUsageAnalyser:
                                     f"added for {self.__binary_path}, which is"
                                     f" a library that was not detected by "
                                     f"`lief`.")
-
 
         if lib_name in LibraryUsageAnalyser.__libraries:
             return
@@ -412,6 +414,7 @@ class LibraryUsageAnalyser:
             self.__find_used_libraries_manually()
 
     def __find_used_libraries_manually(self):
+
         lib_names = [lib for lib in self.__used_libraries
                      if lib not in LibraryUsageAnalyser.__libraries]
 

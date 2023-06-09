@@ -51,14 +51,12 @@ def main():
     if utils.logging and utils.use_log_file:
         utils.clean_logs()
     utils.skip_data = args.skip_data
-    # import pdb; pdb.set_trace()
 
     try:
         binary = lief.parse(utils.app)
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
-
 
         utils.print_verbose("Analysing the ELF file. This may take some "
                             "times...")
@@ -74,7 +72,6 @@ def main():
     except StaticAnalyserException as e:
         sys.stderr.write(f"[ERROR] {e}\n")
         sys.exit(1)
-
 
     if args.display:
         for k,v in syscalls_map.items():
