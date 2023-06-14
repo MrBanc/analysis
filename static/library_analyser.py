@@ -235,10 +235,9 @@ class LibraryUsageAnalyser:
         # to avoid modifying the parameter given by the caller
         funs_to_analyse = functions.copy()
 
-        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse, 0)
+        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse)
 
-    def __get_used_syscalls_recursive(self, syscalls_set, functions,
-                                      cur_depth):
+    def __get_used_syscalls_recursive(self, syscalls_set, functions):
         """Updates the syscall set passed as argument after analysing the given
         function(s).
 
@@ -248,25 +247,23 @@ class LibraryUsageAnalyser:
             set of syscalls used by the program analysed
         functions : list of LibFunction
             functions to analyse
-        cur_depth : int
-            call depth. Only used for debug/log purpose
         """
 
         funs_called = []
         function_syscalls = set()
         for f in functions:
-            # TODO: The depth (or at least the indent in the logs) shouldn't
-            # restart from zero when changing libraries.
             if f in LibraryUsageAnalyser.__analysed_functions:
-                utils.log(f"D-{cur_depth}: {f.name}@"
-                          f"{utils.f_name_from_path(f.library_path)} - done",
-                          "lib_functions.log", cur_depth)
+                utils.log(f"D-{utils.cur_depth}: {f.name}@"
+                          f"{utils.f_name_from_path(f.library_path)} - at "
+                          f"{hex(f.boundaries[0])} - done",
+                          "lib_functions.log", utils.cur_depth)
                 continue
             LibraryUsageAnalyser.__analysed_functions.add(f)
 
-            utils.log(f"D-{cur_depth}: {f.name}@"
-                      f"{utils.f_name_from_path(f.library_path)}",
-                      "lib_functions.log", cur_depth)
+            utils.log(f"D-{utils.cur_depth}: {f.name}@"
+                      f"{utils.f_name_from_path(f.library_path)} - at "
+                      f"{hex(f.boundaries[0])}",
+                      "lib_functions.log", utils.cur_depth)
 
             # Get syscalls and functions used directly in the function code
             lib_name = utils.f_name_from_path(f.library_path)
@@ -277,8 +274,9 @@ class LibraryUsageAnalyser:
                            get_inverse_syscalls_map(), funs_called))
 
             # Get all the syscalls used by the called function
-            self.__get_used_syscalls_recursive(function_syscalls, funs_called,
-                                               cur_depth + 1)
+            utils.cur_depth += 1
+            self.__get_used_syscalls_recursive(function_syscalls, funs_called)
+            utils.cur_depth -= 1
 
             # Update syscalls set
             syscalls_set.update(function_syscalls)
