@@ -152,6 +152,11 @@ class CodeAnalyser:
                     and self.__lib_analyser.is_lib_call(ins.op_str)):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
+                    for i, f in enumerate(called_function):
+                        # no name indicates it wasn't an JUMP_SLOT got entry
+                        if not f.name:
+                            called_function[i] = self.__get_function_called(
+                                    hex(f.boundaries[0]))
                     if detect_functions:
                         funs_called.extend([f for f in called_function
                                             if f not in funs_called])

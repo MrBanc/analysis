@@ -131,6 +131,9 @@ class LibraryUsageAnalyser:
                                       else 20)
 
         self.__used_libraries = binary.libraries
+        # if utils.DEBUG and "libc.so.6" in self.__used_libraries:
+        #     self.__used_libraries.remove("libc.so.6")
+        #     self.__used_libraries.append("my_stripped_libc.so.6")
         self.__find_used_libraries()
 
     def is_lib_call(self, operand):
@@ -161,7 +164,8 @@ class LibraryUsageAnalyser:
         # TODO: I think the behavior of the function can stay the same and
         # rather change the name. It is in `get_function_called` that the
         # distinction should occur. And then the calling function should
-        # determine wether the function it got is from the same program or not.
+        # determine whether the function it got is from the same program or
+        # not.
 
         if utils.is_hex(operand):
             operand = int(operand, 16)
@@ -212,8 +216,9 @@ class LibraryUsageAnalyser:
             return self.__find_function_with_name(rel.symbol.name)
         if (lief.ELF.RELOCATION_X86_64(rel.type)
             == lief.ELF.RELOCATION_X86_64.IRELATIVE):
-            # TODO: a function from the same program should be sent.
-            # Changes in other functions should adapt around that
+            if rel.addend:
+                return [LibFunction(name="", library_path=self.__binary_path,
+                                    boundaries=[rel.addend, -1])]
             return []
 
         sys.stderr.write(f"[WARNING] A function name couldn't be found for "
@@ -249,6 +254,7 @@ class LibraryUsageAnalyser:
             functions to analyse
         """
 
+        utils.cur_depth += 1
         funs_called = []
         function_syscalls = set()
         for f in functions:
@@ -274,12 +280,12 @@ class LibraryUsageAnalyser:
                            get_inverse_syscalls_map(), funs_called))
 
             # Get all the syscalls used by the called function
-            utils.cur_depth += 1
             self.__get_used_syscalls_recursive(function_syscalls, funs_called)
-            utils.cur_depth -= 1
 
             # Update syscalls set
             syscalls_set.update(function_syscalls)
+
+        utils.cur_depth -= 1
 
     def __get_got_rel_address(self, int_operand):
 
@@ -343,6 +349,9 @@ class LibraryUsageAnalyser:
 
     def __add_used_library(self, lib_path, show_warnings=True):
 
+        # if utils.DEBUG and lib_path == "/lib64/libc.so.6":
+        #     self.__add_used_library("/home/ben/codes/misc/my_stripped_libc.so.6")
+        #     return
         if not exists(lib_path):
             # Does not need to print an error message as if a library is really
             # not found, it will be noticed elsewhere with more information

@@ -13,7 +13,7 @@ use_log_file = True
 logging = False
 skip_data = False
 # For debug purpose
-cur_depth = 0
+cur_depth = -1
 
 
 def print_verbose(msg, indent=0):
