@@ -286,8 +286,8 @@ class CodeAnalyser:
                             library_analyser.LibFunction(
                                 name=item.name,
                                 library_path=self.__path,
-                                boundaries=[item.address,
-                                            item.address + item.size]
+                                boundaries=(item.address,
+                                            item.address + item.size)
                                 )
                             )
 

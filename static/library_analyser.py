@@ -11,7 +11,7 @@ import sys
 from copy import copy
 from os.path import exists
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, Tuple, Any
 
 import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
@@ -38,14 +38,14 @@ class LibFunction:
         name of the function
     library_path : str
         absolute path of the library in which the function is
-    boundaries : list of two int
+    boundaries : tuple of two int
         the start address and the end address (start + size) of the function
         within the library binary
     """
 
     name: str
     library_path: str
-    boundaries: List[int]
+    boundaries: Tuple[int]
 
     def __hash__(self):
         return hash((self.name, self.library_path))
@@ -61,7 +61,7 @@ class Library:
     ----------
     path : str
         absolute path of the library within the file system
-    callable_fun_boundaries : dict(str -> list of two int)
+    callable_fun_boundaries : dict(str -> tuple of two int)
         dictionary containing the boundaries of the exportable functions of the
         library
     code_analyser : CodeAnalyser
@@ -70,7 +70,7 @@ class Library:
     """
 
     path: str
-    callable_fun_boundaries: Dict[str, List[int]]
+    callable_fun_boundaries: Dict[str, Tuple[int]]
     code_analyser: Any
 
 
@@ -157,13 +157,13 @@ class LibraryUsageAnalyser:
         if utils.is_hex(operand):
             operand = int(operand, 16)
             if self.__plt_sec_section:
-                plt_boundaries = [self.__plt_sec_section.virtual_address,
+                plt_boundaries = (self.__plt_sec_section.virtual_address,
                                   self.__plt_sec_section.virtual_address
-                                            + self.__plt_sec_section.size]
+                                            + self.__plt_sec_section.size)
             else:
-                plt_boundaries = [self.__plt_section.virtual_address,
+                plt_boundaries = (self.__plt_section.virtual_address,
                                   self.__plt_section.virtual_address
-                                            + self.__plt_section.size]
+                                            + self.__plt_section.size)
             return plt_boundaries[0] <= operand < plt_boundaries[1]
         else:
             #TODO: support indirect operands
@@ -205,7 +205,7 @@ class LibraryUsageAnalyser:
             == lief.ELF.RELOCATION_X86_64.IRELATIVE):
             if rel.addend:
                 return [LibFunction(name="", library_path=self.__binary_path,
-                                    boundaries=[rel.addend, -1])]
+                                    boundaries=(rel.addend, -1))]
             return []
 
         sys.stderr.write(f"[WARNING] A function name couldn't be found for "
@@ -365,8 +365,8 @@ class LibraryUsageAnalyser:
             # seem to be unaccurate (for example strncpy is not considered a
             # function). Anyway, the memory footprint wouldn't have been much
             # different.
-            callable_fun_boundaries[item.name] = [item.value,
-                                                  item.value + item.size]
+            callable_fun_boundaries[item.name] = (item.value,
+                                                  item.value + item.size)
 
         # The entry needs to be added to the __libraries class variable
         # *before* creating the CodeAnalyser because calling the CodeAnalyser
