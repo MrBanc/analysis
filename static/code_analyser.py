@@ -31,7 +31,7 @@ class CodeAnalyser:
     get_used_syscalls_text_section(syscalls_set, inv_syscalls_map)
         Updates the syscall set passed as argument after analysing the `.text`
         of the binary.
-    analyse_code(self, insns, syscalls_set, inv_syscalls_map[, funs_called])
+    analyse_code(self, insns, syscalls_set, inv_syscalls_map[, f_called_list])
         Updates the syscall set passed as argument after analysing the given
         instructions.
     get_text_section(self) -> lief.ELF.Section
@@ -111,7 +111,7 @@ class CodeAnalyser:
                          syscalls_set, inv_syscalls_map)
 
     def analyse_code(self, insns, syscalls_set, inv_syscalls_map,
-                     funs_called=None):
+                     f_called_list=None):
         """Main function of the Code Analyser. Updates the syscall set and the
         list of functions called after analysing the given instructions.
 
@@ -124,12 +124,12 @@ class CodeAnalyser:
         inv_syscalls_map : dict(int -> str)
             the syscall map defined in syscalls.py but with keys and values
             swapped
-        funs_called : None or list of LibFunction, optional
+        f_called_list : None or list of LibFunction, optional
             if a list is given, the functions called by the given instructions
             will be added in this list
         """
 
-        if funs_called is None:
+        if f_called_list is None:
             detect_functions = False
         else:
             detect_functions = True
@@ -150,16 +150,16 @@ class CodeAnalyser:
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 if (self.__has_dyn_libraries
                     and self.__lib_analyser.is_call_to_plt(ins.op_str)):
-                    called_function = self.__lib_analyser.get_function_called(
+                    called_plt_f = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
                     if detect_functions:
-                        self.__mov_local_funs_to(funs_called, called_function)
+                        self.__mov_local_funs_to(f_called_list, called_plt_f)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
-                                                          called_function)
+                                                          called_plt_f)
                 elif detect_functions and ins.group(CS_GRP_CALL):
                     f = self.__get_function_called(ins.op_str)
-                    if f and f not in funs_called:
-                        funs_called.append(f)
+                    if f and f not in f_called_list:
+                        f_called_list.append(f)
 
     def get_text_section(self):
         """Returns the .text section (as given by the lief library)
@@ -272,7 +272,7 @@ class CodeAnalyser:
 
         Returns
         -------
-        called_function : LibFunction
+        called_plt_f : LibFunction
             function that would be called
         """
 
