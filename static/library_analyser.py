@@ -261,6 +261,8 @@ class LibraryUsageAnalyser:
             # Get syscalls and functions used directly in the function code
             lib_name = utils.f_name_from_path(f.library_path)
             insns = self.__get_function_insns(f)
+            if insns is None:
+                continue
 
             (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
              .analyse_code(insns, function_syscalls,
@@ -448,6 +450,13 @@ class LibraryUsageAnalyser:
 
         text_section = (LibraryUsageAnalyser.__libraries[lib_name]
                         .code_analyser.get_text_section())
+        if function.boundaries[1] > text_section.size:
+            # TODO: detect in which section it is and fetch it
+            sys.stderr.write(f"[WARNING] Library function "
+                             f"{function.name}@{lib_name} is located outside "
+                             f"the .text section and was therefore not "
+                             f"analysed. Continuing...\n")
+            return None
         f_start_offset = function.boundaries[0] - text_section.virtual_address
         f_end_offset = function.boundaries[1] - text_section.virtual_address
         return self.__md.disasm(
