@@ -242,9 +242,9 @@ class LibraryUsageAnalyser:
         """
 
         utils.cur_depth += 1
-        funs_called = []
-        function_syscalls = set()
         for f in functions:
+            funs_called = []
+            function_syscalls = set()
             if f in LibraryUsageAnalyser.__analysed_functions:
                 utils.log(f"D-{utils.cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - at "
