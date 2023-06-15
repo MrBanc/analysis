@@ -82,10 +82,10 @@ class LibraryUsageAnalyser:
 
     Public Methods
     --------------
-    is_lib_call(self, operand) -> bool
+    is_call_to_plt(self, operand) -> bool
         Supposing that the operand given is used for a jmp or call instruction,
-        returns true if the result of this instruction is a library function
-        call.
+        returns true if the result of this instruction is to lead to the `.plt`
+        or the `.plt.sec` sections.
     get_function_called(self, operand) -> called_functions
         Returns the function that would be called by jumping to the address
         given in the `.plt` section.
@@ -136,16 +136,12 @@ class LibraryUsageAnalyser:
         #     self.__used_libraries.append("my_stripped_libc.so.6")
         self.__find_used_libraries()
 
-    def is_lib_call(self, operand):
+    def is_call_to_plt(self, operand):
         """Supposing that the operand given is used for a jmp or call
-        instruction, returns true if the result of this instruction is a
-        library function call.
+        instruction, returns true if the result of this instruction is to lead
+        to the `.plt` or the `.plt.sec` sections.
 
-        Note: This function as well as `get_function_called` shall probably be
-        replaced in the future and used `binary.imported_functions` with `lief`
-        instead. Indeed, currently, this function only detects jumps or call to
-        the classical organization of the .plt section, but some variations
-        exists (like .plt.sec).
+        This enables detecting library function calls.
 
         Parameters
         ----------
@@ -154,18 +150,9 @@ class LibraryUsageAnalyser:
 
         Returns
         -------
-        is_lib_call : bool
+        is_call_to_plt : bool
             True if the result of the instruction is a library function call
         """
-
-        # Update: In fact it just detects if the call lead to the .plt or
-        # .plt.sec section. But it is possible that it does not lead to a
-        # library function.
-        # TODO: I think the behavior of the function can stay the same and
-        # rather change the name. It is in `get_function_called` that the
-        # distinction should occur. And then the calling function should
-        # determine whether the function it got is from the same program or
-        # not.
 
         if utils.is_hex(operand):
             operand = int(operand, 16)
@@ -186,12 +173,14 @@ class LibraryUsageAnalyser:
         """Returns the function that would be called by jumping to the address
         given in the `.plt` section.
 
-        Note that the return value is a list in case multiple functions are
-        detected to correspond to this .plt entry and the exact function that
-        will be called in the list is not known.
+        If the function detected is a function exported from a library, the
+        LibFunction entry will be completed. If on the other hand it is a local
+        function call, the name of the function will be missing as well as the
+        end address.
 
-        Note: This function as well as `is_lib_call` shall probably be replaced
-        in the future and used `binary.imported_functions` with `lief` instead.
+        Note that the return value is a list in case multiple functions are
+        detected to correspond to this `.plt` entry and the exact function that
+        will be called in the list is not known.
 
         Parameters
         ----------
@@ -203,8 +192,6 @@ class LibraryUsageAnalyser:
         called_functions : list of LibFunction
             function(s) that would be called
         """
-
-        # TODO: see update of `is_lib_call`
 
         operand = int(operand, 16)
 
@@ -350,7 +337,8 @@ class LibraryUsageAnalyser:
     def __add_used_library(self, lib_path, show_warnings=True):
 
         # if utils.DEBUG and lib_path == "/lib64/libc.so.6":
-        #     self.__add_used_library("/home/ben/codes/misc/my_stripped_libc.so.6")
+        #     self.__add_used_library(
+        #             "/home/ben/codes/misc/my_stripped_libc.so.6")
         #     return
         if not exists(lib_path):
             # Does not need to print an error message as if a library is really
@@ -458,8 +446,8 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        text_section = (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
-                        .get_text_section())
+        text_section = (LibraryUsageAnalyser.__libraries[lib_name]
+                        .code_analyser.get_text_section())
         f_start_offset = function.boundaries[0] - text_section.virtual_address
         f_end_offset = function.boundaries[1] - text_section.virtual_address
         return self.__md.disasm(

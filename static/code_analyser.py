@@ -149,17 +149,11 @@ class CodeAnalyser:
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 if (self.__has_dyn_libraries
-                    and self.__lib_analyser.is_lib_call(ins.op_str)):
+                    and self.__lib_analyser.is_call_to_plt(ins.op_str)):
                     called_function = self.__lib_analyser.get_function_called(
                                                                     ins.op_str)
-                    for i, f in enumerate(called_function):
-                        # no name indicates it wasn't an JUMP_SLOT got entry
-                        if not f.name:
-                            called_function[i] = self.__get_function_called(
-                                    hex(f.boundaries[0]))
                     if detect_functions:
-                        funs_called.extend([f for f in called_function
-                                            if f not in funs_called])
+                        self.__mov_local_funs_to(funs_called, called_function)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           called_function)
                 elif detect_functions and ins.group(CS_GRP_CALL):
@@ -307,6 +301,24 @@ class CodeAnalyser:
         else:
             # TODO
             return None
+
+    def __mov_local_funs_to(self, f_to, f_from):
+        """Move the functions from .plt that lead to an IRELATIVE .got entry
+        from `f_from` to `f_to`.
+
+        These functions correspond to functions that are local to the currently
+        analysed binary while other entries of the .got (with the type
+        JUMP_SLOT) correspond to functions from other libraries, which should
+        be treated differently. The purpose of this function is thus to
+        separate them.
+        """
+
+        for i, f in enumerate(f_from):
+            # no name indicates it wasn't an JUMP_SLOT got entry
+            if not f.name:
+                f_to.append(self.__get_function_called(
+                    hex(f.boundaries[0])))
+                f_from.pop(i)
 
     def __is_reg(self, string):
         """Returns true if the given string is the name of a (x86_64 general
