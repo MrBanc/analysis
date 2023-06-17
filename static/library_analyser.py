@@ -13,6 +13,7 @@ from os.path import exists
 from os import environ as environment_var
 from dataclasses import dataclass
 from typing import Dict, Tuple, Any
+from collections import defaultdict
 
 import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
@@ -139,6 +140,9 @@ class LibraryUsageAnalyser:
         #     self.__used_libraries.append("my_stripped_libc.so.6")
         self.__find_used_libraries()
 
+        self.__used_libraries_aliases = defaultdict(list)
+        self.__find_used_libraries_aliases(binary.symbols_version_requirement)
+
     def is_call_to_plt(self, operand):
         """Supposing that the operand given is used for a jmp or call
         instruction, returns true if the result of this instruction is to lead
@@ -203,6 +207,11 @@ class LibraryUsageAnalyser:
         rel = self.__got_rel[got_rel_addr]
         if (lief.ELF.RELOCATION_X86_64(rel.type)
             == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
+            if rel.symbol.symbol_version.has_auxiliary_version:
+                return self.__find_function_with_name(
+                        rel.symbol.name,
+                        rel.symbol.symbol_version.symbol_version_auxiliary
+                        .name)
             return self.__find_function_with_name(rel.symbol.name)
         if (lief.ELF.RELOCATION_X86_64(rel.type)
             == lief.ELF.RELOCATION_X86_64.IRELATIVE):
@@ -312,10 +321,15 @@ class LibraryUsageAnalyser:
         return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
                 + next_ins.address)
 
-    def __find_function_with_name(self, f_name):
+    def __find_function_with_name(self, f_name, lib_alias=None):
 
         functions = []
-        for lib_name in self.__used_libraries:
+        if lib_alias is None:
+            lib_to_check = self.__used_libraries
+        else:
+            lib_to_check = self.__used_libraries_aliases[lib_alias]
+
+        for lib_name in lib_to_check:
             lib = LibraryUsageAnalyser.__libraries[lib_name]
             if f_name not in lib.callable_fun_boundaries:
                 continue
@@ -330,6 +344,8 @@ class LibraryUsageAnalyser:
                 functions.append(to_add)
 
         if not functions:
+            if lib_alias is not None:
+                return self.__find_function_with_name(f_name)
             sys.stderr.write(f"[WARNING] No library function was found for "
                              f"{f_name}. Continuing...\n")
         elif len(functions) > 1:
@@ -387,9 +403,11 @@ class LibraryUsageAnalyser:
 
     def __find_used_libraries(self):
 
-        # A binary sometimes uses the .plt section to call one of its own
-        # functions
-        self.__add_used_library(self.__binary_path, show_warnings=False)
+        if self.__binary_path != utils.app:
+            # A binary sometimes uses the .plt section to call one of its own
+            # functions. It isn't necessary to do it for the main app as
+            # function calls aren't relevant there.
+            self.__add_used_library(self.__binary_path, show_warnings=False)
 
         try:
             ldd_output = subprocess.run(["ldd", self.__binary_path],
@@ -434,6 +452,16 @@ class LibraryUsageAnalyser:
                              f"{lib_names}\n")
             self.__used_libraries = [l for l in self.__used_libraries
                                      if l not in lib_names]
+
+    def __find_used_libraries_aliases(self, symbols_version_requirement):
+
+        # TODO: I didn't have the time to understand why multiple versions of a
+        # library are mapped to a library. This may be important and may
+        # require special treatement for each version, but for now every
+        # version will be treated the same.
+        for svr in symbols_version_requirement:
+            for aux_sym in svr.get_auxiliary_symbols():
+                self.__used_libraries_aliases[aux_sym.name].append(svr.name)
 
     def __get_function_insns(self, function):
         """Return the instructions of a function.
