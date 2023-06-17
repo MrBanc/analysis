@@ -10,6 +10,7 @@ import sys
 
 from copy import copy
 from os.path import exists
+from os import environ as environment_var
 from dataclasses import dataclass
 from typing import Dict, Tuple, Any
 
@@ -23,9 +24,11 @@ from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
 from syscalls import get_inverse_syscalls_map
 
 
-LIB_PATHS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
-             '/lib/',   '/usr/lib/',   '/usr/local/lib/']
-
+DEFAULT_LIB_PATHS = {'/lib64/', '/usr/lib64/', '/usr/local/lib64/',
+                     '/lib/',   '/usr/lib/',   '/usr/local/lib/'}
+LD_LIB_PATHS = (set(environment_var.get("LD_LIBRARY_PATH").split(":"))
+                if "LD_LIBRARY_PATH" in environment_var else set())
+LIB_PATHS = DEFAULT_LIB_PATHS.union(LD_LIB_PATHS)
 
 @dataclass
 class LibFunction:
@@ -415,9 +418,9 @@ class LibraryUsageAnalyser:
         lib_names = [lib for lib in self.__used_libraries
                      if lib not in LibraryUsageAnalyser.__libraries]
 
-        # TODO: also look in environment variable `LD_LIBRARY_PATH` and
-        # possibly look which path the linker used by the binary uses. Can also
-        # add more paths to `LIB_PATHS` and use a subprocess to use `locate`
+        # TODO: If this is still not enought, adding a subprocess to use
+        # `locate` for the other libraries is a possibility.
+
         for path in LIB_PATHS:
             lib_names_copy = copy(lib_names)
             for name in lib_names_copy:
