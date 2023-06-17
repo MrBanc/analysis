@@ -37,7 +37,8 @@ def main():
                         'standard output', default=False)
     parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
                         const=True, help='Maximum number of instructions to '
-                        'check before a syscall instruction to find its id')
+                        'check before a syscall instruction to find its id',
+                        default=20)
     parser.add_argument('--skip-data', '-s', type=utils.str2bool, nargs='?',
                         const=True, help='Automatically skip data in code and '
                         'try to find the next instruction (may lead to '
@@ -51,6 +52,7 @@ def main():
     if utils.logging and utils.use_log_file:
         utils.clean_logs()
     utils.skip_data = args.skip_data
+    utils.max_backtrack_insns = args.max_backtrack_insns
 
     try:
         binary = lief.parse(utils.app)
@@ -64,7 +66,7 @@ def main():
         syscalls_set = set()
         get_syscalls_from_symbols(binary, syscalls_set)
 
-        code_analyser = CodeAnalyser(utils.app, args.max_backtrack_insns)
+        code_analyser = CodeAnalyser(utils.app)
 
         inv_syscalls_map = get_inverse_syscalls_map()
         code_analyser.get_used_syscalls_text_section(syscalls_set,

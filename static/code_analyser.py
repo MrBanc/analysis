@@ -17,7 +17,7 @@ from elf_analyser import is_valid_binary, TEXT_SECTION
 
 
 class CodeAnalyser:
-    """CodeAnalyser(path, max_backtrack_insns) -> CodeAnalyser
+    """CodeAnalyser(path) -> CodeAnalyser
 
     Class use to store information about and analyse the binary code to detect
     syscalls.
@@ -60,7 +60,7 @@ class CodeAnalyser:
                  'r15d': {'r15','r15d','r15w','r15b'}}
 
 
-    def __init__(self, path, max_backtrack_insns=None):
+    def __init__(self, path):
 
         self.__path = path
         self.__binary = lief.parse(path)
@@ -68,9 +68,6 @@ class CodeAnalyser:
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
         self.__has_dyn_libraries = bool(self.__binary.libraries)
-        self.__max_backtrack_insns = (max_backtrack_insns
-                                      if max_backtrack_insns is not None
-                                      else 20)
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is
@@ -85,7 +82,7 @@ class CodeAnalyser:
 
         try:
             self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
-                    self.__binary, self.__max_backtrack_insns)
+                    self.__binary)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
                              f"couldn't be created: {e}\n")
@@ -183,7 +180,7 @@ class CodeAnalyser:
 
         focus_reg = 'eax'
 
-        last_ins_index = max(0, index-1-self.__max_backtrack_insns)
+        last_ins_index = max(0, index-1-utils.max_backtrack_insns)
         for i in range(index-1, last_ins_index, -1):
             if list_ins[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue

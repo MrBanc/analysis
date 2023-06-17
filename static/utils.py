@@ -7,11 +7,14 @@ DEBUG = False
 log_dir_path = "../logs/"
 
 # global variables
+# Beware that these may NOT be reflective of the default values. To modify the
+# default value, look inside `static_analyser.py`
 verbose = True
 app = "redis-server-static"
 use_log_file = True
 logging = False
 skip_data = False
+max_backtrack_insns = 20
 # For debug purpose
 cur_depth = -1
 

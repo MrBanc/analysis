@@ -79,7 +79,7 @@ class Library:
 
 
 class LibraryUsageAnalyser:
-    """LibraryUsageAnalyser(binary[, max_backtrack_insns]) -> CodeAnalyser
+    """LibraryUsageAnalyser(binary) -> CodeAnalyser
 
     Class use to store information about and analyse the shared libraries
     used by an ELF executable.
@@ -105,7 +105,7 @@ class LibraryUsageAnalyser:
     __libraries = {}
 
 
-    def __init__(self, binary, max_backtrack_insns=None):
+    def __init__(self, binary):
 
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
@@ -130,9 +130,6 @@ class LibraryUsageAnalyser:
         # This may lead to errors. So a warning is throwed if indeed data is
         # found.
         self.__md.skipdata = utils.skip_data
-        self.__max_backtrack_insns = (max_backtrack_insns
-                                      if max_backtrack_insns is not None
-                                      else 20)
 
         self.__used_libraries = binary.libraries
         # if utils.DEBUG and "libc.so.6" in self.__used_libraries:
@@ -397,7 +394,7 @@ class LibraryUsageAnalyser:
         LibraryUsageAnalyser.__libraries[lib_name] = Library(
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
-        code_analyser = ca.CodeAnalyser(lib_path, self.__max_backtrack_insns)
+        code_analyser = ca.CodeAnalyser(lib_path)
         LibraryUsageAnalyser.__libraries[lib_name].code_analyser = \
                 code_analyser
 
