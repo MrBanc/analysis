@@ -132,9 +132,6 @@ class LibraryUsageAnalyser:
         self.__md.skipdata = utils.skip_data
 
         self.__used_libraries = binary.libraries
-        # if utils.DEBUG and "libc.so.6" in self.__used_libraries:
-        #     self.__used_libraries.remove("libc.so.6")
-        #     self.__used_libraries.append("my_stripped_libc.so.6")
         self.__find_used_libraries()
 
         self.__used_libraries_aliases = defaultdict(list)
@@ -354,10 +351,6 @@ class LibraryUsageAnalyser:
 
     def __add_used_library(self, lib_path, show_warnings=True):
 
-        # if utils.DEBUG and lib_path == "/lib64/libc.so.6":
-        #     self.__add_used_library(
-        #             "/home/ben/codes/misc/my_stripped_libc.so.6")
-        #     return
         if not exists(lib_path):
             # Does not need to print an error message as if a library is really
             # not found, it will be noticed elsewhere with more information
@@ -433,7 +426,7 @@ class LibraryUsageAnalyser:
         lib_names = [lib for lib in self.__used_libraries
                      if lib not in LibraryUsageAnalyser.__libraries]
 
-        # TODO: If this is still not enought, adding a subprocess to use
+        # TODO: If this is still not enough, adding a subprocess to use
         # `locate` for the other libraries is a possibility.
 
         for path in LIB_PATHS:
