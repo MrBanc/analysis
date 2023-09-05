@@ -13,7 +13,7 @@ from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 import utils
 import library_analyser
 from custom_exception import StaticAnalyserException
-from elf_analyser import is_valid_binary, TEXT_SECTION
+from elf_analyser import is_valid_binary, is_valid_binary_path, TEXT_SECTION
 
 
 class CodeAnalyser:
@@ -64,6 +64,7 @@ class CodeAnalyser:
 
         self.__path = path
         self.__binary = lief.parse(path)
+        self.__rodata = None
         if not is_valid_binary(self.__binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -142,17 +143,20 @@ class CodeAnalyser:
                 continue
 
             if self.__is_syscall_instruction(ins):
-                self.__wrapper_backtrack_syscalls(i, list_inst, syscalls_set,
+                self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 if (self.__has_dyn_libraries
                     and self.__lib_analyser.is_call_to_plt(ins.op_str)):
-                    called_plt_f = self.__lib_analyser.get_function_called(
-                                                                    ins.op_str)
+                    f_to_analyse = self.__wrapper_get_function_called(
+                                                ins.op_str, i, list_inst)
+                    # TODO: J'ai l'impression qu'on devrait rentrer dans ce if
+                    # dans tous les cas, non ? À vérifier car je n'ai plus trop
+                    # le code en tête et c'est pas trivial à tester
                     if detect_functions:
-                        self.__mov_local_funs_to(f_called_list, called_plt_f)
+                        self.__mov_local_funs_to(f_called_list, f_to_analyse)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
-                                                          called_plt_f)
+                                                          f_to_analyse)
                 elif detect_functions and ins.group(CS_GRP_CALL):
                     f = self.__get_function_called(ins.op_str)
                     if f and f not in f_called_list:
@@ -176,22 +180,24 @@ class CodeAnalyser:
             raise StaticAnalyserException(".text section is not found.")
         return text_section
 
-    def __backtrack_syscalls(self, index, list_ins):
-
-        focus_reg = 'eax'
+    def __backtrack_register(self, focus_reg, index, list_inst):
 
         last_ins_index = max(0, index-1-utils.max_backtrack_insns)
         for i in range(index-1, last_ins_index, -1):
-            if list_ins[i].id in (X86_INS_DATA16, X86_INS_INVALID):
+            if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue
 
-            utils.log(f"-> {hex(list_ins[i].address)}:{list_ins[i].mnemonic}"
-                      f" {list_ins[i].op_str}", "backtrack.log", indent=1)
+            # TODO: faire en sorte qu'il ne log que quand on backtrack les
+            # syscalls, non ? Ou alors aussi logger des trucs qd on a trouvé la
+            # valeur du registre recherché (de manière similaire à quand on a
+            # trouvé ou abandonné la recherche d'un syscall)
+            utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
+                      f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
-            mnemonic = list_ins[i].mnemonic
-            op_strings = list_ins[i].op_str.split(",")
+            mnemonic = list_inst[i].mnemonic
+            op_strings = list_inst[i].op_str.split(",")
 
-            regs_write = list_ins[i].regs_access()[1]
+            regs_write = list_inst[i].regs_access()[1]
             for r in regs_write:
                 if self.__md.reg_name(r) not in self.__registers[focus_reg]:
                     continue
@@ -222,12 +228,56 @@ class CodeAnalyser:
 
         return -1
 
-    def __wrapper_backtrack_syscalls(self, i, list_inst, syscalls_set,
+    def __backtrack_dlopen(self, i, list_inst):
+
+        lib_name_address = self.__backtrack_register("edi", i, list_inst)
+
+        # Supposing it is always in `.rodata` (which may not always be the
+        # case?)
+        # TODO: verify
+        if self.__rodata is None:
+            self.__rodata = self.__binary.get_section(".rodata")
+
+        rodata_start_offset = lib_name_address - self.__rodata.virtual_address
+        lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
+        rodata_end_offset = lib_name.index(b"\x00") # string terminator
+        lib_name = lib_name[:rodata_end_offset].decode("utf8")
+
+        lib_paths = (self.__lib_analyser
+                     .get_libraries_paths_manually([lib_name]))
+        if not is_valid_binary_path(lib_paths):
+            # dlopen (may) lead to a GNU ld script that points to the actual
+            # libraries
+            # TODO: All the libraries pointed to by the script are taken into
+            # account, but they only should if the previous entries do not
+            # contain the wanted function
+            lib_paths = (self.__lib_analyser
+                         .get_lib_from_GNU_ld_script(lib_paths[0]))
+        self.__lib_analyser.add_used_library(lib_paths[0], show_warnings=False)
+
+    def __backtrack_dlsym(self, i, list_inst):
+
+        fun_name_address = self.__backtrack_register("esi", i, list_inst)
+
+        # Supposing it is always in `.rodata` (which may not always be the
+        # case?)
+        # TODO: verify
+        if self.__rodata is None:
+            self.__rodata = self.__binary.get_section(".rodata")
+
+        rodata_start_offset = fun_name_address - self.__rodata.virtual_address
+        fun_name = bytearray(self.__rodata.content)[rodata_start_offset:]
+        rodata_end_offset = fun_name.index(b"\x00") # string terminator
+        fun_name = fun_name[:rodata_end_offset].decode("utf8")
+
+        return self.__lib_analyser.get_function_with_name(fun_name)
+
+    def __backtrack_syscalls(self, i, list_inst, syscalls_set,
                                      inv_syscalls_map):
 
         # utils.print_debug("syscall detected at instruction: "
         #                   + str(list_inst[-1]))
-        nb_syscall = self.__backtrack_syscalls(i, list_inst)
+        nb_syscall = self.__backtrack_register("eax", i, list_inst)
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
             utils.print_verbose(f"Syscall found: {name}: {nb_syscall}")
@@ -316,6 +366,21 @@ class CodeAnalyser:
                 f_to.append(self.__get_function_called(
                     hex(f.boundaries[0])))
                 f_from.pop(i)
+
+    def __wrapper_get_function_called(self, operand, i, list_inst):
+
+        called_plt_f = self.__lib_analyser.get_function_called(operand)
+        loaded_fun = []
+        for f in called_plt_f:
+            if f.name == "dlopen" and utils.f_name_from_path(
+                    f.library_path).startswith("libc"):
+                self.__backtrack_dlopen(i, list_inst)
+            elif f.name == "dlsym" and utils.f_name_from_path(
+                    f.library_path).startswith("libc"):
+                loaded_fun.extend(self.__backtrack_dlsym(i, list_inst))
+                # TODO: vérifier qu'il faut rien faire de plus ici
+
+        return called_plt_f + loaded_fun
 
     def __is_reg(self, string):
         """Returns true if the given string is the name of a (x86_64 general

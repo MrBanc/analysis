@@ -32,6 +32,27 @@ def is_valid_binary(binary):
             and binary.header.identity_class == lief.ELF.ELF_CLASS.CLASS64
             and binary.header.machine_type == lief.ELF.ARCH.x86_64)
 
+def is_valid_binary_path(binary_path):
+    """Verifies that the given binary is an ELF binary for the `x86_64`
+    architecture
+
+    Parameters
+    ----------
+    binary_path : str
+        the path of the binary to check
+
+    Returns
+    -------
+    is_valid_binary : bool
+        True if the tests pass
+    """
+
+    lief.logging.disable()
+    binary = lief.parse(binary_path)
+    lief.logging.enable()
+
+    return is_valid_binary(binary)
+
 def get_syscalls_from_symbols(binary, syscalls_set):
     """Try to detect syscalls used in the binary thanks to its symbolic
     information (for example checking the presence of wrappers).
