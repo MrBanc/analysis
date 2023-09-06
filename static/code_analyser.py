@@ -219,6 +219,10 @@ class CodeAnalyser:
                         focus_reg = self.__get_reg_key(op_strings[1])
                         utils.log(f"[Shifting focus to {focus_reg}]",
                                   "backtrack.log", indent=2)
+                    else:
+                        utils.log("[Operation not supported]",
+                                  "backtrack.log", indent=2)
+                        return -1
                 elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
                     return 0
                 else:
@@ -231,6 +235,17 @@ class CodeAnalyser:
     def __backtrack_dlopen(self, i, list_inst):
 
         lib_name_address = self.__backtrack_register("edi", i, list_inst)
+        utils.print_debug(f"dlopen lib name is at address "
+                          f"{hex(lib_name_address)}")
+
+        if lib_name_address < 0:
+            sys.stderr.write(f"[WARNING] A library loaded with dlopen in "
+                             f"{self.__path} could not be found\n")
+            # TODO remove this
+            # with open("tests/results_simple_dlopen_raw",
+            #           "a", encoding="utf-8") as f:
+            #     f.write(f"{self.__path}: dlopen X\n")
+            return
 
         # Supposing it is always in `.rodata` (which may not always be the
         # case?)
@@ -242,10 +257,22 @@ class CodeAnalyser:
         lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
         rodata_end_offset = lib_name.index(b"\x00") # string terminator
         lib_name = lib_name[:rodata_end_offset].decode("utf8")
+        # TODO remove this
+        # with open("tests/results_simple_dlopen_raw",
+        #           "a", encoding="utf-8") as f:
+        #     f.write(f"{self.__path}: dlopen Y\n")
+        utils.print_debug(f"Found lib with dlopen: {lib_name}")
 
         lib_paths = (self.__lib_analyser
                      .get_libraries_paths_manually([lib_name]))
-        if not is_valid_binary_path(lib_paths):
+
+        if not lib_paths:
+            sys.stderr.write(f"[WARNING] The library (supposedly) named "
+                             f"\"{lib_name}\" loaded with dlopen in "
+                             f"{self.__path} could not be found\n")
+            return
+
+        if not is_valid_binary_path(lib_paths[0]):
             # dlopen (may) lead to a GNU ld script that points to the actual
             # libraries
             # TODO: All the libraries pointed to by the script are taken into
@@ -259,6 +286,15 @@ class CodeAnalyser:
 
         fun_name_address = self.__backtrack_register("esi", i, list_inst)
 
+        if fun_name_address < 0:
+            # TODO remove this
+            # with open("tests/results_simple_dlopen_raw",
+            #           "a", encoding="utf-8") as f:
+            #     f.write(f"{self.__path}: dlsym X\n")
+            sys.stderr.write(f"[WARNING] A function loaded with dlsym in "
+                             f"{self.__path} could not be found\n")
+            return []
+
         # Supposing it is always in `.rodata` (which may not always be the
         # case?)
         # TODO: verify
@@ -270,7 +306,13 @@ class CodeAnalyser:
         rodata_end_offset = fun_name.index(b"\x00") # string terminator
         fun_name = fun_name[:rodata_end_offset].decode("utf8")
 
-        return self.__lib_analyser.get_function_with_name(fun_name)
+        temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
+        utils.print_debug(f"Found function with dlsym: {temp_ret}")
+        # TODO remove this
+        # with open("tests/results_simple_dlopen_raw",
+        #           "a", encoding="utf-8") as f:
+        #     f.write(f"{self.__path}: dlsym Y\n")
+        return temp_ret
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,
                                      inv_syscalls_map):

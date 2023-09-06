@@ -3,7 +3,7 @@
 import argparse
 
 
-DEBUG = False
+DEBUG = True
 log_dir_path = "../logs/"
 
 # global variables
