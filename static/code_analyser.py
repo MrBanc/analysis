@@ -187,10 +187,6 @@ class CodeAnalyser:
             if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue
 
-            # TODO: faire en sorte qu'il ne log que quand on backtrack les
-            # syscalls, non ? Ou alors aussi logger des trucs qd on a trouvé la
-            # valeur du registre recherché (de manière similaire à quand on a
-            # trouvé ou abandonné la recherche d'un syscall)
             utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
                       f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
@@ -202,33 +198,34 @@ class CodeAnalyser:
                 if self.__md.reg_name(r) not in self.__registers[focus_reg]:
                     continue
 
+                ret = -1
                 if mnemonic not in ("mov", "xor"):
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
-                    return -1
+                    return ret
 
                 op_strings[0] = op_strings[0].strip()
                 op_strings[1] = op_strings[1].strip()
 
                 if mnemonic == "mov":
                     if utils.is_hex(op_strings[1]):
-                        return int(op_strings[1], 16)
-                    if op_strings[1].isdigit():
-                        return int(op_strings[1])
-                    if self.__is_reg(op_strings[1]):
+                        ret = int(op_strings[1], 16)
+                    elif op_strings[1].isdigit():
+                        ret = int(op_strings[1])
+                    elif self.__is_reg(op_strings[1]):
                         focus_reg = self.__get_reg_key(op_strings[1])
                         utils.log(f"[Shifting focus to {focus_reg}]",
                                   "backtrack.log", indent=2)
+                        continue
                     else:
                         utils.log("[Operation not supported]",
                                   "backtrack.log", indent=2)
-                        return -1
                 elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
-                    return 0
+                    ret = 0
                 else:
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
-                    return -1
+                return ret
 
         return -1
 
@@ -239,6 +236,7 @@ class CodeAnalyser:
                           f"{hex(lib_name_address)}")
 
         if lib_name_address < 0:
+            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
             sys.stderr.write(f"[WARNING] A library loaded with dlopen in "
                              f"{self.__path} could not be found\n")
             # TODO remove this
@@ -257,10 +255,7 @@ class CodeAnalyser:
         lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
         rodata_end_offset = lib_name.index(b"\x00") # string terminator
         lib_name = lib_name[:rodata_end_offset].decode("utf8")
-        # TODO remove this
-        # with open("tests/results_simple_dlopen_raw",
-        #           "a", encoding="utf-8") as f:
-        #     f.write(f"{self.__path}: dlopen Y\n")
+
         utils.print_debug(f"Found lib with dlopen: {lib_name}")
 
         lib_paths = (self.__lib_analyser
@@ -270,17 +265,34 @@ class CodeAnalyser:
             sys.stderr.write(f"[WARNING] The library (supposedly) named "
                              f"\"{lib_name}\" loaded with dlopen in "
                              f"{self.__path} could not be found\n")
+            utils.log(f"Ignore: {hex(lib_name_address)}: {lib_name}\n",
+                      "backtrack.log")
             return
 
         if not is_valid_binary_path(lib_paths[0]):
             # dlopen (may) lead to a GNU ld script that points to the actual
             # libraries
-            # TODO: All the libraries pointed to by the script are taken into
-            # account, but they only should if the previous entries do not
-            # contain the wanted function
-            lib_paths = (self.__lib_analyser
-                         .get_lib_from_GNU_ld_script(lib_paths[0]))
-        self.__lib_analyser.add_used_library(lib_paths[0], show_warnings=False)
+            try:
+                lib_paths = (self.__lib_analyser
+                             .get_lib_from_GNU_ld_script(lib_paths[0]))
+            except FileNotFoundError:
+                sys.stderr.write(f"[ERROR] File not found at "
+                                 f"{lib_paths[0]}")
+            except UnicodeDecodeError:
+                sys.stderr.write(f"[ERROR] The library path {lib_paths[0]} "
+                                 f"loaded with dlopen in {self.__path} does "
+                                 f"not lead to a valid binary or script\n")
+
+        utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
+        # TODO remove this
+        # with open("tests/results_simple_dlopen_raw",
+        #           "a", encoding="utf-8") as f:
+        #     f.write(f"{self.__path}: dlopen Y\n")
+        # TODO: All the libraries pointed to by the script are taken into
+        # account, but they only should if the previous entries do not
+        # contain the wanted function
+        for p in lib_paths:
+            self.__lib_analyser.add_used_library(p, show_warnings=False)
 
     def __backtrack_dlsym(self, i, list_inst):
 
@@ -291,6 +303,7 @@ class CodeAnalyser:
             # with open("tests/results_simple_dlopen_raw",
             #           "a", encoding="utf-8") as f:
             #     f.write(f"{self.__path}: dlsym X\n")
+            utils.log(f"Ignore: {fun_name_address}\n", "backtrack.log")
             sys.stderr.write(f"[WARNING] A function loaded with dlsym in "
                              f"{self.__path} could not be found\n")
             return []
@@ -306,6 +319,9 @@ class CodeAnalyser:
         rodata_end_offset = fun_name.index(b"\x00") # string terminator
         fun_name = fun_name[:rodata_end_offset].decode("utf8")
 
+        utils.log(f"Found: {fun_name}\n", "backtrack.log")
+
+        # TODO replace this after return
         temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
         utils.print_debug(f"Found function with dlsym: {temp_ret}")
         # TODO remove this
@@ -416,11 +432,16 @@ class CodeAnalyser:
         for f in called_plt_f:
             if f.name == "dlopen" and utils.f_name_from_path(
                     f.library_path).startswith("libc"):
+                utils.log(f"dlopen instruction: {hex(list_inst[-1].address)} "
+                          f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
+                          "backtrack.log")
                 self.__backtrack_dlopen(i, list_inst)
             elif f.name == "dlsym" and utils.f_name_from_path(
                     f.library_path).startswith("libc"):
+                utils.log(f"dlsym instruction: {hex(list_inst[-1].address)} "
+                          f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
+                          "backtrack.log")
                 loaded_fun.extend(self.__backtrack_dlsym(i, list_inst))
-                # TODO: vérifier qu'il faut rien faire de plus ici
 
         return called_plt_f + loaded_fun
 
