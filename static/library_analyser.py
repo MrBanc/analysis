@@ -47,6 +47,7 @@ class LibFunction:
         the start address and the end address (start + size) of the function
         within the library binary
     """
+    # TODO add new public functions to class string above
 
     name: str
     library_path: str
@@ -554,17 +555,12 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        text_section = (LibraryUsageAnalyser.__libraries[lib_name]
-                        .code_analyser.get_text_section())
-        if function.boundaries[1] > text_section.size:
-            # TODO: detect in which section it is and fetch it
-            sys.stderr.write(f"[WARNING] Library function "
-                             f"{function.name}@{lib_name} is located outside "
-                             f"the .text section and was therefore not "
-                             f"analysed. Continuing...\n")
-            return None
-        f_start_offset = function.boundaries[0] - text_section.virtual_address
-        f_end_offset = function.boundaries[1] - text_section.virtual_address
+        target_section = (LibraryUsageAnalyser.__libraries[lib_name]
+                          .code_analyser.get_section_from_address(
+                              function.boundaries[0]))
+        f_start_offset = (function.boundaries[0]
+                          - target_section.virtual_address)
+        f_end_offset = function.boundaries[1] - target_section.virtual_address
         return self.__md.disasm(
-                bytearray(text_section.content)[f_start_offset:f_end_offset],
-                text_section.virtual_address + f_start_offset)
+                bytearray(target_section.content)[f_start_offset:f_end_offset],
+                target_section.virtual_address + f_start_offset)

@@ -37,6 +37,8 @@ class CodeAnalyser:
     get_text_section(self) -> lief.ELF.Section
         Returns the .text section (as given by the lief library)
     """
+    # TODO add new public functions to class string above
+
 
     # Used to detect the syscall identifier.
     # The "high byte" (for example 'ah') is not considered. It could be,
@@ -175,10 +177,29 @@ class CodeAnalyser:
         StaticAnalyserException
             If the .text section is not found.
         """
+
         text_section = self.__binary.get_section(TEXT_SECTION)
         if text_section is None:
             raise StaticAnalyserException(".text section is not found.")
         return text_section
+
+    def get_section_from_address(self, address):
+        """Returns the section (in lief format) that contains the data or
+        instruction located at the given address.
+
+        Parameters
+        ----------
+        address : int
+            address inside the wanted section
+
+        Returns
+        -------
+        section : lief section
+            The section containing the given address
+        """
+
+        return self.__binary.section_from_virtual_address(address)
+
 
     def __backtrack_register(self, focus_reg, index, list_inst):
 
