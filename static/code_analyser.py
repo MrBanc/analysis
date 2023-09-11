@@ -230,10 +230,10 @@ class CodeAnalyser:
         return -1
 
     def __backtrack_dlopen(self, i, list_inst):
+        # TODO cette fonction est longue, on peut probablement la simplifier ou
+        # la diviser
 
         lib_name_address = self.__backtrack_register("edi", i, list_inst)
-        utils.print_debug(f"dlopen lib name is at address "
-                          f"{hex(lib_name_address)}")
 
         if lib_name_address < 0:
             utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
@@ -256,8 +256,6 @@ class CodeAnalyser:
         rodata_end_offset = lib_name.index(b"\x00") # string terminator
         lib_name = lib_name[:rodata_end_offset].decode("utf8")
 
-        utils.print_debug(f"Found lib with dlopen: {lib_name}")
-
         lib_paths = (self.__lib_analyser
                      .get_libraries_paths_manually([lib_name]))
 
@@ -268,6 +266,10 @@ class CodeAnalyser:
             utils.log(f"Ignore: {hex(lib_name_address)}: {lib_name}\n",
                       "backtrack.log")
             return
+        if len(lib_paths) > 1:
+            # TODO: vérifie
+            sys.stderr.write(f"[ERROR] lib_paths should have been of length "
+                             f"1... code needs correction... ({lib_paths})")
 
         if not is_valid_binary_path(lib_paths[0]):
             # dlopen (may) lead to a GNU ld script that points to the actual
@@ -278,10 +280,12 @@ class CodeAnalyser:
             except FileNotFoundError:
                 sys.stderr.write(f"[ERROR] File not found at "
                                  f"{lib_paths[0]}")
+                lib_paths = []
             except UnicodeDecodeError:
                 sys.stderr.write(f"[ERROR] The library path {lib_paths[0]} "
                                  f"loaded with dlopen in {self.__path} does "
                                  f"not lead to a valid binary or script\n")
+                lib_paths = []
 
         utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
         # TODO remove this
@@ -323,7 +327,6 @@ class CodeAnalyser:
 
         # TODO replace this after return
         temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
-        utils.print_debug(f"Found function with dlsym: {temp_ret}")
         # TODO remove this
         # with open("tests/results_simple_dlopen_raw",
         #           "a", encoding="utf-8") as f:
