@@ -277,103 +277,6 @@ class LibraryUsageAnalyser:
 
         return lib_paths
 
-    def get_used_syscalls(self, syscalls_set, functions):
-        """Main method of the Library Analyser. Updates the syscall set
-        passed as argument after analysing the given function(s).
-
-        Parameters
-        ----------
-        syscalls_set : set of str
-            set of syscalls used by the program analysed
-        functions : list of LibFunction
-            functions to analyse
-        """
-
-        # to avoid modifying the parameter given by the caller
-        funs_to_analyse = functions.copy()
-
-        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse)
-
-    def __get_used_syscalls_recursive(self, syscalls_set, functions):
-        """Updates the syscall set passed as argument after analysing the given
-        function(s).
-
-        Parameters
-        ----------
-        syscalls_set : set of str
-            set of syscalls used by the program analysed
-        functions : list of LibFunction
-            functions to analyse
-        """
-
-        utils.cur_depth += 1
-        for f in functions:
-            funs_called = []
-            function_syscalls = set()
-            if f in LibraryUsageAnalyser.__analysed_functions:
-                utils.log(f"D-{utils.cur_depth}: {f.name}@"
-                          f"{utils.f_name_from_path(f.library_path)} - at "
-                          f"{hex(f.boundaries[0])} - done",
-                          "lib_functions.log", utils.cur_depth)
-                continue
-            LibraryUsageAnalyser.__analysed_functions.add(f)
-
-            utils.log(f"D-{utils.cur_depth}: {f.name}@"
-                      f"{utils.f_name_from_path(f.library_path)} - at "
-                      f"{hex(f.boundaries[0])}",
-                      "lib_functions.log", utils.cur_depth)
-
-            # Get syscalls and functions used directly in the function code
-            lib_name = utils.f_name_from_path(f.library_path)
-            insns = self.__get_function_insns(f)
-            if insns is None:
-                continue
-
-            (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
-             .analyse_code(insns, function_syscalls,
-                           get_inverse_syscalls_map(), funs_called))
-
-            # Get all the syscalls used by the called function
-            self.__get_used_syscalls_recursive(function_syscalls, funs_called)
-
-            # Update syscalls set
-            syscalls_set.update(function_syscalls)
-
-        utils.cur_depth -= 1
-
-    def __get_got_rel_address(self, int_operand):
-
-        jmp_to_got_ins = next_ins = None
-
-        if not self.__plt_sec_section:
-            # The instruction at the address pointed to by the int_operand is a
-            # jump to a `.got` entry. With the address of this `.got`
-            # relocation entry, it is possible to identify the function that
-            # will be called. The jump instruction is of the form 'qword ptr
-            # [rip + 0x1234]', so the next instruction is also stored in order
-            # to have the value of the instruction pointer.
-            plt_offset = int_operand - self.__plt_section.virtual_address
-            insns = self.__md.disasm(
-                    bytearray(self.__plt_section.content)[plt_offset:],
-                    int_operand)
-            jmp_to_got_ins = next(insns)
-            next_ins = next(insns)
-        else:
-            # The same remark holds but the first instruction is now the
-            # instruction right after the address pointed by the int_operand
-            # and we work with the .plt.sec section instead.
-            plt_sec_offset = (int_operand
-                              - self.__plt_sec_section.virtual_address)
-            insns = self.__md.disasm(
-                    bytearray(self.__plt_sec_section.content)[plt_sec_offset:],
-                    int_operand)
-            next(insns) # skip the first instruction
-            jmp_to_got_ins = next(insns)
-            next_ins = next(insns)
-
-        return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
-                + next_ins.address)
-
     def get_function_with_name(self, f_name, lib_alias=None):
         """Returns the LibFunction dataclass corresponding to the function with
         the given name by looking at the functions available in the libraries
@@ -478,6 +381,103 @@ class LibraryUsageAnalyser:
         code_analyser = ca.CodeAnalyser(lib_path)
         LibraryUsageAnalyser.__libraries[lib_name].code_analyser = \
                 code_analyser
+
+    def get_used_syscalls(self, syscalls_set, functions):
+        """Main method of the Library Analyser. Updates the syscall set
+        passed as argument after analysing the given function(s).
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        functions : list of LibFunction
+            functions to analyse
+        """
+
+        # to avoid modifying the parameter given by the caller
+        funs_to_analyse = functions.copy()
+
+        self.__get_used_syscalls_recursive(syscalls_set, funs_to_analyse)
+
+    def __get_used_syscalls_recursive(self, syscalls_set, functions):
+        """Updates the syscall set passed as argument after analysing the given
+        function(s).
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        functions : list of LibFunction
+            functions to analyse
+        """
+
+        utils.cur_depth += 1
+        for f in functions:
+            funs_called = []
+            function_syscalls = set()
+            if f in LibraryUsageAnalyser.__analysed_functions:
+                utils.log(f"D-{utils.cur_depth}: {f.name}@"
+                          f"{utils.f_name_from_path(f.library_path)} - at "
+                          f"{hex(f.boundaries[0])} - done",
+                          "lib_functions.log", utils.cur_depth)
+                continue
+            LibraryUsageAnalyser.__analysed_functions.add(f)
+
+            utils.log(f"D-{utils.cur_depth}: {f.name}@"
+                      f"{utils.f_name_from_path(f.library_path)} - at "
+                      f"{hex(f.boundaries[0])}",
+                      "lib_functions.log", utils.cur_depth)
+
+            # Get syscalls and functions used directly in the function code
+            lib_name = utils.f_name_from_path(f.library_path)
+            insns = self.__get_function_insns(f)
+            if insns is None:
+                continue
+
+            (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
+             .analyse_code(insns, function_syscalls,
+                           get_inverse_syscalls_map(), funs_called))
+
+            # Get all the syscalls used by the called function
+            self.__get_used_syscalls_recursive(function_syscalls, funs_called)
+
+            # Update syscalls set
+            syscalls_set.update(function_syscalls)
+
+        utils.cur_depth -= 1
+
+    def __get_got_rel_address(self, int_operand):
+
+        jmp_to_got_ins = next_ins = None
+
+        if not self.__plt_sec_section:
+            # The instruction at the address pointed to by the int_operand is a
+            # jump to a `.got` entry. With the address of this `.got`
+            # relocation entry, it is possible to identify the function that
+            # will be called. The jump instruction is of the form 'qword ptr
+            # [rip + 0x1234]', so the next instruction is also stored in order
+            # to have the value of the instruction pointer.
+            plt_offset = int_operand - self.__plt_section.virtual_address
+            insns = self.__md.disasm(
+                    bytearray(self.__plt_section.content)[plt_offset:],
+                    int_operand)
+            jmp_to_got_ins = next(insns)
+            next_ins = next(insns)
+        else:
+            # The same remark holds but the first instruction is now the
+            # instruction right after the address pointed by the int_operand
+            # and we work with the .plt.sec section instead.
+            plt_sec_offset = (int_operand
+                              - self.__plt_sec_section.virtual_address)
+            insns = self.__md.disasm(
+                    bytearray(self.__plt_sec_section.content)[plt_sec_offset:],
+                    int_operand)
+            next(insns) # skip the first instruction
+            jmp_to_got_ins = next(insns)
+            next_ins = next(insns)
+
+        return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
+                + next_ins.address)
 
     def __find_used_libraries(self):
 
