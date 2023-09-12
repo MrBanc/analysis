@@ -328,10 +328,6 @@ class CodeAnalyser:
             lib_paths = (self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
 
-            # TODO remove
-            with open("tests/lib_paths_error",
-                      "a", encoding="utf-8") as f:
-                f.write(f"{self.__path}: {lib_paths}\n")
             if not lib_paths:
                 raise StaticAnalyserException(
                         f"[WARNING] The library (supposedly) named "
@@ -371,6 +367,7 @@ class CodeAnalyser:
             # contain the wanted function
             for p in lib_paths:
                 self.__lib_analyser.add_used_library(p, show_warnings=False)
+
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
             sys.stderr.write(f"{e}\n")
