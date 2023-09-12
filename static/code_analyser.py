@@ -251,73 +251,80 @@ class CodeAnalyser:
         return -1
 
     def __backtrack_dlopen(self, i, list_inst):
-        # TODO cette fonction est longue, on peut probablement la simplifier ou
-        # la diviser
 
-        lib_name_address = self.__backtrack_register("edi", i, list_inst)
+        try:
+            lib_name_address = self.__backtrack_register("edi", i, list_inst)
 
-        if lib_name_address < 0:
-            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
-            sys.stderr.write(f"[WARNING] A library loaded with dlopen in "
-                             f"{self.__path} could not be found\n")
+            if lib_name_address < 0:
+                raise StaticAnalyserException(
+                        f"[WARNING] A library loaded with dlopen in "
+                        f"{self.__path} could not be found")
+
+            # Supposing it is always in `.rodata` (which may not always be the
+            # case?)
+            # TODO: verify
+            if self.__rodata is None:
+                self.__rodata = self.__binary.get_section(".rodata")
+
+            rodata_start_offset = (lib_name_address
+                                   - self.__rodata.virtual_address)
+            lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
+            rodata_end_offset = lib_name.index(b"\x00") # string terminator
+            lib_name = lib_name[:rodata_end_offset].decode("utf8")
+
+            lib_paths = (self.__lib_analyser
+                         .get_libraries_paths_manually([lib_name]))
+
+            # TODO remove
+            with open("tests/lib_paths_error",
+                      "a", encoding="utf-8") as f:
+                f.write(f"{self.__path}: {lib_paths}\n")
+            if not lib_paths:
+                raise StaticAnalyserException(
+                        f"[WARNING] The library (supposedly) named "
+                        f"\"{lib_name}\" loaded with dlopen in {self.__path} "
+                        f"could not be found")
+
+            lib_paths_copy = lib_paths
+            for p in lib_paths_copy:
+                if not is_valid_binary_path(p):
+                    # dlopen (may) lead to a GNU ld script that points to the
+                    # actual libraries
+                    try:
+                        lib_paths.extend(self.__lib_analyser
+                                         .get_lib_from_GNU_ld_script(p))
+                    except FileNotFoundError:
+                        sys.stderr.write(f"[ERROR] File not found at {p}")
+                    except UnicodeDecodeError:
+                        pass
+                    finally:
+                        lib_paths.remove(p)
+
+            if lib_paths_copy and not lib_paths:
+                raise StaticAnalyserException(
+                        f"[ERROR] The library paths {lib_paths_copy} loaded "
+                        f"with dlopen in {self.__path} does not lead to valid "
+                        f"binaries or scripts")
+
+            utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
+
             # TODO remove this
-            # with open("tests/results_simple_dlopen_raw",
-            #           "a", encoding="utf-8") as f:
-            #     f.write(f"{self.__path}: dlopen X\n")
-            return
+            with open("tests/results_simple_dlopen_raw",
+                      "a", encoding="utf-8") as f:
+                f.write(f"{self.__path}: dlopen Y\n")
 
-        # Supposing it is always in `.rodata` (which may not always be the
-        # case?)
-        # TODO: verify
-        if self.__rodata is None:
-            self.__rodata = self.__binary.get_section(".rodata")
-
-        rodata_start_offset = lib_name_address - self.__rodata.virtual_address
-        lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
-        rodata_end_offset = lib_name.index(b"\x00") # string terminator
-        lib_name = lib_name[:rodata_end_offset].decode("utf8")
-
-        lib_paths = (self.__lib_analyser
-                     .get_libraries_paths_manually([lib_name]))
-
-        if not lib_paths:
-            sys.stderr.write(f"[WARNING] The library (supposedly) named "
-                             f"\"{lib_name}\" loaded with dlopen in "
-                             f"{self.__path} could not be found\n")
-            utils.log(f"Ignore: {hex(lib_name_address)}: {lib_name}\n",
-                      "backtrack.log")
-            return
-        if len(lib_paths) > 1:
-            # TODO: vérifie
-            sys.stderr.write(f"[ERROR] lib_paths should have been of length "
-                             f"1... code needs correction... ({lib_paths})")
-
-        if not is_valid_binary_path(lib_paths[0]):
-            # dlopen (may) lead to a GNU ld script that points to the actual
-            # libraries
-            try:
-                lib_paths = (self.__lib_analyser
-                             .get_lib_from_GNU_ld_script(lib_paths[0]))
-            except FileNotFoundError:
-                sys.stderr.write(f"[ERROR] File not found at "
-                                 f"{lib_paths[0]}")
-                lib_paths = []
-            except UnicodeDecodeError:
-                sys.stderr.write(f"[ERROR] The library path {lib_paths[0]} "
-                                 f"loaded with dlopen in {self.__path} does "
-                                 f"not lead to a valid binary or script\n")
-                lib_paths = []
-
-        utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
-        # TODO remove this
-        # with open("tests/results_simple_dlopen_raw",
-        #           "a", encoding="utf-8") as f:
-        #     f.write(f"{self.__path}: dlopen Y\n")
-        # TODO: All the libraries pointed to by the script are taken into
-        # account, but they only should if the previous entries do not
-        # contain the wanted function
-        for p in lib_paths:
-            self.__lib_analyser.add_used_library(p, show_warnings=False)
+            # TODO: All the libraries pointed to by the script are taken into
+            # account, but they only should if the previous entries do not
+            # contain the wanted function
+            for p in lib_paths:
+                self.__lib_analyser.add_used_library(p, show_warnings=False)
+        except StaticAnalyserException as e:
+            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
+            sys.stderr.write(f"{e}\n")
+            # TODO remove this
+            with open("tests/results_simple_dlopen_raw",
+                      "a", encoding="utf-8") as f:
+                f.write(f"{self.__path}: dlopen X\n")
 
     def __backtrack_dlsym(self, i, list_inst):
 
@@ -325,9 +332,9 @@ class CodeAnalyser:
 
         if fun_name_address < 0:
             # TODO remove this
-            # with open("tests/results_simple_dlopen_raw",
-            #           "a", encoding="utf-8") as f:
-            #     f.write(f"{self.__path}: dlsym X\n")
+            with open("tests/results_simple_dlopen_raw",
+                      "a", encoding="utf-8") as f:
+                f.write(f"{self.__path}: dlsym X\n")
             utils.log(f"Ignore: {fun_name_address}\n", "backtrack.log")
             sys.stderr.write(f"[WARNING] A function loaded with dlsym in "
                              f"{self.__path} could not be found\n")
@@ -349,9 +356,9 @@ class CodeAnalyser:
         # TODO replace this after return
         temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
         # TODO remove this
-        # with open("tests/results_simple_dlopen_raw",
-        #           "a", encoding="utf-8") as f:
-        #     f.write(f"{self.__path}: dlsym Y\n")
+        with open("tests/results_simple_dlopen_raw",
+                  "a", encoding="utf-8") as f:
+            f.write(f"{self.__path}: dlsym Y\n")
         return temp_ret
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,

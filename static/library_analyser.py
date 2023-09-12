@@ -22,7 +22,8 @@ from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 import utils
 import code_analyser as ca
 from custom_exception import StaticAnalyserException
-from elf_analyser import is_valid_binary, PLT_SECTION, PLT_SEC_SECTION
+from elf_analyser import (is_valid_binary, is_valid_binary_path, PLT_SECTION,
+                          PLT_SEC_SECTION)
 from syscalls import get_inverse_syscalls_map
 
 
@@ -47,7 +48,6 @@ class LibFunction:
         the start address and the end address (start + size) of the function
         within the library binary
     """
-    # TODO add new public functions to class string above
 
     name: str
     library_path: str
@@ -99,6 +99,7 @@ class LibraryUsageAnalyser:
         Updates the syscall set passed as argument after analysing the given
         function(s).
     """
+    # TODO add new public functions to class string above
 
     # set of LibFunction
     __analysed_functions = set()
@@ -237,13 +238,14 @@ class LibraryUsageAnalyser:
         """
 
         lib_paths = []
+        lib_names_copy = copy(lib_names)
 
         for l_dir in LIB_DIRS:
-            lib_names_copy = copy(lib_names)
             for name in lib_names_copy:
                 if exists(l_dir + name):
                     lib_paths.append(l_dir + name)
-                    lib_names.remove(name)
+                    if name in lib_names:
+                        lib_names.remove(name)
 
         return lib_paths
 
@@ -520,7 +522,8 @@ class LibraryUsageAnalyser:
 
         lib_paths = self.get_libraries_paths_manually(lib_names)
         for path in lib_paths:
-            self.add_used_library(path)
+            if is_valid_binary_path(path):
+                self.add_used_library(path)
 
         if len(lib_names) > 0:
             sys.stderr.write(f"[ERROR] The following libraries couldn't be "
