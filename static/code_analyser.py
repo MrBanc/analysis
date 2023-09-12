@@ -13,7 +13,8 @@ from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 import utils
 import library_analyser
 from custom_exception import StaticAnalyserException
-from elf_analyser import is_valid_binary, is_valid_binary_path, TEXT_SECTION
+from elf_analyser import (is_valid_binary, is_valid_binary_path,
+                          get_section_boundaries, TEXT_SECTION)
 
 
 class CodeAnalyser:
@@ -64,9 +65,13 @@ class CodeAnalyser:
 
     def __init__(self, path):
 
+        # TODO ce serait peut-être plus clair de créer une dataclass qui
+        # contient les informations du binary au lieu de mélanger ça avec le
+        # reste dans cette class
         self.__path = path
         self.__binary = lief.parse(path)
         self.__rodata = None
+        self.__text_section = None
         if not is_valid_binary(self.__binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
@@ -178,10 +183,31 @@ class CodeAnalyser:
             If the .text section is not found.
         """
 
-        text_section = self.__binary.get_section(TEXT_SECTION)
-        if text_section is None:
+        if self.__text_section is None:
+            self.__text_section = self.__binary.get_section(TEXT_SECTION)
+        if self.__text_section is None:
             raise StaticAnalyserException(".text section is not found.")
-        return text_section
+        return self.__text_section
+
+    def get_rodata_section(self):
+        """Returns the .rodata section (as given by the lief library)
+
+        Returns
+        -------
+        rodata_section : lief ELF section
+            the text section as given by lief
+
+        Raises
+        ------
+        StaticAnalyserException
+            If the .rodata section is not found.
+        """
+
+        if self.__rodata is None:
+            self.__rodata = self.__binary.get_section(TEXT_SECTION)
+        if self.__rodata is None:
+            raise StaticAnalyserException(".rodata section is not found.")
+        return self.__rodata
 
     def get_section_from_address(self, address):
         """Returns the section (in lief format) that contains the data or
@@ -196,10 +222,41 @@ class CodeAnalyser:
         -------
         section : lief section
             The section containing the given address
+
+        Raises
+        ------
+        StaticAnalyserException
+            If no section was found for the given address or if the address
+            was invalid
         """
 
-        return self.__binary.section_from_virtual_address(address)
+        # There is no need to be worry about a section not being found here as
+        # the code is just trying to guess which section it is for optimization
+        # purposes but with no guarantee the guessed section really exists.
+        try:
+            if address in get_section_boundaries(self.get_text_section()):
+                return self.__text_section
+        except StaticAnalyserException:
+            pass
+        try:
+            if address in get_section_boundaries(self.get_rodata_section()):
+                return self.__rodata
+        except StaticAnalyserException:
+            pass
 
+        # If the code didn't guess the correct section, here is a general
+        # approach (less optimal but should always work)
+        try:
+            section = self.__binary.section_from_virtual_address(address)
+        except TypeError as e:
+            raise StaticAnalyserException(f"[WARNING] Invalid address for "
+                                          f"section: {address}") from e
+
+        if section is None:
+            raise StaticAnalyserException(f"[WARNING] No section could be "
+                                          f"found for address {address}")
+
+        return section
 
     def __backtrack_register(self, focus_reg, index, list_inst):
 
@@ -260,17 +317,13 @@ class CodeAnalyser:
                         f"[WARNING] A library loaded with dlopen in "
                         f"{self.__path} could not be found")
 
-            # Supposing it is always in `.rodata` (which may not always be the
-            # case?)
-            # TODO: verify
-            if self.__rodata is None:
-                self.__rodata = self.__binary.get_section(".rodata")
+            target_section = self.get_section_from_address(lib_name_address)
 
-            rodata_start_offset = (lib_name_address
-                                   - self.__rodata.virtual_address)
-            lib_name = bytearray(self.__rodata.content)[rodata_start_offset:]
-            rodata_end_offset = lib_name.index(b"\x00") # string terminator
-            lib_name = lib_name[:rodata_end_offset].decode("utf8")
+            section_start_offset = (lib_name_address
+                                    - target_section.virtual_address)
+            lib_name = bytearray(target_section.content)[section_start_offset:]
+            section_end_offset = lib_name.index(b"\x00") # string terminator
+            lib_name = lib_name[:section_end_offset].decode("utf8")
 
             lib_paths = (self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
@@ -328,38 +381,41 @@ class CodeAnalyser:
 
     def __backtrack_dlsym(self, i, list_inst):
 
-        fun_name_address = self.__backtrack_register("esi", i, list_inst)
+        try:
+            fun_name_address = self.__backtrack_register("esi", i, list_inst)
 
-        if fun_name_address < 0:
+            if fun_name_address < 0:
+                raise StaticAnalyserException(
+                        f"[WARNING] A function loaded with dlsym in "
+                        f"{self.__path} could not be found\n")
+
+            # TODO mettre les lignes suivantes dans une fonction dans
+            # elf_analyser
+            target_section = self.get_section_from_address(fun_name_address)
+
+            section_start_offset = (fun_name_address
+                                    - target_section.virtual_address)
+            fun_name = bytearray(target_section.content)[section_start_offset:]
+            section_end_offset = fun_name.index(b"\x00") # string terminator
+            fun_name = fun_name[:section_end_offset].decode("utf8")
+
+            utils.log(f"Found: {fun_name}\n", "backtrack.log")
+
+            # TODO replace this after return
+            temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
+            # TODO remove this
+            with open("tests/results_simple_dlopen_raw",
+                      "a", encoding="utf-8") as f:
+                f.write(f"{self.__path}: dlsym Y\n")
+            return temp_ret
+        except StaticAnalyserException as e:
+            utils.log(f"Ignore {hex(fun_name_address)}\n", "backtrack.log")
+            sys.stderr.write(f"{e}\n")
             # TODO remove this
             with open("tests/results_simple_dlopen_raw",
                       "a", encoding="utf-8") as f:
                 f.write(f"{self.__path}: dlsym X\n")
-            utils.log(f"Ignore: {fun_name_address}\n", "backtrack.log")
-            sys.stderr.write(f"[WARNING] A function loaded with dlsym in "
-                             f"{self.__path} could not be found\n")
             return []
-
-        # Supposing it is always in `.rodata` (which may not always be the
-        # case?)
-        # TODO: verify
-        if self.__rodata is None:
-            self.__rodata = self.__binary.get_section(".rodata")
-
-        rodata_start_offset = fun_name_address - self.__rodata.virtual_address
-        fun_name = bytearray(self.__rodata.content)[rodata_start_offset:]
-        rodata_end_offset = fun_name.index(b"\x00") # string terminator
-        fun_name = fun_name[:rodata_end_offset].decode("utf8")
-
-        utils.log(f"Found: {fun_name}\n", "backtrack.log")
-
-        # TODO replace this after return
-        temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
-        # TODO remove this
-        with open("tests/results_simple_dlopen_raw",
-                  "a", encoding="utf-8") as f:
-            f.write(f"{self.__path}: dlsym Y\n")
-        return temp_ret
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,
                                      inv_syscalls_map):
@@ -506,15 +562,15 @@ class CodeAnalyser:
         reg_id : str
             the string contains a register identifier
 
-        Raises
-        ------
-        StaticAnalyserException
-            If the given reg_id is not a register id
-
         Returns
         -------
         reg_key : str
             the key for this register
+
+        Raises
+        ------
+        StaticAnalyserException
+            If the given reg_id is not a register id
         """
 
         for reg_key, reg_ids in self.__registers.items():

@@ -433,8 +433,10 @@ class LibraryUsageAnalyser:
 
             # Get syscalls and functions used directly in the function code
             lib_name = utils.f_name_from_path(f.library_path)
-            insns = self.__get_function_insns(f)
-            if insns is None:
+            try:
+                insns = self.__get_function_insns(f)
+            except StaticAnalyserException as e:
+                sys.stderr.write(f"{e}\n")
                 continue
 
             (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
@@ -554,16 +556,31 @@ class LibraryUsageAnalyser:
         -------
         insns : class generator of capstone
             the instructions of the function
+
+        Raises
+        ------
+        StaticAnalyserException
+            If no section could be obtained from the function's start address
+            or if capstone disasm returned None
         """
 
         lib_name = utils.f_name_from_path(function.library_path)
 
+        # TODO prendre en compte les erreurs raised by get_section_from_address
+        # (probablement une bonne idée de raise de nouveau vu que cette
+        # fonction doit retourner qqch ?)
         target_section = (LibraryUsageAnalyser.__libraries[lib_name]
                           .code_analyser.get_section_from_address(
                               function.boundaries[0]))
         f_start_offset = (function.boundaries[0]
                           - target_section.virtual_address)
         f_end_offset = function.boundaries[1] - target_section.virtual_address
-        return self.__md.disasm(
+        insns = self.__md.disasm(
                 bytearray(target_section.content)[f_start_offset:f_end_offset],
                 target_section.virtual_address + f_start_offset)
+        if insns is None:
+            raise StaticAnalyserException(f"The instructions of the function "
+                                          f"{function.name} could not be "
+                                          f"found")
+
+        return insns

@@ -69,6 +69,25 @@ def get_syscalls_from_symbols(binary, syscalls_set):
                     binary.symbols]:
         __detect_syscalls_in_sym_table(sect_it, syscalls_set)
 
+def get_section_boundaries(section):
+    """Returns [section_start_address, section_end_address-1]
+
+    Parameters
+    ----------
+    section : lief section
+        the section to get boundaries from
+
+    Returns
+    -------
+    boundaries : list of two int
+        the section boundaries
+    """
+
+    return [section.virtual_address, section.virtual_address + section.size]
+
+# TODO
+# def get_string_at_address()
+
 def __detect_syscalls_in_sym_table(sect_it, syscalls_set):
 
     for s in sect_it:
