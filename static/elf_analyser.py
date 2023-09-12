@@ -4,6 +4,7 @@ Utilities to store information about and analyse the ELF 64-bit executable.
 
 import lief
 
+from custom_exception import StaticAnalyserException
 from syscalls import syscalls_map, alias_syscalls_map
 
 
@@ -85,8 +86,138 @@ def get_section_boundaries(section):
 
     return [section.virtual_address, section.virtual_address + section.size]
 
-# TODO
-# def get_string_at_address()
+def get_text_section(binary):
+    """Returns the .text section (as given by the lief library)
+
+    Parameters
+    ----------
+    binary : ELFBinary
+        the binary to get the .text section from
+
+    Returns
+    -------
+    text_section : lief ELF section
+        the text section as given by lief
+
+    Raises
+    ------
+    StaticAnalyserException
+        If the .text section is not found.
+    """
+
+    if binary.text_sect is None:
+        binary.text_sect = (binary.lief_binary
+                                   .get_section(TEXT_SECTION))
+    if binary.text_sect is None:
+        raise StaticAnalyserException(".text section is not found.")
+    return binary.text_sect
+
+def get_rodata_section(binary):
+    """Returns the .rodata section (as given by the lief library)
+
+    Parameters
+    ----------
+    binary : ELFBinary
+        the binary to get the .rodata section from
+
+    Returns
+    -------
+    rodata_section : lief ELF section
+        the text section as given by lief
+
+    Raises
+    ------
+    StaticAnalyserException
+        If the .rodata section is not found.
+    """
+
+    if binary.rodata_sect is None:
+        binary.rodata_sect = (binary.lief_binary
+                                     .get_section(TEXT_SECTION))
+    if binary.rodata_sect is None:
+        raise StaticAnalyserException(".rodata section is not found.")
+    return binary.rodata_sect
+
+def get_section_from_address(binary, address):
+    """Returns the section (in lief format) that contains the data or
+    instruction located at the given address.
+
+    Parameters
+    ----------
+    binary : ELFBinary
+        the binary to get the .rodata section from
+    address : int
+        address inside the wanted section
+
+    Returns
+    -------
+    section : lief section
+        the section containing the given address
+
+    Raises
+    ------
+    StaticAnalyserException
+        If no section was found for the given address or if the address
+        was invalid
+    """
+
+    # There is no need to be worry about a section not being found here as
+    # the code is just trying to guess which section it is for optimization
+    # purposes but with no guarantee the guessed section really exists.
+    try:
+        if address in get_section_boundaries(get_text_section(binary)):
+            return binary.text_sect
+    except StaticAnalyserException:
+        pass
+    try:
+        if address in get_section_boundaries(get_rodata_section(binary)):
+            return binary.rodata_sect
+    except StaticAnalyserException:
+        pass
+
+    # If the code didn't guess the correct section, here is a general
+    # approach (less optimal but should always work)
+    try:
+        section = (binary.lief_binary
+                   .section_from_virtual_address(address))
+    except TypeError as e:
+        raise StaticAnalyserException(f"[WARNING] Invalid address for "
+                                      f"section: {address}") from e
+
+    if section is None:
+        raise StaticAnalyserException(f"[WARNING] No section could be "
+                                      f"found for address {address}")
+
+    return section
+
+def get_string_at_address(binary, address):
+    """Return the string located at a particular address in a binary.
+
+    Parameters
+    ----------
+    binary : ELFBinary
+        the binary to look into
+    address : int
+        address of the searched string
+
+    Returns
+    -------
+    string : str
+        the string that has been found
+
+    Raises
+    ------
+    StaticAnalyserException
+        If no section was found for the given address or if the address
+        was invalid
+    """
+
+    target_section = get_section_from_address(binary, address)
+
+    section_start_offset = address - target_section.virtual_address
+    string = bytearray(target_section.content)[section_start_offset:]
+    section_end_offset = string.index(b"\x00") # string terminator
+    return string[:section_end_offset].decode("utf8")
 
 def __detect_syscalls_in_sym_table(sect_it, syscalls_set):
 

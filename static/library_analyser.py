@@ -22,7 +22,8 @@ from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 import utils
 import code_analyser as ca
 from custom_exception import StaticAnalyserException
-from elf_analyser import (is_valid_binary, is_valid_binary_path, PLT_SECTION,
+from elf_analyser import (is_valid_binary, is_valid_binary_path,
+                          get_section_from_address, PLT_SECTION,
                           PLT_SEC_SECTION)
 from syscalls import get_inverse_syscalls_map
 
@@ -569,9 +570,10 @@ class LibraryUsageAnalyser:
         # TODO prendre en compte les erreurs raised by get_section_from_address
         # (probablement une bonne idée de raise de nouveau vu que cette
         # fonction doit retourner qqch ?)
-        target_section = (LibraryUsageAnalyser.__libraries[lib_name]
-                          .code_analyser.get_section_from_address(
-                              function.boundaries[0]))
+        target_section = get_section_from_address(
+                LibraryUsageAnalyser.__libraries[lib_name].code_analyser
+                .binary,
+                function.boundaries[0])
         f_start_offset = (function.boundaries[0]
                           - target_section.virtual_address)
         f_end_offset = function.boundaries[1] - target_section.virtual_address

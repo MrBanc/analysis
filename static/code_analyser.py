@@ -6,6 +6,8 @@ Disassembles and analyses the code to detect syscalls.
 
 import sys
 
+from dataclasses import dataclass
+
 import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL
 from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
@@ -14,7 +16,32 @@ import utils
 import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import (is_valid_binary, is_valid_binary_path,
-                          get_section_boundaries, TEXT_SECTION)
+                          get_text_section, get_string_at_address)
+
+@dataclass
+class ELFBinary:
+    """Represents an ELF binary.
+
+    Attributes
+    ----------
+    path : str
+        the path of the binary in the file system
+    lief_binary : lief binary
+        the lief representation of the binary
+    rodata_sect : lief section
+        the lief representation of the .rodata section
+    text_sect : lief section
+        the lief representation of the .text section
+    has_dyn_libraries : bool
+        false if the binary uses no dynamic libraries or if the library
+        analyser associated to the binary couldn't be created
+    """
+
+    path: str
+    lief_binary: lief._lief.ELF.Binary
+    rodata_sect: lief._lief.ELF.Section
+    text_sect: lief._lief.ELF.Section
+    has_dyn_libraries: bool
 
 
 class CodeAnalyser:
@@ -65,17 +92,18 @@ class CodeAnalyser:
 
     def __init__(self, path):
 
-        # TODO ce serait peut-être plus clair de créer une dataclass qui
-        # contient les informations du binary au lieu de mélanger ça avec le
-        # reste dans cette class
-        self.__path = path
-        self.__binary = lief.parse(path)
-        self.__rodata = None
-        self.__text_section = None
-        if not is_valid_binary(self.__binary):
+        lief_binary = lief.parse(path)
+        if not is_valid_binary(lief_binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
                                           "ELF file.")
-        self.__has_dyn_libraries = bool(self.__binary.libraries)
+        self.binary = ELFBinary(
+                path = path,
+                lief_binary = lief_binary,
+                rodata_sect = None,
+                text_sect = None,
+                has_dyn_libraries = bool(lief_binary.libraries)
+                )
+
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is
@@ -85,16 +113,16 @@ class CodeAnalyser:
         # only used if `binary` is a library
         self.__address_to_fun_map = None
 
-        if not self.__has_dyn_libraries:
+        if not self.binary.has_dyn_libraries:
             return
 
         try:
             self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
-                    self.__binary)
+                    self.binary.lief_binary)
         except StaticAnalyserException as e:
-            sys.stderr.write(f"[ERROR] library analyser of {self.__path} "
-                             f"couldn't be created: {e}\n")
-            self.__has_dyn_libraries = False
+            sys.stderr.write(f"[ERROR] library analyser of "
+                             f"{self.binary.path} couldn't be created: {e}\n")
+            self.binary.has_dyn_libraries = False
 
     def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
         """Entry point of the Code Analyser. Updates the syscall set
@@ -109,7 +137,7 @@ class CodeAnalyser:
             swapped
         """
 
-        text_section = self.get_text_section()
+        text_section = get_text_section(self.binary)
 
         self.analyse_code(self.__md.disasm(bytearray(text_section.content),
                                    text_section.virtual_address),
@@ -145,7 +173,7 @@ class CodeAnalyser:
 
             if ins.id in (X86_INS_DATA16, X86_INS_INVALID):
                 sys.stderr.write(f"[WARNING] data instruction found in "
-                                 f"{self.__path} at address "
+                                 f"{self.binary.path} at address "
                                  f"{hex(ins.address)}\n")
                 continue
 
@@ -153,7 +181,7 @@ class CodeAnalyser:
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-                if (self.__has_dyn_libraries
+                if (self.binary.has_dyn_libraries
                     and self.__lib_analyser.is_call_to_plt(ins.op_str)):
                     f_to_analyse = self.__wrapper_get_function_called(
                                                 ins.op_str, i, list_inst)
@@ -168,95 +196,6 @@ class CodeAnalyser:
                     f = self.__get_function_called(ins.op_str)
                     if f and f not in f_called_list:
                         f_called_list.append(f)
-
-    def get_text_section(self):
-        """Returns the .text section (as given by the lief library)
-
-        Returns
-        -------
-        text_section : lief ELF section
-            the text section as given by lief
-
-        Raises
-        ------
-        StaticAnalyserException
-            If the .text section is not found.
-        """
-
-        if self.__text_section is None:
-            self.__text_section = self.__binary.get_section(TEXT_SECTION)
-        if self.__text_section is None:
-            raise StaticAnalyserException(".text section is not found.")
-        return self.__text_section
-
-    def get_rodata_section(self):
-        """Returns the .rodata section (as given by the lief library)
-
-        Returns
-        -------
-        rodata_section : lief ELF section
-            the text section as given by lief
-
-        Raises
-        ------
-        StaticAnalyserException
-            If the .rodata section is not found.
-        """
-
-        if self.__rodata is None:
-            self.__rodata = self.__binary.get_section(TEXT_SECTION)
-        if self.__rodata is None:
-            raise StaticAnalyserException(".rodata section is not found.")
-        return self.__rodata
-
-    def get_section_from_address(self, address):
-        """Returns the section (in lief format) that contains the data or
-        instruction located at the given address.
-
-        Parameters
-        ----------
-        address : int
-            address inside the wanted section
-
-        Returns
-        -------
-        section : lief section
-            The section containing the given address
-
-        Raises
-        ------
-        StaticAnalyserException
-            If no section was found for the given address or if the address
-            was invalid
-        """
-
-        # There is no need to be worry about a section not being found here as
-        # the code is just trying to guess which section it is for optimization
-        # purposes but with no guarantee the guessed section really exists.
-        try:
-            if address in get_section_boundaries(self.get_text_section()):
-                return self.__text_section
-        except StaticAnalyserException:
-            pass
-        try:
-            if address in get_section_boundaries(self.get_rodata_section()):
-                return self.__rodata
-        except StaticAnalyserException:
-            pass
-
-        # If the code didn't guess the correct section, here is a general
-        # approach (less optimal but should always work)
-        try:
-            section = self.__binary.section_from_virtual_address(address)
-        except TypeError as e:
-            raise StaticAnalyserException(f"[WARNING] Invalid address for "
-                                          f"section: {address}") from e
-
-        if section is None:
-            raise StaticAnalyserException(f"[WARNING] No section could be "
-                                          f"found for address {address}")
-
-        return section
 
     def __backtrack_register(self, focus_reg, index, list_inst):
 
@@ -315,24 +254,17 @@ class CodeAnalyser:
             if lib_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A library loaded with dlopen in "
-                        f"{self.__path} could not be found")
+                        f"{self.binary.path} could not be found")
 
-            target_section = self.get_section_from_address(lib_name_address)
-
-            section_start_offset = (lib_name_address
-                                    - target_section.virtual_address)
-            lib_name = bytearray(target_section.content)[section_start_offset:]
-            section_end_offset = lib_name.index(b"\x00") # string terminator
-            lib_name = lib_name[:section_end_offset].decode("utf8")
-
+            lib_name = get_string_at_address(self.binary, lib_name_address)
             lib_paths = (self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
 
             if not lib_paths:
                 raise StaticAnalyserException(
                         f"[WARNING] The library (supposedly) named "
-                        f"\"{lib_name}\" loaded with dlopen in {self.__path} "
-                        f"could not be found")
+                        f"\"{lib_name}\" loaded with dlopen in "
+                        f"{self.binary.path} could not be found")
 
             lib_paths_copy = lib_paths
             for p in lib_paths_copy:
@@ -352,15 +284,11 @@ class CodeAnalyser:
             if lib_paths_copy and not lib_paths:
                 raise StaticAnalyserException(
                         f"[ERROR] The library paths {lib_paths_copy} loaded "
-                        f"with dlopen in {self.__path} does not lead to valid "
-                        f"binaries or scripts")
+                        f"with dlopen in {self.binary.path} does not lead to"
+                        f" valid binaries or scripts")
 
             utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
 
-            # TODO remove this
-            with open("tests/results_simple_dlopen_raw",
-                      "a", encoding="utf-8") as f:
-                f.write(f"{self.__path}: dlopen Y\n")
 
             # TODO: All the libraries pointed to by the script are taken into
             # account, but they only should if the previous entries do not
@@ -371,10 +299,6 @@ class CodeAnalyser:
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
             sys.stderr.write(f"{e}\n")
-            # TODO remove this
-            with open("tests/results_simple_dlopen_raw",
-                      "a", encoding="utf-8") as f:
-                f.write(f"{self.__path}: dlopen X\n")
 
     def __backtrack_dlsym(self, i, list_inst):
 
@@ -384,34 +308,16 @@ class CodeAnalyser:
             if fun_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A function loaded with dlsym in "
-                        f"{self.__path} could not be found\n")
+                        f"{self.binary.path} could not be found")
 
-            # TODO mettre les lignes suivantes dans une fonction dans
-            # elf_analyser
-            target_section = self.get_section_from_address(fun_name_address)
-
-            section_start_offset = (fun_name_address
-                                    - target_section.virtual_address)
-            fun_name = bytearray(target_section.content)[section_start_offset:]
-            section_end_offset = fun_name.index(b"\x00") # string terminator
-            fun_name = fun_name[:section_end_offset].decode("utf8")
+            fun_name = get_string_at_address(self.binary, fun_name_address)
 
             utils.log(f"Found: {fun_name}\n", "backtrack.log")
 
-            # TODO replace this after return
-            temp_ret = self.__lib_analyser.get_function_with_name(fun_name)
-            # TODO remove this
-            with open("tests/results_simple_dlopen_raw",
-                      "a", encoding="utf-8") as f:
-                f.write(f"{self.__path}: dlsym Y\n")
-            return temp_ret
+            return self.__lib_analyser.get_function_with_name(fun_name)
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(fun_name_address)}\n", "backtrack.log")
             sys.stderr.write(f"{e}\n")
-            # TODO remove this
-            with open("tests/results_simple_dlopen_raw",
-                      "a", encoding="utf-8") as f:
-                f.write(f"{self.__path}: dlsym X\n")
             return []
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,
@@ -470,11 +376,11 @@ class CodeAnalyser:
 
             if self.__address_to_fun_map is None:
                 self.__address_to_fun_map = {}
-                for item in self.__binary.functions:
+                for item in self.binary.lief_binary.functions:
                     self.__address_to_fun_map[item.address] = (
                             library_analyser.LibFunction(
                                 name=item.name,
-                                library_path=self.__path,
+                                library_path=self.binary.path,
                                 boundaries=(item.address,
                                             item.address + item.size)
                                 )
