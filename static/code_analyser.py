@@ -7,6 +7,8 @@ Disassembles and analyses the code to detect syscalls.
 import sys
 
 from dataclasses import dataclass
+from copy import copy
+from os.path import isfile
 
 import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL
@@ -250,6 +252,10 @@ class CodeAnalyser:
             # When calling dlopen, the second argument (in `edi`) contains a
             # pointer to the name of the library
             lib_name_address = self.__backtrack_register("edi", i, list_inst)
+            if lib_name_address == 0:
+                # A NULL ptr means dlopen was use to get a handle on the main
+                # (current) executable
+                return
             if lib_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A library loaded with dlopen in "
@@ -257,15 +263,17 @@ class CodeAnalyser:
 
             lib_name = get_string_at_address(self.binary, lib_name_address)
 
-            lib_paths = (self.__lib_analyser
+            lib_paths = (lib_name if isfile(lib_name)
+                         else self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
+
             if not lib_paths:
                 raise StaticAnalyserException(
                         f"[WARNING] The library (supposedly) named "
                         f"\"{lib_name}\" loaded with dlopen in "
                         f"{self.binary.path} could not be found")
 
-            lib_paths_copy = lib_paths
+            lib_paths_copy = copy(lib_paths)
             for p in lib_paths_copy:
                 if not is_valid_binary_path(p):
                     # dlopen (may) lead to a GNU ld script that points to the

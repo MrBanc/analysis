@@ -28,11 +28,12 @@ from elf_analyser import (is_valid_binary, is_valid_binary_path,
 from syscalls import get_inverse_syscalls_map
 
 
-DEFAULT_LIB_DIRS = {'/lib64/', '/usr/lib64/', '/usr/local/lib64/',
-                     '/lib/',   '/usr/lib/',   '/usr/local/lib/'}
-LD_LIB_DIRS = (set(environment_var.get("LD_LIBRARY_PATH").split(":"))
-                if "LD_LIBRARY_PATH" in environment_var else set())
-LIB_DIRS = DEFAULT_LIB_DIRS.union(LD_LIB_DIRS)
+# Ordered so that the first should be checked before the other
+DEFAULT_LIB_DIRS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
+                     '/lib/',   '/usr/lib/',   '/usr/local/lib/']
+LD_LIB_DIRS = (list(environment_var.get("LD_LIBRARY_PATH").split(":"))
+                if "LD_LIBRARY_PATH" in environment_var else [])
+LIB_DIRS = LD_LIB_DIRS + DEFAULT_LIB_DIRS
 
 @dataclass
 class LibFunction:
@@ -334,9 +335,19 @@ class LibraryUsageAnalyser:
         return functions
 
     def add_used_library(self, lib_path, show_warnings=True):
-        """Adds the library path provided to the list of used libraries of the
-        binary and register the library's information (in self.__libraries) if
-        it was not already done beforehand in the program's execution.
+        """Adds the library name associated with the library path provided to
+        the list of used libraries of the binary and register the library's
+        information (in self.__libraries) if it was not already done beforehand
+        in the program's execution.
+
+        Note: If the library has already been added via a different path, it
+        will not be added a second time and only the first path will be
+        considered. It is considered that when two libraries with the same name
+        but located at different places are the same.
+        It is therefore also crucial to verify that the library path lead to a
+        valid binary (for example using `is_valid_library_path`) before calling
+        this function, or the provided invalid library will block future
+        attempt to add a valid library with the same name.
 
         Parameters
         ----------
