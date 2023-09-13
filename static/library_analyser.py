@@ -567,9 +567,6 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        # TODO prendre en compte les erreurs raised by get_section_from_address
-        # (probablement une bonne idée de raise de nouveau vu que cette
-        # fonction doit retourner qqch ?)
         target_section = get_section_from_address(
                 LibraryUsageAnalyser.__libraries[lib_name].code_analyser
                 .binary,

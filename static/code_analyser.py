@@ -185,11 +185,9 @@ class CodeAnalyser:
                     and self.__lib_analyser.is_call_to_plt(ins.op_str)):
                     f_to_analyse = self.__wrapper_get_function_called(
                                                 ins.op_str, i, list_inst)
-                    # TODO: J'ai l'impression qu'on devrait rentrer dans ce if
-                    # dans tous les cas, non ? À vérifier car je n'ai plus trop
-                    # le code en tête et c'est pas trivial à tester
-                    if detect_functions:
-                        self.__mov_local_funs_to(f_called_list, f_to_analyse)
+                    # Even if f_called_list is None, f_to_analyse needs to be
+                    # cleaned from local functions
+                    self.__mov_local_funs_to(f_called_list, f_to_analyse)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           f_to_analyse)
                 elif detect_functions and ins.group(CS_GRP_CALL):
@@ -249,17 +247,18 @@ class CodeAnalyser:
     def __backtrack_dlopen(self, i, list_inst):
 
         try:
+            # When calling dlopen, the second argument (in `edi`) contains a
+            # pointer to the name of the library
             lib_name_address = self.__backtrack_register("edi", i, list_inst)
-
             if lib_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A library loaded with dlopen in "
                         f"{self.binary.path} could not be found")
 
             lib_name = get_string_at_address(self.binary, lib_name_address)
+
             lib_paths = (self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
-
             if not lib_paths:
                 raise StaticAnalyserException(
                         f"[WARNING] The library (supposedly) named "
@@ -280,7 +279,6 @@ class CodeAnalyser:
                         pass
                     finally:
                         lib_paths.remove(p)
-
             if lib_paths_copy and not lib_paths:
                 raise StaticAnalyserException(
                         f"[ERROR] The library paths {lib_paths_copy} loaded "
@@ -288,8 +286,6 @@ class CodeAnalyser:
                         f" valid binaries or scripts")
 
             utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
-
-
             # TODO: All the libraries pointed to by the script are taken into
             # account, but they only should if the previous entries do not
             # contain the wanted function
@@ -406,13 +402,16 @@ class CodeAnalyser:
         JUMP_SLOT) correspond to functions from other libraries, which should
         be treated differently. The purpose of this function is thus to
         separate them.
+
+        If f_to is none, the IRELATIVE function are just removed from f_from.
         """
 
         for i, f in enumerate(f_from):
             # no name indicates it wasn't an JUMP_SLOT got entry
             if not f.name:
-                f_to.append(self.__get_function_called(
-                    hex(f.boundaries[0])))
+                if f_to is not None:
+                    f_to.append(self.__get_function_called(
+                        hex(f.boundaries[0])))
                 f_from.pop(i)
 
     def __wrapper_get_function_called(self, operand, i, list_inst):
