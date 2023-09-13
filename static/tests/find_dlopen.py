@@ -13,5 +13,9 @@ for (root,dirs,files) in os.walk('/bin/',topdown=True):
         output = subprocess.run(["objdump", "-d", "--disassembler-options=intel", f_name], capture_output=True)
 
         str_output = output.stdout.decode("utf8")
-        if "<dlopen@" in str_output or "<dlsym@" in str_output:
-            print(f_name)
+        if "<dlmopen@" in str_output:
+            print(f"dlmopen {f_name}")
+        if "<dlopen@" in str_output:
+            print(f"dlopen {f_name}")
+        if "<dlsym@" in str_output:
+            print(f"dlsym {f_name}")
