@@ -329,7 +329,8 @@ class LibraryUsageAnalyser:
                              f"{f_name}. Continuing...\n")
         elif len(functions) > 1:
             sys.stderr.write(f"[WARNING] Multiple possible library functions "
-                             f"were found for {f_name}: {functions}.\n"
+                             f"were found for {f_name} in {self.__binary_path}"
+                             f": {functions}.\n"
                              f"All of them will be considered.\n")
 
         return functions
