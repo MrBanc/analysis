@@ -110,7 +110,7 @@ class LibraryUsageAnalyser:
     __libraries = {}
 
 
-    def __init__(self, binary):
+    def __init__(self, binary, path):
 
         if not is_valid_binary(binary):
             raise StaticAnalyserException("The given binary is not a CLASS64 "
@@ -129,7 +129,10 @@ class LibraryUsageAnalyser:
         self.__got_rel = {rel.address: rel
                           for rel in self.__got_rel}
 
-        self.__binary_path = binary.name
+        # In the most recent version of lief to date (0.14.0.dev0), the `name`
+        # attribute of `binary` has been deleted. We therefore manually specify
+        # the path.
+        self.__binary_path = path # binary.name
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is

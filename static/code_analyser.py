@@ -120,7 +120,7 @@ class CodeAnalyser:
 
         try:
             self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
-                    self.binary.lief_binary)
+                    self.binary.lief_binary, self.binary.path)
         except StaticAnalyserException as e:
             sys.stderr.write(f"[ERROR] library analyser of "
                              f"{self.binary.path} couldn't be created: {e}\n")
