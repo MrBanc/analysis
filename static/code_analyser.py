@@ -183,7 +183,8 @@ class CodeAnalyser:
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-                f_address = self.__get_destination_address(ins.op_str)
+                f_address = self.__get_destination_address(
+                        ins.op_str, ins.address + ins.size)
                 if f_address is None:
                     continue
 
@@ -229,16 +230,16 @@ class CodeAnalyser:
                 op_strings[1] = op_strings[1].strip()
 
                 if mnemonic == "mov":
-                    if utils.is_hex(op_strings[1]):
-                        ret = int(op_strings[1], 16)
-                    elif op_strings[1].isdigit():
-                        ret = int(op_strings[1])
+                    if utils.is_number(op_strings[1]):
+                        ret = utils.str2int(op_strings[1])
                     elif self.__is_reg(op_strings[1]):
                         focus_reg = self.__get_reg_key(op_strings[1])
                         utils.log(f"[Shifting focus to {focus_reg}]",
                                   "backtrack.log", indent=2)
                         continue
+                    # elif (op_strings[1].startswith("qword ptr [rip +")
                     else:
+                        # print(f"gougoug backtrack {op_strings}")
                         utils.log("[Operation not supported]",
                                   "backtrack.log", indent=2)
                 elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
@@ -364,7 +365,7 @@ class CodeAnalyser:
             return True
         return False
 
-    def __get_destination_address(self, operand):
+    def __get_destination_address(self, operand, rip_value):
         """Returns the destination address of the given operand of the call (or
         jmp).
 
@@ -372,6 +373,8 @@ class CodeAnalyser:
         ----------
         operand : str
             operand of the call (or jump)
+        rip_value : int
+            the value of the rip register (address of next instruction)
 
         Returns
         -------
@@ -379,14 +382,27 @@ class CodeAnalyser:
             function that would be called
         """
 
-        if utils.is_hex(operand):
-            address = int(operand, 16)
+        if utils.is_number(operand):
+            address = utils.str2int(operand)
+        elif "rip" in operand: # TODO this prevent the next if
+            # print(f"gougoug {operand}")
+            address = None
+        elif (operand.startswith("qword ptr [rip +")
+              and len(operand.split()) == 5):
+            address = None
+            offset = operand.split()[4][:-1]
+            if utils.is_number(offset):
+                address_location = rip_value + utils.str2int(offset)
+                # TODO find the address from the address location
+                address = None
+            else:
+                address = None
         else:
+            # TODO
+            address = None
             utils.print_verbose("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
                                 "to an indirect address call.")
-            # TODO
-            address = None
 
         return address
 
@@ -409,6 +425,9 @@ class CodeAnalyser:
             self.__initialise_address_to_fun_map()
 
         if f_address not in self.__address_to_fun_map:
+            utils.print_verbose(f"[WARNING] A function was called but "
+                                f"couln't be found with its address: "
+                                f"{f_address}")
             return None
 
         return self.__address_to_fun_map[f_address]
@@ -444,7 +463,7 @@ class CodeAnalyser:
             if not f.name:
                 if f_to is not None:
                     f_to.append(self.__get_local_function_called(
-                        self.__get_destination_address(hex(f.boundaries[0]))))
+                        f.boundaries[0]))
                 f_from.pop(i)
 
     def __wrapper_get_function_called(self, f_address, i, list_inst):

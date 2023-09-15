@@ -90,12 +90,55 @@ def is_hex(s):
     is_hex : bool
         True if `s` is an hexadecimal number
     """
+
     if not s or len(s) < 3:
         return False
 
     return s[:2] == "0x" and all(c.isdigit()
                                  or c.lower() in ('a', 'b', 'c', 'd', 'e', 'f')
                                  for c in s[2:])
+
+def is_number(s):
+    """Returns True if the given string represents an hexadecimal or decimal
+    number.
+
+    Parameters
+    ----------
+    s : str
+        string to check
+
+    Returns
+    -------
+    is_number : bool
+        True if `s` is an hexadecimal or decimal number
+    """
+
+    return is_hex(s) or s.isnumeric()
+
+def str2int(s):
+    """Returns the number given in the string, supposing it is an hexadecimal
+    or decimal number (the caller need to check before, for example using
+    is_number(s)).
+
+    Parameters
+    ----------
+    s : str
+        string to convert
+
+    Returns
+    -------
+    number : int
+        The number in the string
+    """
+
+    if is_hex(s):
+        number = int(s, 16)
+    elif s.isdecimal():
+        number = int(s)
+    else:
+        number = None
+
+    return number
 
 def str2bool(v):
     """Returns the boolean value represented in the parameter given.
