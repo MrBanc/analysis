@@ -183,17 +183,21 @@ class CodeAnalyser:
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
+                f_address = self.__get_destination_address(ins.op_str)
+                if f_address is None:
+                    continue
+
                 if (self.binary.has_dyn_libraries
-                    and self.__lib_analyser.is_call_to_plt(ins.op_str)):
+                    and self.__lib_analyser.is_call_to_plt(f_address)):
                     f_to_analyse = self.__wrapper_get_function_called(
-                                                ins.op_str, i, list_inst)
+                                                f_address, i, list_inst)
                     # Even if f_called_list is None, f_to_analyse needs to be
                     # cleaned from local functions
                     self.__mov_local_funs_to(f_called_list, f_to_analyse)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           f_to_analyse)
                 elif detect_functions and ins.group(CS_GRP_CALL):
-                    f = self.__get_function_called(ins.op_str)
+                    f = self.__get_local_function_called(f_address)
                     if f and f not in f_called_list:
                         f_called_list.append(f)
 
@@ -360,14 +364,14 @@ class CodeAnalyser:
             return True
         return False
 
-    def __get_function_called(self, operand):
-        """Returns the function that would be called by jumping to the address
-        given.
+    def __get_destination_address(self, operand):
+        """Returns the destination address of the given operand of the call (or
+        jmp).
 
         Parameters
         ----------
         operand : str
-            operand (address) of the call in hexadecimal
+            operand of the call (or jump)
 
         Returns
         -------
@@ -376,30 +380,51 @@ class CodeAnalyser:
         """
 
         if utils.is_hex(operand):
-            operand = int(operand, 16)
-
-            if self.__address_to_fun_map is None:
-                self.__address_to_fun_map = {}
-                for item in self.binary.lief_binary.functions:
-                    self.__address_to_fun_map[item.address] = (
-                            library_analyser.LibFunction(
-                                name=item.name,
-                                library_path=self.binary.path,
-                                boundaries=(item.address,
-                                            item.address + item.size)
-                                )
-                            )
-
-            if operand not in self.__address_to_fun_map:
-                utils.print_verbose("[WARNING] A function was called but "
-                                    "couln't be found. This is probably due "
-                                    "to an indirect address call.")
-                return None
-
-            return self.__address_to_fun_map[operand]
+            address = int(operand, 16)
         else:
+            utils.print_verbose("[WARNING] A function may have been called but"
+                                " couln't be found. This is probably due "
+                                "to an indirect address call.")
             # TODO
+            address = None
+
+        return address
+
+    def __get_local_function_called(self, f_address):
+        """Returns the function that would be called by jumping to the address
+        given.
+
+        Parameters
+        ----------
+        f_address : int
+            address of the called function
+
+        Returns
+        -------
+        called_plt_f : LibFunction
+            function that would be called
+        """
+
+        if self.__address_to_fun_map is None:
+            self.__initialise_address_to_fun_map()
+
+        if f_address not in self.__address_to_fun_map:
             return None
+
+        return self.__address_to_fun_map[f_address]
+
+    def __initialise_address_to_fun_map(self):
+
+        self.__address_to_fun_map = {}
+        for item in self.binary.lief_binary.functions:
+            self.__address_to_fun_map[item.address] = (
+                    library_analyser.LibFunction(
+                        name=item.name,
+                        library_path=self.binary.path,
+                        boundaries=(item.address,
+                                    item.address + item.size)
+                        )
+                    )
 
     def __mov_local_funs_to(self, f_to, f_from):
         """Move the functions from .plt that lead to an IRELATIVE .got entry
@@ -418,13 +443,14 @@ class CodeAnalyser:
             # no name indicates it wasn't an JUMP_SLOT got entry
             if not f.name:
                 if f_to is not None:
-                    f_to.append(self.__get_function_called(
-                        hex(f.boundaries[0])))
+                    f_to.append(self.__get_local_function_called(
+                        self.__get_destination_address(hex(f.boundaries[0]))))
                 f_from.pop(i)
 
-    def __wrapper_get_function_called(self, operand, i, list_inst):
+    def __wrapper_get_function_called(self, f_address, i, list_inst):
 
-        called_plt_f = self.__lib_analyser.get_function_called(operand)
+        called_plt_f = self.__lib_analyser.get_function_called(f_address)
+
         loaded_fun = []
         for f in called_plt_f:
             if f.name == "dlopen" and utils.f_name_from_path(

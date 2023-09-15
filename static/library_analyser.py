@@ -145,17 +145,17 @@ class LibraryUsageAnalyser:
         self.__used_libraries_aliases = defaultdict(list)
         self.__find_used_libraries_aliases(binary.symbols_version_requirement)
 
-    def is_call_to_plt(self, operand):
-        """Supposing that the operand given is used for a jmp or call
-        instruction, returns true if the result of this instruction is to lead
-        to the `.plt` or the `.plt.sec` sections.
+    def is_call_to_plt(self, address):
+        """Supposing that the address given is used as a destination for a jmp
+        or call instruction, returns true if the result of this instruction is
+        to lead to the `.plt` or the `.plt.sec` sections.
 
         This enables detecting library function calls.
 
         Parameters
         ----------
-        operand : str
-            the operand of a jmp or call instruction
+        address : str
+            the destination address of a jmp or call instruction
 
         Returns
         -------
@@ -163,22 +163,17 @@ class LibraryUsageAnalyser:
             True if the result of the instruction is a library function call
         """
 
-        if utils.is_hex(operand):
-            operand = int(operand, 16)
-            if self.__plt_sec_section:
-                plt_boundaries = (self.__plt_sec_section.virtual_address,
-                                  self.__plt_sec_section.virtual_address
-                                            + self.__plt_sec_section.size)
-            else:
-                plt_boundaries = (self.__plt_section.virtual_address,
-                                  self.__plt_section.virtual_address
-                                            + self.__plt_section.size)
-            return plt_boundaries[0] <= operand < plt_boundaries[1]
+        if self.__plt_sec_section:
+            plt_boundaries = (self.__plt_sec_section.virtual_address,
+                              self.__plt_sec_section.virtual_address
+                                        + self.__plt_sec_section.size)
         else:
-            #TODO: support indirect operands
-            return False
+            plt_boundaries = (self.__plt_section.virtual_address,
+                              self.__plt_section.virtual_address
+                                        + self.__plt_section.size)
+        return plt_boundaries[0] <= address < plt_boundaries[1]
 
-    def get_function_called(self, operand):
+    def get_function_called(self, f_address):
         """Returns the function that would be called by jumping to the address
         given in the `.plt` section.
 
@@ -193,8 +188,8 @@ class LibraryUsageAnalyser:
 
         Parameters
         ----------
-        operand : str
-            address in the .plt section in hexadecimal
+        f_address : int
+            address of the .plt slot corresponding to the function
 
         Returns
         -------
@@ -202,9 +197,7 @@ class LibraryUsageAnalyser:
             function(s) that would be called
         """
 
-        operand = int(operand, 16)
-
-        got_rel_addr = self.__get_got_rel_address(operand)
+        got_rel_addr = self.__get_got_rel_address(f_address)
 
         rel = self.__got_rel[got_rel_addr]
         if (lief.ELF.RELOCATION_X86_64(rel.type)
@@ -225,7 +218,7 @@ class LibraryUsageAnalyser:
             return []
 
         sys.stderr.write(f"[WARNING] A function name couldn't be found for "
-                         f"the .plt slot at address {hex(operand)}\n")
+                         f"the .plt slot at address {hex(f_address)}\n")
         return []
 
     def get_libraries_paths_manually(self, lib_names):
@@ -552,10 +545,6 @@ class LibraryUsageAnalyser:
 
     def __find_used_libraries_aliases(self, symbols_version_requirement):
 
-        # TODO: I didn't have the time to understand why multiple versions of a
-        # library are mapped to a library. This may be important and may
-        # require special treatement for each version, but for now every
-        # version will be treated the same.
         for svr in symbols_version_requirement:
             for aux_sym in svr.get_auxiliary_symbols():
                 self.__used_libraries_aliases[aux_sym.name].append(svr.name)
