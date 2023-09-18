@@ -188,7 +188,7 @@ class CodeAnalyser:
             dest_address = None
             if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 dest_address = self.__get_destination_address(
-                        ins.op_str, ins.address + ins.size)
+                        ins.op_str, utils.compute_rip(ins))
                 show_warnings = True
             elif ins.regs_access()[1]:
                 # Check for function pointers. This slows down the process a
@@ -273,7 +273,7 @@ class CodeAnalyser:
 
             lib_name = get_string_at_address(self.binary, lib_name_address)
 
-            lib_paths = (lib_name if isfile(lib_name)
+            lib_paths = ([lib_name] if isfile(lib_name)
                          else self.__lib_analyser
                          .get_libraries_paths_manually([lib_name]))
 
@@ -567,9 +567,11 @@ class CodeAnalyser:
             if (mem_operand[0][1:] == "rip"
                                      and utils.is_number(mem_operand[2][:-1])):
                 if mem_operand[1] == "+":
-                    ret = inst.address + utils.str2int(mem_operand[2][:-1])
+                    ret = utils.compute_rip(inst) + utils.str2int(
+                            mem_operand[2][:-1])
                 elif mem_operand[1] == "-":
-                    ret = inst.address - utils.str2int(mem_operand[2][:-1])
+                    ret = utils.compute_rip(inst) - utils.str2int(
+                            mem_operand[2][:-1])
 
         return ret
 

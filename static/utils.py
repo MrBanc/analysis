@@ -190,3 +190,7 @@ def f_name_from_path(path):
     """
 
     return path.split("/")[-1]
+
+def compute_rip(cur_inst):
+    """Compute the value of RIP from the current instruction."""
+    return cur_inst.address + cur_inst.size
