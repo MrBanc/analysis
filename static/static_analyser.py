@@ -26,6 +26,9 @@ def main():
                         default=utils.app)
     parser.add_argument('--verbose', '-v', type=utils.str2bool, nargs='?',
                         const=True, help='Verbose mode', default=True)
+    parser.add_argument('--show-warnings', '-w', type=utils.str2bool,
+                        nargs='?', const=True, help='Show all warnings',
+                        default=True)
     parser.add_argument('--display', '-d', type=utils.str2bool, nargs='?',
                         const=True, help='Display syscalls', default=True)
     parser.add_argument('--csv', '-c', type=utils.str2bool, nargs='?',
@@ -46,6 +49,7 @@ def main():
     args = parser.parse_args()
 
     utils.verbose = args.verbose
+    utils.show_warnings = args.show_warnings
     utils.app = args.app
     utils.use_log_file = not args.log_to_stdout
     utils.logging = args.log if args.log_to_stdout is False else True

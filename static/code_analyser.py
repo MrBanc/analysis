@@ -239,8 +239,9 @@ class CodeAnalyser:
                                   "backtrack.log", indent=2)
                         continue
                     # elif (op_strings[1].startswith("qword ptr [rip +")
+                    # elif "rip" in list_inst[i].op_str:
+                    #     print(f"gougoug backtrack {op_strings}")
                     else:
-                        print(f"gougoug backtrack {op_strings}")
                         utils.log("[Operation not supported]",
                                   "backtrack.log", indent=2)
                 elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
@@ -265,7 +266,7 @@ class CodeAnalyser:
             if lib_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A library loaded with dlopen in "
-                        f"{self.binary.path} could not be found")
+                        f"{self.binary.path} could not be found", False)
 
             lib_name = get_string_at_address(self.binary, lib_name_address)
 
@@ -277,7 +278,7 @@ class CodeAnalyser:
                 raise StaticAnalyserException(
                         f"[WARNING] The library (supposedly) named "
                         f"\"{lib_name}\" loaded with dlopen in "
-                        f"{self.binary.path} could not be found")
+                        f"{self.binary.path} could not be found", False)
 
             lib_paths_copy = copy(lib_paths)
             for p in lib_paths_copy:
@@ -308,7 +309,10 @@ class CodeAnalyser:
 
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
-            sys.stderr.write(f"{e}\n")
+            if e.is_critical:
+                sys.stderr.write(f"{e}\n")
+            else:
+                utils.print_warning(f"{e}\n")
 
     def __backtrack_dlsym(self, i, list_inst):
 
@@ -398,12 +402,12 @@ class CodeAnalyser:
                             rel.symbol.name, False)
                 if rel and address is None and rel.addend != 0:
                     address = rel.addend
-        # elif "rip" in operand:
-        #     print(f"gougoug {operand}")
+        elif "rip" in operand:
+            print(f"gougoug {operand}")
 
         if address is None:
             # TODO: Other things could be done to try obtaining the address
-            utils.print_verbose("[WARNING] A function may have been called but"
+            utils.print_warning("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
                                 "to an indirect address call.")
 
@@ -432,7 +436,7 @@ class CodeAnalyser:
 
         if f_name not in self.__f_name_to_addr_map:
             if show_warnings:
-                utils.print_verbose(f"[WARNING] A function was called but "
+                utils.print_warning(f"[WARNING] A function was called but "
                                     f"couln't be found with its name: "
                                     f"{f_name}")
             return None
@@ -468,7 +472,7 @@ class CodeAnalyser:
 
         if f_address not in self.__address_to_fun_map:
             if show_warnings:
-                utils.print_verbose(f"[WARNING] A function was called but "
+                utils.print_warning(f"[WARNING] A function was called but "
                                     f"couln't be found with its address: "
                                     f"{f_address}")
             return None

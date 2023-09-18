@@ -368,7 +368,7 @@ class LibraryUsageAnalyser:
         if lib_name not in self.__used_libraries:
             self.__used_libraries.append(lib_name)
             if show_warnings:
-                utils.print_verbose(f"[WARNING]: The library path {lib_path} "
+                utils.print_warning(f"[WARNING]: The library path {lib_path} "
                                     f"was added for {self.__binary_path}, "
                                     f"which is a library that was not detected"
                                     f" by `lief`.")
@@ -516,13 +516,13 @@ class LibraryUsageAnalyser:
                     self.add_used_library(parts[0])
             if not set(self.__used_libraries).issubset(LibraryUsageAnalyser
                                                        .__libraries.keys()):
-                utils.print_verbose("[WARNING] The `ldd` command didn't find "
+                utils.print_warning("[WARNING] The `ldd` command didn't find "
                                     "all the libraries used.\nTrying to find "
                                     "the remaining libraries' path manually..."
                                     )
                 self.__find_used_libraries_manually()
         except subprocess.CalledProcessError as e:
-            utils.print_verbose("[WARNING] ldd command returned with an error:"
+            utils.print_warning("[WARNING] ldd command returned with an error:"
                                 " " + e.stderr.decode("utf-8") + "Trying to "
                                 "find the libraries' path manually...")
             self.__find_used_libraries_manually()

@@ -10,6 +10,7 @@ log_dir_path = "../logs/"
 # Beware that these may NOT be reflective of the default values. To modify the
 # default value, look inside `static_analyser.py`
 verbose = True
+show_warnings = True
 app = "redis-server-static"
 use_log_file = True
 logging = False
@@ -27,13 +28,25 @@ def print_verbose(msg, indent=0):
     ----------
     msg : str
         msg to print
-    file_name : str
-        name of the log file to add the message to
     indent: int
         number of tabs to add before the msg
     """
     if verbose:
         print(indent * "\t" + msg)
+
+def print_warning(warning, indent=0):
+    """Prints the warning with the specified indentation into the standard
+    output if show_warning is True.
+
+    Parameters
+    ----------
+    warning : str
+        warning to print
+    indent: int
+        number of tabs to add before the msg
+    """
+    if show_warnings:
+        print(indent * "\t" + warning)
 
 def print_debug(msg):
     """Used for debugging purposes only. Print debug messages"""
