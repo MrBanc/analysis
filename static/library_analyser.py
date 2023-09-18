@@ -199,9 +199,13 @@ class LibraryUsageAnalyser:
 
         got_rel_addr = self.__get_got_rel_address(f_address)
 
-        rel = self.__got_rel[got_rel_addr]
-        if (lief.ELF.RELOCATION_X86_64(rel.type)
-            == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
+        if got_rel_addr not in self.__got_rel:
+            rel = None
+        else:
+            rel = self.__got_rel[got_rel_addr]
+
+        if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
+                    == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
             # auxiliary version seem to indicate the library from which the
             # function come (example value: 'GLIBC_2.2.5')
             if rel.symbol.symbol_version.has_auxiliary_version:
@@ -210,8 +214,8 @@ class LibraryUsageAnalyser:
                         rel.symbol.symbol_version.symbol_version_auxiliary
                         .name)
             return self.get_function_with_name(rel.symbol.name)
-        if (lief.ELF.RELOCATION_X86_64(rel.type)
-            == lief.ELF.RELOCATION_X86_64.IRELATIVE):
+        if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
+                    == lief.ELF.RELOCATION_X86_64.IRELATIVE):
             if rel.addend:
                 return [LibFunction(name="", library_path=self.__binary_path,
                                     boundaries=(rel.addend, -1))]
@@ -351,7 +355,7 @@ class LibraryUsageAnalyser:
         lib_path : str
             library's path
         show_warnings : bool
-            Wether or not the given library not being part of the libraries
+            whether or not the given library not being part of the libraries
             detected by lief should throw a warning
         """
 

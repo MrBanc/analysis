@@ -112,8 +112,9 @@ class CodeAnalyser:
         # found.
         self.__md.skipdata = utils.skip_data
 
-        # only used if `binary` is a library
+        # may not be used
         self.__address_to_fun_map = None
+        self.__f_name_to_addr_map = None
 
         if not self.binary.has_dyn_libraries:
             return
@@ -183,22 +184,22 @@ class CodeAnalyser:
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
             elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-                f_address = self.__get_destination_address(
+                dest_address = self.__get_destination_address(
                         ins.op_str, ins.address + ins.size)
-                if f_address is None:
+                if dest_address is None:
                     continue
 
                 if (self.binary.has_dyn_libraries
-                    and self.__lib_analyser.is_call_to_plt(f_address)):
+                    and self.__lib_analyser.is_call_to_plt(dest_address)):
                     f_to_analyse = self.__wrapper_get_function_called(
-                                                f_address, i, list_inst)
+                                                dest_address, i, list_inst)
                     # Even if f_called_list is None, f_to_analyse needs to be
                     # cleaned from local functions
                     self.__mov_local_funs_to(f_called_list, f_to_analyse)
                     self.__lib_analyser.get_used_syscalls(syscalls_set,
                                                           f_to_analyse)
                 elif detect_functions and ins.group(CS_GRP_CALL):
-                    f = self.__get_local_function_called(f_address)
+                    f = self.__get_local_function_called(dest_address)
                     if f and f not in f_called_list:
                         f_called_list.append(f)
 
@@ -239,7 +240,7 @@ class CodeAnalyser:
                         continue
                     # elif (op_strings[1].startswith("qword ptr [rip +")
                     else:
-                        # print(f"gougoug backtrack {op_strings}")
+                        print(f"gougoug backtrack {op_strings}")
                         utils.log("[Operation not supported]",
                                   "backtrack.log", indent=2)
                 elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
@@ -378,35 +379,74 @@ class CodeAnalyser:
 
         Returns
         -------
-        called_plt_f : LibFunction
-            function that would be called
+        address : int
+            destination address of the given operand of the call (or jump)
         """
+
+        address = None
 
         if utils.is_number(operand):
             address = utils.str2int(operand)
-        elif "rip" in operand: # TODO this prevent the next if
-            # print(f"gougoug {operand}")
-            address = None
         elif (operand.startswith("qword ptr [rip +")
               and len(operand.split()) == 5):
-            address = None
             offset = operand.split()[4][:-1]
             if utils.is_number(offset):
                 address_location = rip_value + utils.str2int(offset)
-                # TODO find the address from the address location
-                address = None
-            else:
-                address = None
-        else:
-            # TODO
-            address = None
+                rel = self.binary.lief_binary.get_relocation(address_location)
+                if rel and rel.has_symbol and rel.symbol.name != "":
+                    address = self.__get_local_function_address(
+                            rel.symbol.name, False)
+                if rel and address is None and rel.addend != 0:
+                    address = rel.addend
+        # elif "rip" in operand:
+        #     print(f"gougoug {operand}")
+
+        if address is None:
+            # TODO: Other things could be done to try obtaining the address
             utils.print_verbose("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
                                 "to an indirect address call.")
 
         return address
 
-    def __get_local_function_called(self, f_address):
+    # TODO il y a des trucs qui font doublon avec
+    # __get_local_function_called... En plus cette fonction ci est sensée être
+    # déjà implémentée dans lief mais elle marche pas...
+    def __get_local_function_address(self, f_name, show_warnings=True):
+        """Returns the address of the local function with the given name
+        Parameters
+        ----------
+        f_name : str
+            name of the function that is to be found
+        show_warnings : bool
+            whether or not should a warning be thrown if no function was found
+
+        Returns
+        -------
+        f_address : int
+            address of the function
+        """
+
+        if self.__f_name_to_addr_map is None:
+            self.__initialise_f_name_to_addr_map()
+
+        if f_name not in self.__f_name_to_addr_map:
+            if show_warnings:
+                utils.print_verbose(f"[WARNING] A function was called but "
+                                    f"couln't be found with its name: "
+                                    f"{f_name}")
+            return None
+
+        return self.__f_name_to_addr_map[f_name]
+
+    def __initialise_f_name_to_addr_map(self):
+
+        self.__f_name_to_addr_map = {}
+        for item in self.binary.lief_binary.functions:
+            self.__f_name_to_addr_map[item.name] = item.address
+
+
+    def __get_local_function_called(self, f_address, show_warnings=True):
         """Returns the function that would be called by jumping to the address
         given.
 
@@ -414,6 +454,8 @@ class CodeAnalyser:
         ----------
         f_address : int
             address of the called function
+        show_warnings : bool
+            Whether or not should a warning be thrown if no function was found
 
         Returns
         -------
@@ -425,9 +467,10 @@ class CodeAnalyser:
             self.__initialise_address_to_fun_map()
 
         if f_address not in self.__address_to_fun_map:
-            utils.print_verbose(f"[WARNING] A function was called but "
-                                f"couln't be found with its address: "
-                                f"{f_address}")
+            if show_warnings:
+                utils.print_verbose(f"[WARNING] A function was called but "
+                                    f"couln't be found with its address: "
+                                    f"{f_address}")
             return None
 
         return self.__address_to_fun_map[f_address]
