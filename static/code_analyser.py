@@ -544,7 +544,7 @@ class CodeAnalyser:
 
         ret = -1
         # TODO also support lea
-        if mnemonic not in ("mov", "xor"):
+        if mnemonic not in ("mov", "xor", "lea"):
             return ret
 
         op_strings[0] = op_strings[0].strip()
@@ -562,6 +562,14 @@ class CodeAnalyser:
             #     print(f"gougoug backtrack {op_strings}")
         elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
             ret = 0
+        elif mnemonic == "lea":
+            mem_operand = op_strings[1].split()
+            if (mem_operand[0][1:] == "rip"
+                                     and utils.is_number(mem_operand[2][:-1])):
+                if mem_operand[1] == "+":
+                    ret = inst.address + utils.str2int(mem_operand[2][:-1])
+                elif mem_operand[1] == "-":
+                    ret = inst.address - utils.str2int(mem_operand[2][:-1])
 
         return ret
 
