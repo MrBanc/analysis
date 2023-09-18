@@ -183,27 +183,47 @@ class CodeAnalyser:
             if self.__is_syscall_instruction(ins):
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
-            elif ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
+                continue
+
+            dest_address = None
+            if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 dest_address = self.__get_destination_address(
                         ins.op_str, ins.address + ins.size)
-                if dest_address is None:
-                    continue
+                show_warnings = True
+            elif ins.regs_access()[1]:
+                # Check for function pointers. This slows down the process a
+                # bit, is approximative and rarely brings results so one might
+                # want to remove it
+                assigned = self.__compute_assigned_value(ins)
+                if isinstance(assigned, int) and assigned > 0:
+                    dest_address = assigned
+                show_warnings = False
 
-                if (self.binary.has_dyn_libraries
-                    and self.__lib_analyser.is_call_to_plt(dest_address)):
-                    f_to_analyse = self.__wrapper_get_function_called(
-                                                dest_address, i, list_inst)
-                    # Even if f_called_list is None, f_to_analyse needs to be
-                    # cleaned from local functions
-                    self.__mov_local_funs_to(f_called_list, f_to_analyse)
-                    self.__lib_analyser.get_used_syscalls(syscalls_set,
-                                                          f_to_analyse)
-                elif detect_functions and ins.group(CS_GRP_CALL):
-                    f = self.__get_local_function_called(dest_address)
-                    if f and f not in f_called_list:
-                        f_called_list.append(f)
+            if dest_address is None:
+                continue
+
+            if (self.binary.has_dyn_libraries
+                and self.__lib_analyser.is_call_to_plt(dest_address)):
+                f_to_analyse = self.__wrapper_get_function_called(
+                                            dest_address, i, list_inst)
+                # Even if f_called_list is None, f_to_analyse needs to be
+                # cleaned from local functions
+                self.__mov_local_funs_to(f_called_list, f_to_analyse)
+                self.__lib_analyser.get_used_syscalls(syscalls_set,
+                                                      f_to_analyse)
+            elif detect_functions and ins.group(CS_GRP_CALL):
+                f = self.__get_local_function_called(dest_address,
+                                                     show_warnings)
+                if f and f not in f_called_list:
+                    f_called_list.append(f)
 
     def __backtrack_register(self, focus_reg, index, list_inst):
+        # Beware that it will be considered that the value is put inside the
+        # register in one operation. For example, this type of code is not
+        # supported:
+        # mov rdi, 0x1234
+        # shl rdi, 16
+        # mov di, 0x5678
 
         last_ins_index = max(0, index-1-utils.max_backtrack_insns)
         for i in range(index-1, last_ins_index, -1):
@@ -213,42 +233,25 @@ class CodeAnalyser:
             utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
                       f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
-            mnemonic = list_inst[i].mnemonic
-            op_strings = list_inst[i].op_str.split(",")
-
             regs_write = list_inst[i].regs_access()[1]
             for r in regs_write:
                 if self.__md.reg_name(r) not in self.__registers[focus_reg]:
                     continue
 
+                assigned_value = self.__compute_assigned_value(list_inst[i])
+
                 ret = -1
-                if mnemonic not in ("mov", "xor"):
+                if assigned_value is None:
                     utils.log("[Operation not supported]",
                               "backtrack.log", indent=2)
-                    return ret
-
-                op_strings[0] = op_strings[0].strip()
-                op_strings[1] = op_strings[1].strip()
-
-                if mnemonic == "mov":
-                    if utils.is_number(op_strings[1]):
-                        ret = utils.str2int(op_strings[1])
-                    elif self.__is_reg(op_strings[1]):
-                        focus_reg = self.__get_reg_key(op_strings[1])
-                        utils.log(f"[Shifting focus to {focus_reg}]",
-                                  "backtrack.log", indent=2)
-                        continue
-                    # elif (op_strings[1].startswith("qword ptr [rip +")
-                    # elif "rip" in list_inst[i].op_str:
-                    #     print(f"gougoug backtrack {op_strings}")
-                    else:
-                        utils.log("[Operation not supported]",
-                                  "backtrack.log", indent=2)
-                elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
-                    ret = 0
-                else:
-                    utils.log("[Operation not supported]",
+                elif isinstance(assigned_value, int):
+                    ret = assigned_value
+                elif self.__is_reg(assigned_value):
+                    focus_reg = assigned_value
+                    utils.log(f"[Shifting focus to {focus_reg}]",
                               "backtrack.log", indent=2)
+                    continue
+
                 return ret
 
         return -1
@@ -533,6 +536,34 @@ class CodeAnalyser:
                 loaded_fun.extend(self.__backtrack_dlsym(i, list_inst))
 
         return called_plt_f + loaded_fun
+
+    def __compute_assigned_value(self, inst):
+
+        mnemonic = inst.mnemonic
+        op_strings = inst.op_str.split(",")
+
+        ret = -1
+        # TODO also support lea
+        if mnemonic not in ("mov", "xor"):
+            return ret
+
+        op_strings[0] = op_strings[0].strip()
+        op_strings[1] = op_strings[1].strip()
+
+        if mnemonic == "mov":
+            if utils.is_number(op_strings[1]):
+                ret = utils.str2int(op_strings[1])
+            elif self.__is_reg(op_strings[1]):
+                ret = self.__get_reg_key(op_strings[1])
+            # Ça arrive parfois pour dlopen (par exemple avec make ou
+            # ibus) mais ça pointe vers des fonctions donc je comprends
+            # pas trop.
+            # elif "rip" in inst.op_str:
+            #     print(f"gougoug backtrack {op_strings}")
+        elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
+            ret = 0
+
+        return ret
 
     def __is_reg(self, string):
         """Returns true if the given string is the name of a (x86_64 general
