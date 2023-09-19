@@ -90,13 +90,26 @@ class LibraryUsageAnalyser:
 
     Public Methods
     --------------
-    is_call_to_plt(self, operand) -> bool
-        Supposing that the operand given is used for a jmp or call instruction,
-        returns true if the result of this instruction is to lead to the `.plt`
-        or the `.plt.sec` sections.
-    get_function_called(self, operand) -> called_functions
+    is_call_to_plt(self, address) -> bool
+        Supposing that the address given is used as a destination for a jmp or
+        call instruction, returns true if the result of this instruction is to
+        lead to one of the slots inside the `.plt` or the `.plt.sec` sections.
+    get_function_called(self, f_address) -> called_functions
         Returns the function that would be called by jumping to the address
         given in the `.plt` section.
+    get_libraries_paths_manually(self, lib_names) -> list of str
+        elper function to obtain the path of a library from its name.
+    get_lib_from_GNU_ld_script(self, script_path) -> list of str
+        Parses a GNU ld script and returns the library paths it leads to.
+    get_function_with_name(self, f_name, lib_alias=None) -> list of LibFunction
+        Returns the LibFunction dataclass corresponding to the function with
+        the given name by looking at the functions available in the libraries
+        used by the analysed binary (self).
+    add_used_library(self, lib_path, show_warnings=True):
+        Adds the library name associated with the library path provided to
+        the list of used libraries of the binary and register the library's
+        information (in self.__libraries) if it was not already done beforehand
+        in the program's execution.
     get_used_syscalls(self, syscalls_set, functions)
         Updates the syscall set passed as argument after analysing the given
         function(s).

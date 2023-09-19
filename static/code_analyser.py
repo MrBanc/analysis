@@ -58,16 +58,13 @@ class CodeAnalyser:
 
     Public Methods
     --------------
-    get_used_syscalls_text_section(syscalls_set, inv_syscalls_map)
+    get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map)
         Updates the syscall set passed as argument after analysing the `.text`
         of the binary.
     analyse_code(self, insns, syscalls_set, inv_syscalls_map[, f_called_list])
         Updates the syscall set passed as argument after analysing the given
         instructions.
-    get_text_section(self) -> lief.ELF.Section
-        Returns the .text section (as given by the lief library)
     """
-    # TODO add new public functions to class string above
 
 
     # Used to detect the syscall identifier.
@@ -543,7 +540,6 @@ class CodeAnalyser:
         op_strings = inst.op_str.split(",")
 
         ret = -1
-        # TODO also support lea
         if mnemonic not in ("mov", "xor", "lea"):
             return ret
 
