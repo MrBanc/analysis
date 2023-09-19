@@ -148,9 +148,16 @@ class LibraryUsageAnalyser:
     def is_call_to_plt(self, address):
         """Supposing that the address given is used as a destination for a jmp
         or call instruction, returns true if the result of this instruction is
-        to lead to the `.plt` or the `.plt.sec` sections.
+        to lead to one of the slots inside the `.plt` or the `.plt.sec`
+        sections.
 
         This enables detecting library function calls.
+
+        Note that the .plt.sec section contains endbr64 instructions
+        specifically to check if the destination address is indeed an address
+        that the program can jump to. This is not the case for the .plt section
+        so instead, this function just look if the offset from the beginning of
+        the section is a multiple of the slots' length.
 
         Parameters
         ----------
@@ -167,10 +174,18 @@ class LibraryUsageAnalyser:
             plt_boundaries = (self.__plt_sec_section.virtual_address,
                               self.__plt_sec_section.virtual_address
                                         + self.__plt_sec_section.size)
+            plt_sec_offset = address - plt_boundaries[0]
+            endbr64_bytes = b"\xf3\x0f\x1e\xfa"
+            if (bytearray(self.__plt_sec_section.content)
+                           [plt_sec_offset:plt_sec_offset+4] != endbr64_bytes):
+                return False
         else:
             plt_boundaries = (self.__plt_section.virtual_address,
                               self.__plt_section.virtual_address
                                         + self.__plt_section.size)
+            slots_length = 16
+            if (address - plt_boundaries[0]) % slots_length:
+                return False
         return plt_boundaries[0] <= address < plt_boundaries[1]
 
     def get_function_called(self, f_address):
