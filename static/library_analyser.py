@@ -101,11 +101,12 @@ class LibraryUsageAnalyser:
         elper function to obtain the path of a library from its name.
     get_lib_from_GNU_ld_script(self, script_path) -> list of str
         Parses a GNU ld script and returns the library paths it leads to.
-    get_function_with_name(self, f_name, lib_alias=None) -> list of LibFunction
+    get_function_with_name(self, f_name, lib_alias=None,
+                           use_potential_libs=False) -> list of LibFunction
         Returns the LibFunction dataclass corresponding to the function with
         the given name by looking at the functions available in the libraries
         used by the analysed binary (self).
-    add_used_library(self, lib_path, show_warnings=True):
+    add_used_library(self, lib_path, added_by_ldd=False):
         Adds the library name associated with the library path provided to
         the list of used libraries of the binary and register the library's
         information (in self.__libraries) if it was not already done beforehand
@@ -153,6 +154,10 @@ class LibraryUsageAnalyser:
         self.__md.skipdata = utils.skip_data
 
         self.__used_libraries = binary.libraries
+        # contains libraries detected by ldd but not by lief (so they may be
+        # libraries that are not directly used by the binaries as ldd shows
+        # dependencies of dependencies)
+        self.__potentially_used_libraries = []
         self.__find_used_libraries()
 
         self.__used_libraries_aliases = defaultdict(list)
@@ -239,8 +244,8 @@ class LibraryUsageAnalyser:
             if rel.symbol.symbol_version.has_auxiliary_version:
                 return self.get_function_with_name(
                         rel.symbol.name,
-                        rel.symbol.symbol_version.symbol_version_auxiliary
-                        .name)
+                        lib_alias=rel.symbol.symbol_version
+                                     .symbol_version_auxiliary.name)
             return self.get_function_with_name(rel.symbol.name)
         if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.IRELATIVE):
@@ -310,7 +315,8 @@ class LibraryUsageAnalyser:
 
         return lib_paths
 
-    def get_function_with_name(self, f_name, lib_alias=None):
+    def get_function_with_name(self, f_name, lib_alias=None,
+                               use_potential_libs=False):
         """Returns the LibFunction dataclass corresponding to the function with
         the given name by looking at the functions available in the libraries
         used by the analysed binary (self).
@@ -323,6 +329,10 @@ class LibraryUsageAnalyser:
             an alias name for the library this function is probably located in.
             If it isn't found there, it will anyway look at the other libraries
             used by the analyzed binary
+        use_potential_libs : bool
+            whether to (only) use the potentially used libraries detected by
+            ldd but not by other means or to (only) use the used libraries
+            detected by other means.
 
         Returns
         -------
@@ -331,10 +341,12 @@ class LibraryUsageAnalyser:
         """
 
         functions = []
-        if lib_alias is None:
+        if lib_alias is not None:
+            lib_to_check = self.__used_libraries_aliases[lib_alias]
+        elif not use_potential_libs:
             lib_to_check = self.__used_libraries
         else:
-            lib_to_check = self.__used_libraries_aliases[lib_alias]
+            lib_to_check = self.__potentially_used_libraries
 
         for lib_name in lib_to_check:
             lib = LibraryUsageAnalyser.__libraries[lib_name]
@@ -353,6 +365,9 @@ class LibraryUsageAnalyser:
         if not functions:
             if lib_alias is not None:
                 return self.get_function_with_name(f_name)
+            if not use_potential_libs:
+                return self.get_function_with_name(f_name,
+                                                   use_potential_libs=True)
             sys.stderr.write(f"[WARNING] No library function was found for "
                              f"{f_name}. Continuing...\n")
         elif len(functions) > 1:
@@ -361,9 +376,17 @@ class LibraryUsageAnalyser:
                              f": {functions}.\n"
                              f"All of them will be considered.\n")
 
+        if functions and use_potential_libs:
+            utils.print_warning(f"[WARNING]: The library function {f_name} "
+                                f"used by {self.__binary_path}, couldn't be "
+                                f"found in the libraries detected by `lief` "
+                                f"(or dlopen etc) but was found in a library "
+                                f"detected by `ldd`. This one will be "
+                                f"considered.")
+
         return functions
 
-    def add_used_library(self, lib_path, show_warnings=True):
+    def add_used_library(self, lib_path, added_by_ldd=False):
         """Adds the library name associated with the library path provided to
         the list of used libraries of the binary and register the library's
         information (in self.__libraries) if it was not already done beforehand
@@ -382,9 +405,8 @@ class LibraryUsageAnalyser:
         ----------
         lib_path : str
             library's path
-        show_warnings : bool
-            whether or not the given library not being part of the libraries
-            detected by lief should throw a warning
+        added_by_ldd : bool
+            whether or not it was added by `ldd`
         """
 
         if not exists(lib_path):
@@ -394,12 +416,11 @@ class LibraryUsageAnalyser:
             return
         lib_name = utils.f_name_from_path(lib_path)
         if lib_name not in self.__used_libraries:
-            self.__used_libraries.append(lib_name)
-            if show_warnings:
-                utils.print_warning(f"[WARNING]: The library path {lib_path} "
-                                    f"was added for {self.__binary_path}, "
-                                    f"which is a library that was not detected"
-                                    f" by `lief`.")
+            if (added_by_ldd
+                and lib_name not in self.__potentially_used_libraries):
+                self.__potentially_used_libraries.append(lib_name)
+            else:
+                self.__used_libraries.append(lib_name)
 
         if lib_name in LibraryUsageAnalyser.__libraries:
             return
@@ -531,7 +552,7 @@ class LibraryUsageAnalyser:
             # A binary sometimes uses the .plt section to call one of its own
             # functions. It isn't necessary to do it for the main app as
             # function calls aren't relevant there.
-            self.add_used_library(self.__binary_path, show_warnings=False)
+            self.add_used_library(self.__binary_path)
 
         try:
             ldd_output = subprocess.run(["ldd", self.__binary_path],
@@ -539,9 +560,10 @@ class LibraryUsageAnalyser:
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
                 if "=>" in parts:
-                    self.add_used_library(parts[parts.index("=>") + 1])
+                    self.add_used_library(parts[parts.index("=>") + 1],
+                                          added_by_ldd=True)
                 elif utils.f_name_from_path(parts[0]) in self.__used_libraries:
-                    self.add_used_library(parts[0])
+                    self.add_used_library(parts[0], added_by_ldd=True)
             if not set(self.__used_libraries).issubset(LibraryUsageAnalyser
                                                        .__libraries.keys()):
                 utils.print_warning("[WARNING] The `ldd` command didn't find "

@@ -320,7 +320,7 @@ class CodeAnalyser:
         # account, but they only should if the previous entries do not
         # contain the wanted function
         for p in lib_paths:
-            self.__lib_analyser.add_used_library(p, show_warnings=False)
+            self.__lib_analyser.add_used_library(p)
 
     def __backtrack_dlsym(self, i, list_inst):
 
