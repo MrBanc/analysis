@@ -380,8 +380,8 @@ class LibraryUsageAnalyser:
             utils.print_warning(f"[WARNING]: The library function {f_name} "
                                 f"used by {self.__binary_path}, couldn't be "
                                 f"found in the libraries detected by `lief` "
-                                f"(or dlopen etc) but was found in a library "
-                                f"detected by `ldd`. This one will be "
+                                f"(or `dlopen` etc) but was found in a library"
+                                f" detected by `ldd`. This one will be "
                                 f"considered.")
 
         return functions
