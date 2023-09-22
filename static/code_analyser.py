@@ -256,56 +256,10 @@ class CodeAnalyser:
     def __backtrack_dlopen(self, i, list_inst):
 
         try:
-            # When calling dlopen, the second argument (in `edi`) contains a
+            # When calling dlopen, the first argument (in `edi`) contains a
             # pointer to the name of the library
             lib_name_address = self.__backtrack_register("edi", i, list_inst)
-            if lib_name_address == 0:
-                # A NULL ptr means dlopen was use to get a handle on the main
-                # (current) executable
-                return
-            if lib_name_address < 0:
-                raise StaticAnalyserException(
-                        f"[WARNING] A library loaded with dlopen in "
-                        f"{self.binary.path} could not be found", False)
-
-            lib_name = get_string_at_address(self.binary, lib_name_address)
-
-            lib_paths = ([lib_name] if isfile(lib_name)
-                         else self.__lib_analyser
-                         .get_libraries_paths_manually([lib_name]))
-
-            if not lib_paths:
-                raise StaticAnalyserException(
-                        f"[WARNING] The library (supposedly) named "
-                        f"\"{lib_name}\" loaded with dlopen in "
-                        f"{self.binary.path} could not be found", False)
-
-            lib_paths_copy = copy(lib_paths)
-            for p in lib_paths_copy:
-                if not is_valid_binary_path(p):
-                    # dlopen (may) lead to a GNU ld script that points to the
-                    # actual libraries
-                    try:
-                        lib_paths.extend(self.__lib_analyser
-                                         .get_lib_from_GNU_ld_script(p))
-                    except FileNotFoundError:
-                        sys.stderr.write(f"[ERROR] File not found at {p}")
-                    except UnicodeDecodeError:
-                        pass
-                    finally:
-                        lib_paths.remove(p)
-            if lib_paths_copy and not lib_paths:
-                raise StaticAnalyserException(
-                        f"[ERROR] The library paths {lib_paths_copy} loaded "
-                        f"with dlopen in {self.binary.path} does not lead to"
-                        f" valid binaries or scripts")
-
-            utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
-            # TODO: All the libraries pointed to by the script are taken into
-            # account, but they only should if the previous entries do not
-            # contain the wanted function
-            for p in lib_paths:
-                self.__lib_analyser.add_used_library(p, show_warnings=False)
+            self.__process_dlopen_filename_arg(lib_name_address)
 
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
@@ -313,6 +267,60 @@ class CodeAnalyser:
                 sys.stderr.write(f"{e}\n")
             else:
                 utils.print_warning(f"{e}\n")
+
+    def __backtrack_dlmopen(self, i, list_inst):
+
+        try:
+            # When calling dlmopen, the second argument (in `esi`) contains a
+            # pointer to the name of the library
+            lib_name_address = self.__backtrack_register("esi", i, list_inst)
+            # The procedure is the same as for dlopen, thus the function name
+            self.__process_dlopen_filename_arg(lib_name_address)
+
+        except StaticAnalyserException as e:
+            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
+            if e.is_critical:
+                sys.stderr.write(f"{e}\n")
+            else:
+                utils.print_warning(f"{e}\n")
+
+    def __process_dlopen_filename_arg(self, file_name_address):
+        """
+        Raises
+        ------
+        StaticAnalyserException
+            If the library location cannot be found
+        """
+
+        if file_name_address == 0:
+            # A NULL ptr means dlmopen was use to get a handle on the main
+            # (current) executable
+            return
+        if file_name_address < 0:
+            raise StaticAnalyserException(
+                    f"[WARNING] A library loaded with dlopen in "
+                    f"{self.binary.path} could not be found", False)
+
+        lib_name = get_string_at_address(self.binary, file_name_address)
+
+        lib_paths = ([lib_name] if isfile(lib_name)
+                     else self.__lib_analyser
+                     .get_libraries_paths_manually([lib_name]))
+
+        if not lib_paths:
+            raise StaticAnalyserException(
+                    f"[WARNING] The library (supposedly) named "
+                    f"\"{lib_name}\" loaded with dlopen in "
+                    f"{self.binary.path} could not be found", False)
+
+        self.__process_lib_paths_by_dlopen(lib_paths)
+
+        utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
+        # TODO: All the libraries pointed to by the script are taken into
+        # account, but they only should if the previous entries do not
+        # contain the wanted function
+        for p in lib_paths:
+            self.__lib_analyser.add_used_library(p, show_warnings=False)
 
     def __backtrack_dlsym(self, i, list_inst):
 
@@ -519,20 +527,53 @@ class CodeAnalyser:
 
         loaded_fun = []
         for f in called_plt_f:
-            if f.name == "dlopen" and utils.f_name_from_path(
-                    f.library_path).startswith("libc"):
+            if not utils.f_name_from_path(f.library_path).startswith("libc"):
+                continue
+            if f.name == "dlopen":
                 utils.log(f"dlopen instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
                 self.__backtrack_dlopen(i, list_inst)
-            elif f.name == "dlsym" and utils.f_name_from_path(
-                    f.library_path).startswith("libc"):
+            elif f.name == "dlmopen":
+                utils.log(f"dlmopen instruction: {hex(list_inst[-1].address)} "
+                          f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
+                          "backtrack.log")
+                self.__backtrack_dlmopen(i, list_inst)
+            elif f.name == "dlsym":
                 utils.log(f"dlsym instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
                 loaded_fun.extend(self.__backtrack_dlsym(i, list_inst))
 
         return called_plt_f + loaded_fun
+
+    def __process_lib_paths_by_dlopen(self, lib_paths):
+        """
+        Raises
+        ------
+        StaticAnalyserException
+            If no valid paths to libraries were found
+        """
+
+        lib_paths_copy = copy(lib_paths)
+        for p in lib_paths_copy:
+            if not is_valid_binary_path(p):
+                # dlopen (may) lead to a GNU ld script that points to the
+                # actual libraries
+                try:
+                    lib_paths.extend(self.__lib_analyser
+                                     .get_lib_from_GNU_ld_script(p))
+                except FileNotFoundError:
+                    sys.stderr.write(f"[ERROR] File not found at {p}")
+                except UnicodeDecodeError:
+                    pass
+                finally:
+                    lib_paths.remove(p)
+        if lib_paths_copy and not lib_paths:
+            raise StaticAnalyserException(
+                    f"[ERROR] The library paths {lib_paths_copy} loaded "
+                    f"with dlopen in {self.binary.path} does not lead to"
+                    f" valid binaries or scripts")
 
     def __compute_assigned_value(self, inst):
 
