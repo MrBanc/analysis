@@ -138,10 +138,32 @@ class CodeAnalyser:
         """
 
         text_section = get_text_section(self.binary)
+        bytes_to_analyse = text_section.size
+        start_analyse_at = text_section.virtual_address
 
-        self.analyse_code(self.__md.disasm(bytearray(text_section.content),
-                                   text_section.virtual_address),
-                         syscalls_set, inv_syscalls_map)
+        while bytes_to_analyse > 0:
+            to_analyse = bytearray(text_section.content)[text_section.size
+                                                         - bytes_to_analyse:]
+            bytes_analysed = self.analyse_code(
+                    self.__md.disasm(to_analyse, start_analyse_at),
+                    syscalls_set, inv_syscalls_map)
+
+            bytes_to_analyse -= bytes_analysed
+            if not bytes_to_analyse:
+                continue
+            stopped_at = (text_section.virtual_address + text_section.size
+                          - bytes_to_analyse)
+            sys.stderr.write(f"[ERROR] analysis of `.text` section of "
+                             f"{self.binary.path} stopped at {hex(stopped_at)}"
+                             f" (probably due to some data found inside). "
+                             f"Trying to continue the analysis at the next "
+                             f"function...\n")
+            start_analyse_at = self.__find_next_function_addr(stopped_at)
+            bytes_to_skip = start_analyse_at - stopped_at
+            sys.stderr.write(f"[ERROR] {bytes_to_skip} bytes skipped\n")
+
+            bytes_to_analyse -= bytes_to_skip
+
 
     def analyse_code(self, insns, syscalls_set, inv_syscalls_map,
                      f_called_list=None):
@@ -160,6 +182,12 @@ class CodeAnalyser:
         f_called_list : None or list of LibFunction, optional
             if a list is given, the functions called by the given instructions
             will be added in this list
+
+        Returns
+        -------
+        size_analysed : int
+            size (in bytes) of the code analysed (rarely used by the calling
+            function)
         """
 
         if f_called_list is None:
@@ -213,6 +241,9 @@ class CodeAnalyser:
                                                      show_warnings)
                 if f and f not in f_called_list:
                     f_called_list.append(f)
+
+        return (list_inst[-1].address + list_inst[-1].size
+                - list_inst[0].address)
 
     def __backtrack_register(self, focus_reg, index, list_inst):
         # Beware that it will be considered that the value is put inside the
@@ -298,7 +329,7 @@ class CodeAnalyser:
             return
         if file_name_address < 0:
             raise StaticAnalyserException(
-                    f"[WARNING] A library loaded with dlopen in "
+                    f"[WARNING] A library loaded with `dlopen` in "
                     f"{self.binary.path} could not be found", False)
 
         lib_name = get_string_at_address(self.binary, file_name_address)
@@ -456,6 +487,20 @@ class CodeAnalyser:
         self.__f_name_to_addr_map = {}
         for item in self.binary.lief_binary.functions:
             self.__f_name_to_addr_map[item.name] = item.address
+
+    def __find_next_function_addr(self, from_addr):
+
+        if self.__address_to_fun_map is None:
+            self.__initialise_address_to_fun_map()
+
+        # If there is a guarantee that the dictionary keys are sorted, then a
+        # dictionary sort would be quicker, but I don't know if there is such a
+        # guarantee. From Python 3.7, the keys are guaranteed to maintain
+        # insertion order, but I didn't find an ELF and a lief guarantee that
+        # the way they are inserted in self.__initialise_address_to_fun_map()
+        # is sorted by addresses. Since the current function will probably
+        # hardly ever be called anyway, I did not try to make it sorted myself.
+        return min(k for k in self.__address_to_fun_map if k > from_addr)
 
 
     def __get_local_function_called(self, f_address, show_warnings=True):
