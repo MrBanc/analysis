@@ -7,7 +7,7 @@ do
     timeout 30 python static_analyser.py --app /bin/$line -v f -d f --csv f 2>&1 | grep "Multiple"
     if [[ $? -eq 0 ]]
     then
-        echo "/bin/$line" >> tests/have_name_clash
+        echo "/bin/$line" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/have_name_clash
     fi
     ((i++))
     sleep 1

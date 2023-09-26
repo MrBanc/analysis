@@ -6,7 +6,7 @@ for line in $(cat /home/ben/Documents/unif/github/research/analysis/static/tests
 do
     echo "$i/$n_lines: $line"
     result=$(timeout 30 python static_analyser.py --app $line -l -v t -d f --csv f 2>&1 | grep "^Total number of syscalls:" | cut -d":" -f 2)
-    echo "$line: $result" >> /home/ben/Documents/unif/github/research/analysis/static/tests/nb_syscalls_found
+    echo "$line: $result" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/nb_syscalls_found
     ((i++))
     sleep 1
 done
