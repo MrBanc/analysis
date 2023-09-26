@@ -216,7 +216,8 @@ class CodeAnalyser:
             dest_address = None
             if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 dest_address = self.__get_destination_address(
-                        ins.op_str, utils.compute_rip(ins))
+                        ins.op_str, utils.compute_rip(ins),
+                        ins.group(CS_GRP_CALL))
                 show_warnings = True
             elif ins.regs_access()[1]:
                 # Check for function pointers. This slows down the process a
@@ -414,7 +415,7 @@ class CodeAnalyser:
             return True
         return False
 
-    def __get_destination_address(self, operand, rip_value):
+    def __get_destination_address(self, operand, rip_value, show_warning):
         """Returns the destination address of the given operand of the call (or
         jmp).
 
@@ -424,6 +425,8 @@ class CodeAnalyser:
             operand of the call (or jump)
         rip_value : int
             the value of the rip register (address of next instruction)
+        show_warnings : bool
+            whether or not should a warning be thrown if no destination was found
 
         Returns
         -------
@@ -449,8 +452,9 @@ class CodeAnalyser:
         elif "rip" in operand:
             print(f"gougoug {operand}")
 
-        if address is None:
+        if show_warning and address is None:
             # TODO: Other things could be done to try obtaining the address
+            print(f"gougoug {operand} {hex(rip_value)} {self.binary.path}")
             utils.print_warning("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
                                 "to an indirect address call.")
