@@ -199,17 +199,20 @@ class CodeAnalyser:
         for i, ins in enumerate(insns):
             list_inst.append(ins)
 
+            # --- Error management ---
             if ins.id in (X86_INS_DATA16, X86_INS_INVALID):
                 sys.stderr.write(f"[WARNING] data instruction found in "
                                  f"{self.binary.path} at address "
                                  f"{hex(ins.address)}\n")
                 continue
 
+            # --- Syscalls detection ---
             if self.__is_syscall_instruction(ins):
                 self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                 inv_syscalls_map)
                 continue
 
+            # --- Function calls detection (until the end of the loop) ---
             dest_address = None
             if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
                 dest_address = self.__get_destination_address(
@@ -253,8 +256,8 @@ class CodeAnalyser:
         # shl rdi, 16
         # mov di, 0x5678
 
-        last_ins_index = max(0, index-1-utils.max_backtrack_insns)
-        for i in range(index-1, last_ins_index, -1):
+        last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
+        for i in range(index - 1, last_ins_index - 1, -1):
             if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
                 continue
 
@@ -395,17 +398,19 @@ class CodeAnalyser:
         if b[0] == 0x0f and b[1] == 0x05:
             # Direct syscall SYSCALL
             utils.log(f"DIRECT SYSCALL (x86_64): {hex(ins.address)} "
-                      f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
+                      f"{ins.mnemonic} {ins.op_str} from {self.binary.path}",
+                      "backtrack.log")
             return True
         if b[0] == 0x0f and b[1] == 0x34:
             # Direct syscall SYSENTER
             utils.log(f"SYSENTER: {hex(ins.address)} {ins.mnemonic} "
-                      f"{ins.op_str}", "backtrack.log")
+                      f"{ins.op_str} from {self.binary.path}", "backtrack.log")
             return True
         if b[0] == 0xcd and b[1] == 0x80:
             # Direct syscall int 0x80
             utils.log(f"DIRECT SYSCALL (x86): {hex(ins.address)} "
-                      f"{ins.mnemonic} {ins.op_str}", "backtrack.log")
+                      f"{ins.mnemonic} {ins.op_str} from {self.binary.path}",
+                      "backtrack.log")
             return True
         return False
 
