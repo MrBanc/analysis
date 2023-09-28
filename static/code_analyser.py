@@ -426,7 +426,8 @@ class CodeAnalyser:
         rip_value : int
             the value of the rip register (address of next instruction)
         show_warnings : bool
-            whether or not should a warning be thrown if no destination was found
+            whether or not should a warning be thrown if no destination was
+            found
 
         Returns
         -------
@@ -449,12 +450,11 @@ class CodeAnalyser:
                             rel.symbol.name, False)
                 if rel and address is None and rel.addend != 0:
                     address = rel.addend
-        elif "rip" in operand:
-            print(f"gougoug {operand}")
+        # elif "rip" in operand:
+            # TODO
 
         if show_warning and address is None:
             # TODO: Other things could be done to try obtaining the address
-            print(f"gougoug {operand} {hex(rip_value)} {self.binary.path}")
             utils.print_warning("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
                                 "to an indirect address call.")
@@ -650,7 +650,7 @@ class CodeAnalyser:
             # ibus) mais ça pointe vers des fonctions donc je comprends
             # pas trop.
             # elif "rip" in inst.op_str:
-            #     print(f"gougoug backtrack {op_strings}")
+            #     pass
         elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
             ret = 0
         elif mnemonic == "lea":

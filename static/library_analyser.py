@@ -55,8 +55,17 @@ class LibFunction:
     library_path: str
     boundaries: Tuple[int]
 
+    # In the two following functions, it is important that it is the boundaries
+    # and the library path that are looked at and not the name and the library
+    # path because:
+    # - some function names aren't available
+    # - they may be multiple name leading to the same function (ex: open and
+    #   open64)
     def __hash__(self):
-        return hash((self.name, self.library_path))
+        return hash((self.library_path, self.boundaries[0]))
+    def __eq__(self, other):
+        return (self.library_path == other.library_path
+                and self.boundaries[0] == other.boundaries[0])
 
 
 @dataclass
