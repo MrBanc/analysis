@@ -88,6 +88,8 @@ class CodeAnalyser:
                  'r14d': {'r14','r14d','r14w','r14b'},
                  'r15d': {'r15','r15d','r15w','r15b'}}
 
+    # TODO mettre inv_syscalls_map dans une variable ici ou autre part car
+    # c'est dégueu de la passer en argument à chaque fois
 
     def __init__(self, path):
 
@@ -235,6 +237,18 @@ class CodeAnalyser:
                 and self.__lib_analyser.is_call_to_plt(dest_address)):
                 f_to_analyse = self.__wrapper_get_function_called(
                                             dest_address, i, list_inst)
+                for f in f_to_analyse:
+                    # There should be no need to check the address of the
+                    # function as the syscall function is public and therefore
+                    # should always provide its name
+                    if f.name == "syscall":
+                        utils.log(f"syscall function called: "
+                                  f"{hex(ins.address)} {ins.mnemonic} "
+                                  f"{ins.op_str} from {self.binary.path}",
+                                  "backtrack.log")
+                        self.__backtrack_syscalls(i, list_inst, syscalls_set,
+                                                  inv_syscalls_map, True)
+                        # TODO do not analyse the function?
                 # Even if f_called_list is None, f_to_analyse needs to be
                 # cleaned from local functions
                 self.__mov_local_funs_to(f_called_list, f_to_analyse)
@@ -243,7 +257,19 @@ class CodeAnalyser:
             elif detect_functions and ins.group(CS_GRP_CALL):
                 f = self.__get_local_function_called(dest_address,
                                                      show_warnings)
-                if f and f not in f_called_list:
+                if f is None:
+                    continue
+
+                # Once again, no need to check for the address (see previous
+                # comment)
+                if f.name == "syscall":
+                    utils.log(f"syscall function called: {hex(ins.address)} "
+                              f"{ins.mnemonic} {ins.op_str} from "
+                              f"{self.binary.path}", "backtrack.log")
+                    self.__backtrack_syscalls(i, list_inst, syscalls_set,
+                                              inv_syscalls_map, True)
+                    # TODO do not analyse the function?
+                if f not in f_called_list:
                     f_called_list.append(f)
 
         return (list_inst[-1].address + list_inst[-1].size
@@ -378,11 +404,15 @@ class CodeAnalyser:
             return []
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,
-                                     inv_syscalls_map):
+                                     inv_syscalls_map, is_function=False):
 
         # utils.print_debug("syscall detected at instruction: "
         #                   + str(list_inst[-1]))
-        nb_syscall = self.__backtrack_register("eax", i, list_inst)
+        if not is_function:
+            nb_syscall = self.__backtrack_register("eax", i, list_inst)
+        else:
+            nb_syscall = self.__backtrack_register("edi", i, list_inst)
+
         if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
             name = inv_syscalls_map[nb_syscall]
             utils.print_verbose(f"Syscall found: {name}: {nb_syscall}")

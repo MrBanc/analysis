@@ -7,14 +7,14 @@
 /bin/ps:  38
 /bin/vulkaninfo:  40
 /bin/mariadb:  72
-/bin/ibus:  44
-/bin/VBoxClient:  89
+/bin/ibus:  45
+/bin/VBoxClient:  90
 /bin/ssh:  77
 /bin/gamemode-simulate-game:  19
 /bin/wine64:  20
 /bin/zsh:  81
 /bin/docker:  61
-/bin/vlc:  55
+/bin/vlc:  56
 /bin/nvidia-powerd:  68
 /bin/nvidia-persistenced:  59
 /bin/nmap:  69
