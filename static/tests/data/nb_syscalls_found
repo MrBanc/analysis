@@ -5,12 +5,12 @@
 /bin/make:  61
 /bin/ncat:  62
 /bin/ps:  38
-/bin/vulkaninfo:  40
+/bin/vulkaninfo:  41
 /bin/mariadb:  72
 /bin/ibus:  45
 /bin/VBoxClient:  90
 /bin/ssh:  77
-/bin/gamemode-simulate-game:  19
+/bin/gamemode-simulate-game:  21
 /bin/wine64:  20
 /bin/zsh:  81
 /bin/docker:  61

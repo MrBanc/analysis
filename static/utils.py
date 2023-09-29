@@ -18,6 +18,7 @@ skip_data = False
 max_backtrack_insns = 20
 # For debug purpose
 cur_depth = -1
+all_imported_functions = True
 
 
 def print_verbose(msg, indent=0):

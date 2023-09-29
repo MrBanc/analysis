@@ -46,6 +46,10 @@ def main():
                         const=True, help='Automatically skip data in code and '
                         'try to find the next instruction (may lead to '
                         'errors)', default=False)
+    parser.add_argument('--all_imported_functions', '-i', type=utils.str2bool,
+                        nargs='?', const=True, help='Analyse all the imported '
+                        'functions found in the main ELF (even those not found'
+                        ' in the code)', default=True)
     args = parser.parse_args()
 
     utils.verbose = args.verbose
@@ -57,6 +61,7 @@ def main():
         utils.clean_logs()
     utils.skip_data = args.skip_data
     utils.max_backtrack_insns = args.max_backtrack_insns
+    utils.all_imported_functions = args.all_imported_functions
 
     try:
         binary = lief.parse(utils.app)

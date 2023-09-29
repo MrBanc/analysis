@@ -166,6 +166,32 @@ class CodeAnalyser:
 
             bytes_to_analyse -= bytes_to_skip
 
+        # Some of the function calls might not have been detected due to
+        # informations that can only be obtained at runtime. Therefore, all the
+        # imported functions are then analysed (if they haven't been already).
+        # Be careful that it is possible to have imported functions that are
+        # never used in the code. But because the goal of this program is to
+        # have an upper bound, the following code is enabled by default.
+        if not utils.all_imported_functions:
+            return
+
+        utils.log("\nStarting the analysis of imported functions from .text "
+                  "that might not have been found.\n", "lib_functions.log")
+        utils.log("Starting the analysis of imported functions from .text that"
+                  " might not have been found.\n", "backtrack.log")
+
+        for f in self.binary.lief_binary.imported_functions:
+            if "@" in f.name:
+                continue
+            if (hasattr(f, "symbol_version")
+                and f.symbol_version.has_auxiliary_version):
+                funs = self.__lib_analyser.get_function_with_name(
+                        f.name,
+                        lib_alias=f.symbol.symbol_version
+                                   .symbol_version_auxiliary.name)
+            else:
+                funs = self.__lib_analyser.get_function_with_name(f.name)
+            self.__lib_analyser.get_used_syscalls(syscalls_set, funs)
 
     def analyse_code(self, insns, syscalls_set, inv_syscalls_map,
                      f_called_list=None):

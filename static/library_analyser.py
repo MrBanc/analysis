@@ -437,10 +437,11 @@ class LibraryUsageAnalyser:
         lib_binary = lief.parse(lib_path)
         callable_fun_boundaries = {}
         for item in lib_binary.dynamic_symbols:
-            # I could use `item.is_function` to only store functions but it
-            # seem to be inaccurate (for example strncpy is not considered a
-            # function). Anyway, the memory footprint wouldn't have been much
-            # different.
+            # I could use `item.is_function` to only store functions or even
+            # iterate over `lib_binary.exported_functions` but for some reason
+            # they do not provide correct results. (for example strncpy is not
+            # considered a function). Anyway, the memory footprint wouldn't
+            # have been much different.
             callable_fun_boundaries[item.name] = (item.value,
                                                   item.value + item.size)
 
