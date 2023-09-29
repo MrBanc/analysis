@@ -25,7 +25,6 @@ from custom_exception import StaticAnalyserException
 from elf_analyser import (is_valid_binary, is_valid_binary_path,
                           get_section_from_address, PLT_SECTION,
                           PLT_SEC_SECTION)
-from syscalls import get_inverse_syscalls_map
 
 
 # Ordered so that the first should be checked before the other
@@ -512,8 +511,7 @@ class LibraryUsageAnalyser:
                 continue
 
             (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
-             .analyse_code(insns, function_syscalls,
-                           get_inverse_syscalls_map(), funs_called))
+             .analyse_code(insns, function_syscalls, funs_called))
 
             # Get all the syscalls used by the called function
             self.__get_used_syscalls_recursive(function_syscalls, funs_called)

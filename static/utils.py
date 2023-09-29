@@ -9,9 +9,10 @@ log_dir_path = "../logs/"
 # global variables
 # Beware that these may NOT be reflective of the default values. To modify the
 # default value, look inside `static_analyser.py`
+app = "redis-server-static"
+sys_map = "syscalls_map"
 verbose = True
 show_warnings = True
-app = "redis-server-static"
 use_log_file = True
 logging = False
 skip_data = False

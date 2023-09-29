@@ -15,6 +15,7 @@ from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL
 from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
+import syscalls
 import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import (is_valid_binary, is_valid_binary_path,
@@ -58,10 +59,10 @@ class CodeAnalyser:
 
     Public Methods
     --------------
-    get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map)
+    get_used_syscalls_text_section(self, syscalls_set)
         Updates the syscall set passed as argument after analysing the `.text`
         of the binary.
-    analyse_code(self, insns, syscalls_set, inv_syscalls_map[, f_called_list])
+    analyse_code(self, insns, syscalls_set[, f_called_list])
         Updates the syscall set passed as argument after analysing the given
         instructions.
     """
@@ -87,9 +88,6 @@ class CodeAnalyser:
                  'r13d': {'r13','r13d','r13w','r13b'},
                  'r14d': {'r14','r14d','r14w','r14b'},
                  'r15d': {'r15','r15d','r15w','r15b'}}
-
-    # TODO mettre inv_syscalls_map dans une variable ici ou autre part car
-    # c'est dégueu de la passer en argument à chaque fois
 
     def __init__(self, path):
 
@@ -126,7 +124,7 @@ class CodeAnalyser:
                              f"{self.binary.path} couldn't be created: {e}\n")
             self.binary.has_dyn_libraries = False
 
-    def get_used_syscalls_text_section(self, syscalls_set, inv_syscalls_map):
+    def get_used_syscalls_text_section(self, syscalls_set):
         """Entry point of the Code Analyser. Updates the syscall set
         passed as argument after analysing the `.text` of the binary.
 
@@ -134,9 +132,6 @@ class CodeAnalyser:
         ----------
         syscalls_set : set of str
             set of syscalls used by the program analysed
-        inv_syscalls_map : dict(int -> str)
-            the syscall map defined in syscalls.py but with keys and values
-            swapped
         """
 
         text_section = get_text_section(self.binary)
@@ -148,7 +143,7 @@ class CodeAnalyser:
                                                          - bytes_to_analyse:]
             bytes_analysed = self.analyse_code(
                     self.__md.disasm(to_analyse, start_analyse_at),
-                    syscalls_set, inv_syscalls_map)
+                    syscalls_set)
 
             bytes_to_analyse -= bytes_analysed
             if not bytes_to_analyse:
@@ -193,8 +188,7 @@ class CodeAnalyser:
                 funs = self.__lib_analyser.get_function_with_name(f.name)
             self.__lib_analyser.get_used_syscalls(syscalls_set, funs)
 
-    def analyse_code(self, insns, syscalls_set, inv_syscalls_map,
-                     f_called_list=None):
+    def analyse_code(self, insns, syscalls_set, f_called_list=None):
         """Main function of the Code Analyser. Updates the syscall set and the
         list of functions called after analysing the given instructions.
 
@@ -204,9 +198,6 @@ class CodeAnalyser:
             list of instructions to analyse
         syscalls_set : set of str
             set of syscalls used by the program analysed
-        inv_syscalls_map : dict(int -> str)
-            the syscall map defined in syscalls.py but with keys and values
-            swapped
         f_called_list : None or list of LibFunction, optional
             if a list is given, the functions called by the given instructions
             will be added in this list
@@ -236,8 +227,7 @@ class CodeAnalyser:
 
             # --- Syscalls detection ---
             if self.__is_syscall_instruction(ins):
-                self.__backtrack_syscalls(i, list_inst, syscalls_set,
-                                                inv_syscalls_map)
+                self.__backtrack_syscalls(i, list_inst, syscalls_set)
                 continue
 
             # --- Function calls detection (until the end of the loop) ---
@@ -273,7 +263,7 @@ class CodeAnalyser:
                                   f"{ins.op_str} from {self.binary.path}",
                                   "backtrack.log")
                         self.__backtrack_syscalls(i, list_inst, syscalls_set,
-                                                  inv_syscalls_map, True)
+                                                  True)
                         # TODO do not analyse the function?
                 # Even if f_called_list is None, f_to_analyse needs to be
                 # cleaned from local functions
@@ -292,8 +282,7 @@ class CodeAnalyser:
                     utils.log(f"syscall function called: {hex(ins.address)} "
                               f"{ins.mnemonic} {ins.op_str} from "
                               f"{self.binary.path}", "backtrack.log")
-                    self.__backtrack_syscalls(i, list_inst, syscalls_set,
-                                              inv_syscalls_map, True)
+                    self.__backtrack_syscalls(i, list_inst, syscalls_set, True)
                     # TODO do not analyse the function?
                 if f not in f_called_list:
                     f_called_list.append(f)
@@ -430,7 +419,7 @@ class CodeAnalyser:
             return []
 
     def __backtrack_syscalls(self, i, list_inst, syscalls_set,
-                                     inv_syscalls_map, is_function=False):
+                             is_function=False):
 
         # utils.print_debug("syscall detected at instruction: "
         #                   + str(list_inst[-1]))
@@ -439,8 +428,8 @@ class CodeAnalyser:
         else:
             nb_syscall = self.__backtrack_register("edi", i, list_inst)
 
-        if nb_syscall != -1 and nb_syscall < len(inv_syscalls_map):
-            name = inv_syscalls_map[nb_syscall]
+        if nb_syscall in syscalls.syscalls_map:
+            name = syscalls.syscalls_map[nb_syscall]
             utils.print_verbose(f"Syscall found: {name}: {nb_syscall}")
             utils.log(f"Found: {name}: {nb_syscall}\n", "backtrack.log")
             syscalls_set.add(name)
