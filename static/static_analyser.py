@@ -24,34 +24,36 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--app','-a', help='Path to application',required=True)
     parser.add_argument('--verbose', '-v', type=utils.str2bool, nargs='?',
-                        const=True, help='Verbose mode', default=True)
+                        const=True, help='Verbose mode', default=utils.verbose)
     parser.add_argument('--show-warnings', '-w', type=utils.str2bool,
                         nargs='?', const=True, help='Show all warnings',
-                        default=True)
+                        default=utils.show_warnings)
     parser.add_argument('--display', '-d', type=utils.str2bool, nargs='?',
-                        const=True, help='Display syscalls', default=True)
+                        const=True, help='Display syscalls',
+                        default=utils.display_syscalls)
     parser.add_argument('--csv', '-c', type=utils.str2bool, nargs='?',
-                        const=True, help='Output csv', default=True)
+                        const=True, help='Output csv',
+                        default=utils.display_csv)
     parser.add_argument('--custom-syscalls-map', '-s',
                         help='Path to syscall to id map', required=False,
                         default=utils.sys_map)
     parser.add_argument('--log', '-l', type=utils.str2bool, nargs='?',
-                        const=True, help='Log mode', default=False)
+                        const=True, help='Log mode', default=utils.logging)
     parser.add_argument('--log-to-stdout', '-L', type=utils.str2bool,
                         nargs='?', const=True, help='Print logs to the '
-                        'standard output', default=False)
+                        'standard output', default=not utils.use_log_file)
     parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
                         const=True, help='Maximum number of instructions to '
                         'check before a syscall instruction to find its id',
-                        default=20)
+                        default=utils.max_backtrack_insns)
     parser.add_argument('--skip-data', '-k', type=utils.str2bool, nargs='?',
                         const=True, help='Automatically skip data in code and '
                         'try to find the next instruction (may lead to '
-                        'errors)', default=False)
+                        'errors)', default=utils.skip_data)
     parser.add_argument('--all-imported-functions', '-i', type=utils.str2bool,
                         nargs='?', const=True, help='Analyse all the imported '
                         'functions found in the main ELF (even those not found'
-                        ' in the code)', default=True)
+                        ' in the code)', default=utils.all_imported_functions)
     args = parser.parse_args()
 
     utils.app = args.app

@@ -6,20 +6,20 @@ import argparse
 DEBUG = True
 log_dir_path = "../logs/"
 
-# global variables
-# Beware that these may NOT be reflective of the default values. To modify the
-# default value, look inside `static_analyser.py`
+# global variables with their default values
 app = "redis-server-static"
 sys_map = "syscalls_map"
 verbose = True
 show_warnings = True
-use_log_file = True
+display_syscalls = True
+display_csv = False
 logging = False
-skip_data = False
+use_log_file = True
 max_backtrack_insns = 20
-# For debug purpose
-cur_depth = -1
+skip_data = False
 all_imported_functions = True
+
+cur_depth = -1
 
 
 def print_verbose(msg, indent=0):
