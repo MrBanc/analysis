@@ -21,6 +21,26 @@ CSV = "data.csv"
 def main():
     """Parse the arguments, starts the analysis and print the results"""
 
+    try:
+        parse_arguments()
+        syscalls_set = launch_analysis()
+    except StaticAnalyserException as e:
+        sys.stderr.write(f"[ERROR] {e}\n")
+        return 1
+
+    display_results(syscalls_set)
+
+    return 0
+
+def parse_arguments():
+    """Parse the arguments
+
+    Raises
+    ------
+    StaticAnalyserException
+        If no values could be read from the syscalls map file.
+    """
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--app','-a', help='Path to application',required=True)
     parser.add_argument('--verbose', '-v', type=utils.str2bool, nargs='?',
@@ -59,49 +79,58 @@ def main():
     utils.app = args.app
     utils.verbose = args.verbose
     utils.show_warnings = args.show_warnings
+    utils.display_syscalls = args.display
+    utils.display_csv = args.csv
     # utils.sys_map isn't used afterwards so the next instruction is useless
     # but is there to avoid future confusion.
     utils.sys_map = args.custom_syscalls_map
-    try:
-        syscalls.initialise_syscalls_map(args.custom_syscalls_map)
-    except StaticAnalyserException as e:
-        sys.stderr.write(f"{e}\nExiting...\n")
-        return -1
+    syscalls.initialise_syscalls_map(args.custom_syscalls_map)
     utils.use_log_file = not args.log_to_stdout
     utils.logging = args.log if args.log_to_stdout is False else True
     if utils.logging and utils.use_log_file:
         utils.clean_logs()
-    utils.skip_data = args.skip_data
     utils.max_backtrack_insns = args.max_backtrack_insns
+    utils.skip_data = args.skip_data
     utils.all_imported_functions = args.all_imported_functions
 
-    try:
-        binary = lief.parse(utils.app)
-        if not is_valid_binary(binary):
-            raise StaticAnalyserException("The given binary is not a CLASS64 "
-                                          "ELF file.")
+def launch_analysis():
+    """Launch the analysis on the binary
 
-        utils.print_verbose("Analysing the ELF file. This may take some "
-                            "times...")
+    Raises
+    ------
+    StaticAnalyserException
+        If any major errors occured during the analysis, preventing its
+        continuation.
+    """
 
-        syscalls_set = set()
-        get_syscalls_from_symbols(binary, syscalls_set)
+    binary = lief.parse(utils.app)
+    if not is_valid_binary(binary):
+        raise StaticAnalyserException("The given binary is not a CLASS64 "
+                                      "ELF file.")
 
-        code_analyser = CodeAnalyser(utils.app)
+    utils.print_verbose("Analysing the ELF file. This may take some "
+                        "times...")
 
-        code_analyser.get_used_syscalls_text_section(syscalls_set)
-    except StaticAnalyserException as e:
-        sys.stderr.write(f"[ERROR] {e}\n")
-        sys.exit(1)
+    syscalls_set = set()
+    get_syscalls_from_symbols(binary, syscalls_set)
 
-    if args.display:
+    code_analyser = CodeAnalyser(utils.app)
+
+    code_analyser.get_used_syscalls_text_section(syscalls_set)
+
+    return syscalls_set
+
+def display_results(syscalls_set):
+    """Display the results of the analysis"""
+
+    if utils.display_syscalls:
         for k,v in syscalls.syscalls_map.items():
             if v in syscalls_set:
                 print(f"{v} : {k}")
 
     utils.print_verbose("Total number of syscalls: " + str(len(syscalls_set)))
 
-    if args.csv:
+    if utils.display_csv:
         print("# syscall, used")
         for k,v in syscalls.syscalls_map.items():
             value = "N"
