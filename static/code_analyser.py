@@ -61,6 +61,9 @@ class CodeAnalyser:
     get_used_syscalls_text_section(self, syscalls_set)
         Updates the syscall set passed as argument after analysing the `.text`
         of the binary.
+    analyse_imported_functions(self, syscalls_set)
+        Analyse the functions imported by the binary ,as specified within
+        the ELF.
     analyse_code(self, insns, syscalls_set[, f_called_list])
         Updates the syscall set passed as argument after analysing the given
         instructions.
@@ -207,7 +210,7 @@ class CodeAnalyser:
 
         Returns
         -------
-        size_analysed : int
+        bytes_analysed : int
             size (in bytes) of the code analysed (rarely used by the calling
             function)
         """
@@ -218,7 +221,7 @@ class CodeAnalyser:
             detect_functions = True
 
         list_inst = []
-        for i, ins in enumerate(insns):
+        for _, ins in enumerate(insns):
             list_inst.append(ins)
 
             # --- Error management ---
@@ -230,77 +233,71 @@ class CodeAnalyser:
 
             # --- Syscalls detection ---
             if self.__is_syscall_instruction(ins):
-                self.__backtrack_syscalls(i, list_inst, syscalls_set)
+                self.__backtrack_syscalls(list_inst, syscalls_set)
                 continue
 
             # --- Function calls detection (until the end of the loop) ---
-            dest_address = None
-            if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-                dest_address = self.__get_destination_address(
-                        ins.op_str, utils.compute_rip(ins),
-                        ins.group(CS_GRP_CALL))
-                show_warnings = True
-            elif ins.regs_access()[1]:
-                # Check for function pointers. This slows down the process a
-                # bit, is approximative and rarely brings results so one might
-                # want to remove it
-                assigned = self.__compute_assigned_value(ins)
-                if isinstance(assigned, int) and assigned > 0:
-                    dest_address = assigned
-                show_warnings = False
+            dest_address, show_warnings = (
+                    self.__wrapper_get_destination_address(ins))
 
             if dest_address is None:
                 continue
 
             if (self.binary.has_dyn_libraries
                 and self.__lib_analyser.is_call_to_plt(dest_address)):
-                f_to_analyse = self.__wrapper_get_function_called(
-                                            dest_address, i, list_inst)
-                for f in f_to_analyse.copy():
-                    # There should be no need to check the address of the
-                    # function as the syscall function is public and therefore
-                    # should always provide its name
-                    if f.name == "syscall":
-                        utils.log(f"syscall function called: "
-                                  f"{hex(ins.address)} {ins.mnemonic} "
-                                  f"{ins.op_str} from {self.binary.path}",
-                                  "backtrack.log")
-                        self.__backtrack_syscalls(i, list_inst, syscalls_set,
-                                                  True)
-                        # The current implementation of libc's syscall function
-                        # does not call other syscalls than the one provided as
-                        # argument, and it is unlikely to change.
-                        f_to_analyse.remove(f)
-                # Even if f_called_list is None, f_to_analyse needs to be
-                # cleaned from local functions
-                self.__mov_local_funs_to(f_called_list, f_to_analyse)
-                self.__lib_analyser.get_used_syscalls(syscalls_set,
-                                                      f_to_analyse)
+
+                self.__analyse_call_to_plt(list_inst, dest_address,
+                                           f_called_list, syscalls_set)
             elif detect_functions and ins.group(CS_GRP_CALL):
                 f = self.__get_local_function_called(dest_address,
                                                      show_warnings)
                 if f is None:
                     continue
 
-                # Once again, no need to check for the address (see previous
-                # comment)
-                if f.name == "syscall":
-                    utils.log(f"syscall function called: {hex(ins.address)} "
-                              f"{ins.mnemonic} {ins.op_str} from "
-                              f"{self.binary.path}", "backtrack.log")
-                    self.__backtrack_syscalls(i, list_inst, syscalls_set, True)
-                    # The current implementation of libc's syscall function
-                    # does not call other syscalls than the one provided as
-                    # argument, and it is unlikely to change.
+                f_array = [f]
+                self.__analyse_syscall_functions(f_array, list_inst,
+                                                 syscalls_set)
+                if not f_array:
                     continue
+
                 if f not in f_called_list:
                     f_called_list.append(f)
 
-        return (list_inst[-1].address + list_inst[-1].size
-                - list_inst[0].address)
+        bytes_analysed = (list_inst[-1].address + list_inst[-1].size
+                          - list_inst[0].address)
+        return bytes_analysed
 
+    def __analyse_call_to_plt(self, list_inst, dest_address, f_called_list,
+                              syscalls_set):
 
-    def __backtrack_register(self, focus_reg, index, list_inst):
+        f_to_analyse = self.__wrapper_get_function_called(
+                                    dest_address, list_inst)
+        self.__analyse_syscall_functions(f_to_analyse, list_inst, syscalls_set)
+        # Even if f_called_list is None, f_to_analyse needs to be
+        # cleaned from local functions
+        self.__mov_local_funs_to(f_called_list, f_to_analyse)
+        self.__lib_analyser.get_used_syscalls(syscalls_set,
+                                              f_to_analyse)
+
+    def __analyse_syscall_functions(self, f_to_analyse, list_inst,
+                                    syscalls_set):
+
+        for f in f_to_analyse.copy():
+            # There should be no need to check the address of the
+            # function as the syscall function is public and therefore
+            # should always provide its name
+            if f.name == "syscall":
+                utils.log(f"syscall function called: "
+                          f"{hex(list_inst[-1].address)} "
+                          f"{list_inst[-1].mnemonic} {list_inst[-1].op_str} "
+                          f"from {self.binary.path}", "backtrack.log")
+                self.__backtrack_syscalls(list_inst, syscalls_set, True)
+                # The current implementation of libc's syscall function
+                # does not call other syscalls than the one provided as
+                # argument, and it is unlikely to change.
+                f_to_analyse.remove(f)
+
+    def __backtrack_register(self, focus_reg, list_inst):
         # Beware that it will be considered that the value is put inside the
         # register in one operation. For example, this type of code is not
         # supported:
@@ -308,6 +305,7 @@ class CodeAnalyser:
         # shl rdi, 16
         # mov di, 0x5678
 
+        index = len(list_inst) - 1
         last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
         for i in range(index - 1, last_ins_index - 1, -1):
             if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
@@ -339,12 +337,12 @@ class CodeAnalyser:
 
         return -1
 
-    def __backtrack_dlopen(self, i, list_inst):
+    def __backtrack_dlopen(self, list_inst):
 
         try:
             # When calling dlopen, the first argument (in `edi`) contains a
             # pointer to the name of the library
-            lib_name_address = self.__backtrack_register("edi", i, list_inst)
+            lib_name_address = self.__backtrack_register("edi", list_inst)
             self.__process_dlopen_filename_arg(lib_name_address)
 
         except StaticAnalyserException as e:
@@ -354,12 +352,12 @@ class CodeAnalyser:
             else:
                 utils.print_warning(f"{e}\n")
 
-    def __backtrack_dlmopen(self, i, list_inst):
+    def __backtrack_dlmopen(self, list_inst):
 
         try:
             # When calling dlmopen, the second argument (in `esi`) contains a
             # pointer to the name of the library
-            lib_name_address = self.__backtrack_register("esi", i, list_inst)
+            lib_name_address = self.__backtrack_register("esi", list_inst)
             # The procedure is the same as for dlopen, thus the function name
             self.__process_dlopen_filename_arg(lib_name_address)
 
@@ -408,10 +406,10 @@ class CodeAnalyser:
         for p in lib_paths:
             self.__lib_analyser.add_used_library(p)
 
-    def __backtrack_dlsym(self, i, list_inst):
+    def __backtrack_dlsym(self, list_inst):
 
         try:
-            fun_name_address = self.__backtrack_register("esi", i, list_inst)
+            fun_name_address = self.__backtrack_register("esi", list_inst)
 
             if fun_name_address < 0:
                 raise StaticAnalyserException(
@@ -428,15 +426,15 @@ class CodeAnalyser:
             sys.stderr.write(f"{e}\n")
             return []
 
-    def __backtrack_syscalls(self, i, list_inst, syscalls_set,
+    def __backtrack_syscalls(self, list_inst, syscalls_set,
                              is_function=False):
 
         # utils.print_debug("syscall detected at instruction: "
         #                   + str(list_inst[-1]))
         if not is_function:
-            nb_syscall = self.__backtrack_register("eax", i, list_inst)
+            nb_syscall = self.__backtrack_register("eax", list_inst)
         else:
-            nb_syscall = self.__backtrack_register("edi", i, list_inst)
+            nb_syscall = self.__backtrack_register("edi", list_inst)
 
         if nb_syscall in syscalls.syscalls_map:
             name = syscalls.syscalls_map[nb_syscall]
@@ -470,7 +468,27 @@ class CodeAnalyser:
             return True
         return False
 
-    def __get_destination_address(self, operand, rip_value, show_warning):
+    def __wrapper_get_destination_address(self, ins):
+
+        dest_address = None
+        show_warnings = True
+
+        if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
+            dest_address = self.__get_destination_address(
+                    ins.op_str, utils.compute_rip(ins),
+                    ins.group(CS_GRP_CALL))
+        elif ins.regs_access()[1]:
+            # Check for function pointers. This slows down the process a
+            # bit, is approximative and rarely brings results so one might
+            # want to remove it
+            assigned = self.__compute_assigned_value(ins)
+            if isinstance(assigned, int) and assigned > 0:
+                dest_address = assigned
+            show_warnings = False
+
+        return dest_address, show_warnings
+
+    def __get_destination_address(self, operand, rip_value, show_warnings):
         """Returns the destination address of the given operand of the call (or
         jmp).
 
@@ -508,7 +526,7 @@ class CodeAnalyser:
         # elif "rip" in operand:
             # TODO
 
-        if show_warning and address is None:
+        if show_warnings and address is None:
             # TODO: Other things could be done to try obtaining the address
             utils.print_warning("[WARNING] A function may have been called but"
                                 " couln't be found. This is probably due "
@@ -630,7 +648,7 @@ class CodeAnalyser:
                         f.boundaries[0]))
                 f_from.pop(i)
 
-    def __wrapper_get_function_called(self, f_address, i, list_inst):
+    def __wrapper_get_function_called(self, f_address, list_inst):
 
         called_plt_f = self.__lib_analyser.get_function_called(f_address)
 
@@ -642,17 +660,17 @@ class CodeAnalyser:
                 utils.log(f"dlopen instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
-                self.__backtrack_dlopen(i, list_inst)
+                self.__backtrack_dlopen(list_inst)
             elif f.name == "dlmopen":
                 utils.log(f"dlmopen instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
-                self.__backtrack_dlmopen(i, list_inst)
+                self.__backtrack_dlmopen(list_inst)
             elif f.name == "dlsym":
                 utils.log(f"dlsym instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
-                loaded_fun.extend(self.__backtrack_dlsym(i, list_inst))
+                loaded_fun.extend(self.__backtrack_dlsym(list_inst))
 
         return called_plt_f + loaded_fun
 
