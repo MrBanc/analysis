@@ -81,14 +81,20 @@ def parse_arguments():
     utils.show_warnings = args.show_warnings
     utils.display_syscalls = args.display
     utils.display_csv = args.csv
+
+    if args.custom_syscalls_map == utils.sys_map:
+        utils.print_warning("[WARNING] default syscalls map used as none were "
+                            "provided.")
     # utils.sys_map isn't used afterwards so the next instruction is useless
     # but is there to avoid future confusion.
     utils.sys_map = args.custom_syscalls_map
     syscalls.initialise_syscalls_map(args.custom_syscalls_map)
+
     utils.use_log_file = not args.log_to_stdout
     utils.logging = args.log if args.log_to_stdout is False else True
     if utils.logging and utils.use_log_file:
         utils.clean_logs()
+
     utils.max_backtrack_insns = args.max_backtrack_insns
     utils.skip_data = args.skip_data
     utils.all_imported_functions = args.all_imported_functions
