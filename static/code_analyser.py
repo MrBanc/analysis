@@ -7,7 +7,6 @@ Disassembles and analyses the code to detect syscalls.
 import sys
 
 from dataclasses import dataclass
-from copy import copy
 from os.path import isfile
 
 import lief
@@ -253,7 +252,7 @@ class CodeAnalyser:
                 and self.__lib_analyser.is_call_to_plt(dest_address)):
                 f_to_analyse = self.__wrapper_get_function_called(
                                             dest_address, i, list_inst)
-                for f in f_to_analyse:
+                for f in f_to_analyse.copy():
                     # There should be no need to check the address of the
                     # function as the syscall function is public and therefore
                     # should always provide its name
@@ -264,7 +263,10 @@ class CodeAnalyser:
                                   "backtrack.log")
                         self.__backtrack_syscalls(i, list_inst, syscalls_set,
                                                   True)
-                        # TODO do not analyse the function?
+                        # The current implementation of libc's syscall function
+                        # does not call other syscalls than the one provided as
+                        # argument, and it is unlikely to change.
+                        f_to_analyse.remove(f)
                 # Even if f_called_list is None, f_to_analyse needs to be
                 # cleaned from local functions
                 self.__mov_local_funs_to(f_called_list, f_to_analyse)
@@ -654,7 +656,7 @@ class CodeAnalyser:
             If no valid paths to libraries were found
         """
 
-        lib_paths_copy = copy(lib_paths)
+        lib_paths_copy = lib_paths.copy()
         for p in lib_paths_copy:
             if not is_valid_binary_path(p):
                 # dlopen (may) lead to a GNU ld script that points to the

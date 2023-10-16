@@ -9,7 +9,6 @@ import subprocess
 import sys
 import re
 
-from copy import copy
 from os.path import exists
 from os import environ as environment_var
 from dataclasses import dataclass
@@ -281,7 +280,7 @@ class LibraryUsageAnalyser:
         """
 
         lib_paths = []
-        lib_names_copy = copy(lib_names)
+        lib_names_copy = lib_names.copy()
 
         for l_dir in LIB_DIRS:
             for name in lib_names_copy:
