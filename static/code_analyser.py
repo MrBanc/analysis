@@ -534,46 +534,10 @@ class CodeAnalyser:
 
         return address
 
-    # TODO il y a des trucs qui font doublon avec
-    # __get_local_function_called... En plus cette fonction ci est sensée être
-    # déjà implémentée dans lief mais elle marche pas...
-    def __get_local_function_address(self, f_name, show_warnings=True):
-        """Returns the address of the local function with the given name
-        Parameters
-        ----------
-        f_name : str
-            name of the function that is to be found
-        show_warnings : bool
-            whether or not should a warning be thrown if no function was found
-
-        Returns
-        -------
-        f_address : int
-            address of the function
-        """
-
-        if self.__f_name_to_addr_map is None:
-            self.__initialise_f_name_to_addr_map()
-
-        if f_name not in self.__f_name_to_addr_map:
-            if show_warnings:
-                utils.print_warning(f"[WARNING] A function was called but "
-                                    f"couln't be found with its name: "
-                                    f"{f_name}")
-            return None
-
-        return self.__f_name_to_addr_map[f_name]
-
-    def __initialise_f_name_to_addr_map(self):
-
-        self.__f_name_to_addr_map = {}
-        for item in self.binary.lief_binary.functions:
-            self.__f_name_to_addr_map[item.name] = item.address
-
     def __find_next_function_addr(self, from_addr):
 
         if self.__address_to_fun_map is None:
-            self.__initialise_address_to_fun_map()
+            self.__initialize_function_map("address")
 
         # If there is a guarantee that the dictionary keys are sorted, then a
         # dictionary sort would be quicker, but I don't know if there is such a
@@ -583,7 +547,6 @@ class CodeAnalyser:
         # is sorted by addresses. Since the current function will probably
         # hardly ever be called anyway, I did not try to make it sorted myself.
         return min(k for k in self.__address_to_fun_map if k > from_addr)
-
 
     def __get_local_function_called(self, f_address, show_warnings=True):
         """Returns the function that would be called by jumping to the address
@@ -602,30 +565,64 @@ class CodeAnalyser:
             function that would be called
         """
 
-        if self.__address_to_fun_map is None:
-            self.__initialise_address_to_fun_map()
+        return self.__get_function_mapping(self.__address_to_fun_map,
+                                           f_address, "address", show_warnings)
 
-        if f_address not in self.__address_to_fun_map:
+    def __get_local_function_address(self, f_name, show_warnings=True):
+        """Returns the address of the local function with the given name
+        Parameters
+        ----------
+        f_name : str
+            name of the function that is to be found
+        show_warnings : bool
+            whether or not should a warning be thrown if no function was found
+
+        Returns
+        -------
+        f_address : int
+            address of the function
+        """
+
+        return self.__get_function_mapping(self.__f_name_to_addr_map, f_name,
+                                           "name", show_warnings)
+
+
+    def __get_function_mapping(self, map_dict, key, key_type,
+                               show_warnings=True):
+
+        if map_dict is None:
+            map_dict = self.__initialize_function_map(key_type)
+
+        if key not in map_dict:
             if show_warnings:
                 utils.print_warning(f"[WARNING] A function was called but "
-                                    f"couln't be found with its address: "
-                                    f"{f_address}")
+                                    f"couldn't be found with its {key_type}: "
+                                    f"{key}")
             return None
 
-        return self.__address_to_fun_map[f_address]
+        return map_dict[key]
 
-    def __initialise_address_to_fun_map(self):
+    def __initialize_function_map(self, key_type):
 
-        self.__address_to_fun_map = {}
-        for item in self.binary.lief_binary.functions:
-            self.__address_to_fun_map[item.address] = (
-                    library_analyser.LibFunction(
-                        name=item.name,
-                        library_path=self.binary.path,
-                        boundaries=(item.address,
-                                    item.address + item.size)
+        if key_type == "name":
+            self.__f_name_to_addr_map = {}
+            for item in self.binary.lief_binary.functions:
+                self.__f_name_to_addr_map[item.name] = item.address
+            return self.__f_name_to_addr_map
+        if key_type == "address":
+            self.__address_to_fun_map = {}
+            for item in self.binary.lief_binary.functions:
+                self.__address_to_fun_map[item.address] = (
+                        library_analyser.LibFunction(
+                            name=item.name,
+                            library_path=self.binary.path,
+                            boundaries=(item.address,
+                                        item.address + item.size)
+                            )
                         )
-                    )
+            return self.__address_to_fun_map
+
+        return None
 
     def __mov_local_funs_to(self, f_to, f_from):
         """Move the functions from .plt that lead to an IRELATIVE .got entry
