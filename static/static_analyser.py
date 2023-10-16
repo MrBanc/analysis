@@ -56,7 +56,7 @@ def parse_arguments():
                         default=utils.display_csv)
     parser.add_argument('--custom-syscalls-map', '-s',
                         help='Path to syscall to id map', required=False,
-                        default=utils.sys_map)
+                        default=None) # Set later to better deal with warnings
     parser.add_argument('--log', '-l', type=utils.str2bool, nargs='?',
                         const=True, help='Log mode', default=utils.logging)
     parser.add_argument('--log-to-stdout', '-L', type=utils.str2bool,
@@ -82,12 +82,14 @@ def parse_arguments():
     utils.display_syscalls = args.display
     utils.display_csv = args.csv
 
-    if args.custom_syscalls_map == utils.sys_map:
+    if args.custom_syscalls_map is None:
         utils.print_warning("[WARNING] default syscalls map used as none were "
                             "provided.")
-    # utils.sys_map isn't used afterwards so the next instruction is useless
-    # but is there to avoid future confusion.
-    utils.sys_map = args.custom_syscalls_map
+        args.custom_syscalls_map = utils.sys_map
+    else:
+        # utils.sys_map isn't used afterwards so this is useless but is there
+        # to avoid future confusion.
+        utils.sys_map = args.custom_syscalls_map
     syscalls.initialise_syscalls_map(args.custom_syscalls_map)
 
     utils.use_log_file = not args.log_to_stdout
