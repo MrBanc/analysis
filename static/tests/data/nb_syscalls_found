@@ -5,7 +5,7 @@
 /bin/make:  62
 /bin/ncat:  63
 /bin/ps:  38
-/bin/vulkaninfo:  41
+/bin/vulkaninfo:  43
 /bin/mariadb:  73
 /bin/ibus:  47
 /bin/VBoxClient:  91
