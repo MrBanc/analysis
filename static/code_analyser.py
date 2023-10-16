@@ -160,14 +160,18 @@ class CodeAnalyser:
 
             bytes_to_analyse -= bytes_to_skip
 
-        # Some of the function calls might not have been detected due to
-        # informations that can only be obtained at runtime. Therefore, all the
-        # imported functions are then analysed (if they haven't been already).
-        # Be careful that it is possible to have imported functions that are
-        # never used in the code. But because the goal of this program is to
-        # have an upper bound, the following code is enabled by default.
-        if not utils.all_imported_functions:
-            return
+    def analyse_imported_functions(self, syscalls_set):
+        """Analyse the functions imported by the binary ,as specified within
+        the ELF.
+
+        Note that functions already analysed won't be analysed again as
+        designed by the library analyser.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        """
 
         utils.log("\nStarting the analysis of imported functions from .text "
                   "that might not have been found.\n", "lib_functions.log")
@@ -285,12 +289,16 @@ class CodeAnalyser:
                               f"{ins.mnemonic} {ins.op_str} from "
                               f"{self.binary.path}", "backtrack.log")
                     self.__backtrack_syscalls(i, list_inst, syscalls_set, True)
-                    # TODO do not analyse the function?
+                    # The current implementation of libc's syscall function
+                    # does not call other syscalls than the one provided as
+                    # argument, and it is unlikely to change.
+                    continue
                 if f not in f_called_list:
                     f_called_list.append(f)
 
         return (list_inst[-1].address + list_inst[-1].size
                 - list_inst[0].address)
+
 
     def __backtrack_register(self, focus_reg, index, list_inst):
         # Beware that it will be considered that the value is put inside the

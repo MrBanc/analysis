@@ -126,6 +126,15 @@ def launch_analysis():
 
     code_analyser.get_used_syscalls_text_section(syscalls_set)
 
+    # Some of the function calls might not have been detected due to
+    # informations that can only be obtained at runtime. Therefore, all the
+    # imported functions are then analysed (if they haven't been already).
+    # Be careful that it is possible to have imported functions that are
+    # never used in the code. But because the goal of this program is to
+    # have an upper bound, this function is called by default.
+    if utils.all_imported_functions:
+        code_analyser.analyse_imported_functions(syscalls_set)
+
     return syscalls_set
 
 def display_results(syscalls_set):
