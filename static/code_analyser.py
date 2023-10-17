@@ -513,19 +513,17 @@ class CodeAnalyser:
 
         if utils.is_number(operand):
             address = utils.str2int(operand)
-        elif (operand.startswith("qword ptr [rip +")
-              and len(operand.split()) == 5):
-            offset = operand.split()[4][:-1]
-            if utils.is_number(offset):
-                address_location = rip_value + utils.str2int(offset)
-                rel = self.binary.lief_binary.get_relocation(address_location)
-                if rel and rel.has_symbol and rel.symbol.name != "":
-                    address = self.__get_local_function_address(
-                            rel.symbol.name, False)
-                if rel and address is None and rel.addend != 0:
-                    address = rel.addend
-        # elif "rip" in operand:
-            # TODO
+        elif "[rip" in operand:
+            address_location = self.__compute_rip_operation(operand, rip_value)
+            rel = self.binary.lief_binary.get_relocation(address_location)
+            if rel and rel.has_symbol and rel.symbol.name != "":
+                address = self.__get_local_function_address(
+                        rel.symbol.name, False)
+            if rel and address is None and rel.addend != 0:
+                address = rel.addend
+        # will probably never enter here but we never know
+        elif "rip" in operand:
+            address = self.__compute_rip_operation(operand, rip_value)
 
         if show_warnings and address is None:
             # TODO: Other things could be done to try obtaining the address
@@ -586,7 +584,6 @@ class CodeAnalyser:
 
         return self.__get_function_mapping(self.__f_name_to_addr_map, f_name,
                                            "name", show_warnings)
-
 
     def __get_function_mapping(self, map_dict, key, key_type,
                                show_warnings=True):
@@ -731,25 +728,40 @@ class CodeAnalyser:
                 # (ah oui mais ça va poser problème pour max backtrack instr
                 # etc et ça rend le truc recursif au lieu d'itératif...)
                 ret = self.__get_reg_key(op_strings[1])
-            else:
-                pattern = re.match(r'^[dq]?word ptr \[rip ([+-]) ([^]]*)\]$',
-                                   op_strings[1])
-                if (bool(pattern) and utils.is_number(pattern.group(2))):
-                    ret = utils.compute_operation(
-                            pattern.group(1), utils.compute_rip(inst),
-                            utils.str2int(pattern.group(2)))
-                # elif "rip" in inst.op_str:
-                #     utils.print_debug(f"An instruction with rip was not "
-                #                       f"analysed: {inst}")
+            # TODO: this is probably useless. Ou alors il faut prendre en
+            # compte les [rip + x] mais dans ce cas là il faut rajouter du code
+            # pour ensuite essayer de retrouver la valeur à cette addresse.
+            # (peut-être réutiliser ce qui est dans __get_destination_address ?
+            elif "rip" in op_strings[1] and "[" not in op_strings[1]:
+                ret = self.__compute_rip_operation(op_strings[1],
+                                                 utils.compute_rip(inst))
         elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
             ret = 0
-        elif mnemonic == "lea":
-            mem_operand = op_strings[1].split()
-            if (len(mem_operand) == 3 and mem_operand[0][1:] == "rip"
-                                     and utils.is_number(mem_operand[2][:-1])):
-                ret = utils.compute_operation(
-                        mem_operand[1], utils.compute_rip(inst),
-                        utils.str2int(mem_operand[2][:-1]))
+        elif mnemonic == "lea" and "rip" in op_strings[1]:
+            ret = self.__compute_rip_operation(op_strings[1],
+                                             utils.compute_rip(inst))
+
+        return ret
+
+    def __compute_rip_operation(self, operand, rip_value):
+        """Beware that it will return the value of the operation with the rip,
+        not the value of the whole operand. For example, if the operand is
+        `qword ptr [rip + 0x1234]`, this function will return the result of
+        `rip + 0x1234` and not the value located at the address `rip + 0x1234`.
+        """
+
+        ret = None
+
+        pattern = r'.*rip ([+-]) ([^]]*).*'
+        match = re.search(pattern, operand)
+        pattern_is_matched = (bool(re.match(pattern, operand))
+                              or bool(re.search(f'\\[{pattern}\\]', operand)))
+
+        if (pattern_is_matched and utils.is_number(match.group(2))):
+            ret = utils.compute_operation(match.group(1), rip_value,
+                                          utils.str2int(match.group(2)))
+        elif "rip" in operand:
+            utils.print_debug(f"An operand with rip is unsupported: {operand}")
 
         return ret
 
