@@ -195,4 +195,26 @@ def f_name_from_path(path):
 
 def compute_rip(cur_inst):
     """Compute the value of RIP from the current instruction."""
+
     return cur_inst.address + cur_inst.size
+
+def compute_operation(operation_str, operand1, operand2):
+    """Returns the result of the operation inside the string, if supported.
+
+    Currently only support addition and substractions of 2 numbers (but it
+    should be enough in this context).
+
+    Parameters
+    ----------
+    operation_str: str
+        Operation to perform (can be "+", "-" etc)
+    operandX: int
+        The Xth operand of the operation
+    """
+
+    if operation_str == "+":
+        return operand1 + operand2
+    if operation_str == "-":
+        return operand1 - operand2
+
+    return None

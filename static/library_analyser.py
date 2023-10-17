@@ -122,7 +122,6 @@ class LibraryUsageAnalyser:
         Updates the syscall set passed as argument after analysing the given
         function(s).
     """
-    # TODO add new public functions to class string above
 
     # set of LibFunction
     __analysed_functions = set()

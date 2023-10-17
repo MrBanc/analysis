@@ -5,6 +5,7 @@ Disassembles and analyses the code to detect syscalls.
 """
 
 import sys
+import re
 
 from dataclasses import dataclass
 from os.path import isfile
@@ -400,9 +401,9 @@ class CodeAnalyser:
         self.__process_lib_paths_by_dlopen(lib_paths)
 
         utils.log(f"Results: {lib_name} at {lib_paths}\n", "backtrack.log")
-        # TODO: All the libraries pointed to by the script are taken into
-        # account, but they only should if the previous entries do not
-        # contain the wanted function
+        # TODO: All the libraries pointed to by the GNU ld script are taken
+        # into account, but they only should if the previous entries do not
+        # contain the wanted function.
         for p in lib_paths:
             self.__lib_analyser.add_used_library(p)
 
@@ -672,7 +673,12 @@ class CodeAnalyser:
         return called_plt_f + loaded_fun
 
     def __process_lib_paths_by_dlopen(self, lib_paths):
-        """
+        """Remove or transform entries of lib_paths into actual libraries
+        paths.
+
+        The library paths given by dlopen may lead to actual libraries, to GNU
+        ld scripts or to nonexisting files.
+
         Raises
         ------
         StaticAnalyserException
@@ -715,24 +721,35 @@ class CodeAnalyser:
             if utils.is_number(op_strings[1]):
                 ret = utils.str2int(op_strings[1])
             elif self.__is_reg(op_strings[1]):
+                # TODO ça retourne parfois le nom d'un registre, or on ne prend
+                # pas ça en compte pour les functions pointers... C'est
+                # peut-être pas très clair et on devrait peut-être faire le
+                # backtrack ici mais le problème c'est que du coup c'est chiant
+                # pour les logs (ou pas ? Vu qu'on va de toute façon appeller
+                # une fonction backtrack qui va mettre des logs. Du coup on
+                # peut peut-être le faire, à voir)
+                # (ah oui mais ça va poser problème pour max backtrack instr
+                # etc et ça rend le truc recursif au lieu d'itératif...)
                 ret = self.__get_reg_key(op_strings[1])
-            # Ça arrive parfois pour dlopen (par exemple avec make ou
-            # ibus) mais ça pointe vers des fonctions donc je comprends
-            # pas trop.
-            # elif "rip" in inst.op_str:
-            #     pass
+            else:
+                pattern = re.match(r'^[dq]?word ptr \[rip ([+-]) ([^]]*)\]$',
+                                   op_strings[1])
+                if (bool(pattern) and utils.is_number(pattern.group(2))):
+                    ret = utils.compute_operation(
+                            pattern.group(1), utils.compute_rip(inst),
+                            utils.str2int(pattern.group(2)))
+                # elif "rip" in inst.op_str:
+                #     utils.print_debug(f"An instruction with rip was not "
+                #                       f"analysed: {inst}")
         elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
             ret = 0
         elif mnemonic == "lea":
             mem_operand = op_strings[1].split()
-            if (mem_operand[0][1:] == "rip"
+            if (len(mem_operand) == 3 and mem_operand[0][1:] == "rip"
                                      and utils.is_number(mem_operand[2][:-1])):
-                if mem_operand[1] == "+":
-                    ret = utils.compute_rip(inst) + utils.str2int(
-                            mem_operand[2][:-1])
-                elif mem_operand[1] == "-":
-                    ret = utils.compute_rip(inst) - utils.str2int(
-                            mem_operand[2][:-1])
+                ret = utils.compute_operation(
+                        mem_operand[1], utils.compute_rip(inst),
+                        utils.str2int(mem_operand[2][:-1]))
 
         return ret
 
