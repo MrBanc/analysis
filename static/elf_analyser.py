@@ -219,6 +219,41 @@ def get_string_at_address(binary, address):
     section_end_offset = string.index(b"\x00") # string terminator
     return string[:section_end_offset].decode("utf8")
 
+def get_value_at_address(binary, address, endianness='little', signed=False):
+    """Return the 64 bits value located at the given address in a binary.
+
+    Parameters
+    ----------
+    binary : ELFBinary
+        the binary to look into
+    address : int
+        address of the searched value
+    endianness : string
+        endianness of the architecture, little by default (as in x86_64)
+    signed : bool
+        whether it should be interpreted as a signed value or not, False by
+        default
+
+    Returns
+    -------
+    value : int
+        the value that has been found
+
+    Raises
+    ------
+    StaticAnalyserException
+        If no section was found for the given address or if the address
+        was invalid
+    """
+
+    target_section = get_section_from_address(binary, address)
+
+    section_start_offset = address - target_section.virtual_address
+    value = bytearray(target_section.content)[section_start_offset
+                                              :section_start_offset+8]
+    value = int.from_bytes(value, byteorder=endianness, signed=signed)
+    return value
+
 def __detect_syscalls_in_sym_table(sect_it, syscalls_set):
 
     for s in sect_it:

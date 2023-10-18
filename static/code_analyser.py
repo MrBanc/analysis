@@ -19,7 +19,8 @@ import syscalls
 import library_analyser
 from custom_exception import StaticAnalyserException
 from elf_analyser import (is_valid_binary, is_valid_binary_path,
-                          get_text_section, get_string_at_address)
+                          get_text_section, get_string_at_address,
+                          get_value_at_address)
 
 @dataclass
 class ELFBinary:
@@ -329,6 +330,7 @@ class CodeAnalyser:
                 elif isinstance(assigned_value, int):
                     ret = assigned_value
                 elif self.__is_reg(assigned_value):
+                    # `__compute_assigned_value` already returned the reg key
                     focus_reg = assigned_value
                     utils.log(f"[Shifting focus to {focus_reg}]",
                               "backtrack.log", indent=2)
@@ -485,6 +487,11 @@ class CodeAnalyser:
             assigned = self.__compute_assigned_value(ins)
             if isinstance(assigned, int) and assigned > 0:
                 dest_address = assigned
+            # If `assigned` is a register there is no need to backtrack it as
+            # the operation at the end of the backtrack which sets the value
+            # will already have been inspected as a potential function pointer
+            # beforehand
+
             show_warnings = False
 
         return dest_address, show_warnings
@@ -515,14 +522,14 @@ class CodeAnalyser:
             address = utils.str2int(operand)
         elif "[rip" in operand:
             address_location = self.__compute_rip_operation(operand, rip_value)
-            rel = self.binary.lief_binary.get_relocation(address_location)
-            if rel and rel.has_symbol and rel.symbol.name != "":
-                address = self.__get_local_function_address(
-                        rel.symbol.name, False)
-            if rel and address is None and rel.addend != 0:
-                address = rel.addend
-        # will probably never enter here but we never know
+            try:
+                address = self.__resolve_value_at_address(address_location)
+            except StaticAnalyserException:
+                # A warning will anyway be throwed later if needed
+                pass
+
         elif "rip" in operand:
+            # will probably never enter here but we never know
             address = self.__compute_rip_operation(operand, rip_value)
 
         if show_warnings and address is None:
@@ -718,21 +725,17 @@ class CodeAnalyser:
             if utils.is_number(op_strings[1]):
                 ret = utils.str2int(op_strings[1])
             elif self.__is_reg(op_strings[1]):
-                # TODO ça retourne parfois le nom d'un registre, or on ne prend
-                # pas ça en compte pour les functions pointers... C'est
-                # peut-être pas très clair et on devrait peut-être faire le
-                # backtrack ici mais le problème c'est que du coup c'est chiant
-                # pour les logs (ou pas ? Vu qu'on va de toute façon appeller
-                # une fonction backtrack qui va mettre des logs. Du coup on
-                # peut peut-être le faire, à voir)
-                # (ah oui mais ça va poser problème pour max backtrack instr
-                # etc et ça rend le truc recursif au lieu d'itératif...)
                 ret = self.__get_reg_key(op_strings[1])
-            # TODO: this is probably useless. Ou alors il faut prendre en
-            # compte les [rip + x] mais dans ce cas là il faut rajouter du code
-            # pour ensuite essayer de retrouver la valeur à cette addresse.
-            # (peut-être réutiliser ce qui est dans __get_destination_address ?
-            elif "rip" in op_strings[1] and "[" not in op_strings[1]:
+            elif "[rip" in op_strings[1]:
+                address_location = self.__compute_rip_operation(
+                        op_strings[1], utils.compute_rip(inst))
+                try:
+                    ret = self.__resolve_value_at_address(address_location)
+                except StaticAnalyserException:
+                    # Not a big deal if it fails
+                    pass
+            elif "rip" in op_strings[1]:
+                # will probably never enter here but we never know
                 ret = self.__compute_rip_operation(op_strings[1],
                                                  utils.compute_rip(inst))
         elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
@@ -742,6 +745,34 @@ class CodeAnalyser:
                                              utils.compute_rip(inst))
 
         return ret
+
+    def __resolve_value_at_address(self, address):
+
+        value = None
+
+        # try to resolve the value given the symbolic information of the ELF
+        rel = self.binary.lief_binary.get_relocation(address)
+        if rel and rel.has_symbol and rel.symbol.name != "":
+            value = self.__get_local_function_address(
+                    rel.symbol.name, False)
+        if rel and value is None and rel.addend != 0:
+            value = rel.addend
+
+        # If nothing could be found with the previous method, simply look at
+        # the content of the binary at this address.
+        # Note that most of the time the given value will not be the one
+        # expected by the code (because the code modifies it while running) so
+        # it may give invalid results.
+        if value is None:
+            value = get_value_at_address(self.binary, address)
+
+            # If the content is 0, it will be considered that the value is not
+            # initialised and None will be returned, even though it could be
+            # possible in theory that 0 is the actual seeked value
+            if value == 0:
+                value = None
+
+        return value
 
     def __compute_rip_operation(self, operand, rip_value):
         """Beware that it will return the value of the operation with the rip,
