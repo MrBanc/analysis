@@ -93,6 +93,15 @@ class CodeAnalyser:
                  'r14d': {'r14','r14d','r14w','r14b'},
                  'r15d': {'r15','r15d','r15w','r15b'}}
 
+    __operand_byte_size = {"byte": 1,
+                           "word": 2,
+                           "dword": 4,
+                           "qword": 8,
+                           "tword": 10,
+                           "oword": 16,
+                           "yword": 32,
+                           "zword": 64}
+
     def __init__(self, path):
 
         lief_binary = lief.parse(path)
@@ -522,8 +531,10 @@ class CodeAnalyser:
             address = utils.str2int(operand)
         elif "[rip" in operand:
             address_location = self.__compute_rip_operation(operand, rip_value)
+            reference_byte_size = self.__operand_byte_size[operand.split()[0]]
             try:
-                address = self.__resolve_value_at_address(address_location)
+                address = self.__resolve_value_at_address(
+                        address_location, reference_byte_size)
             except StaticAnalyserException:
                 # A warning will anyway be throwed later if needed
                 pass
@@ -729,8 +740,11 @@ class CodeAnalyser:
             elif "[rip" in op_strings[1]:
                 address_location = self.__compute_rip_operation(
                         op_strings[1], utils.compute_rip(inst))
+                reference_byte_size = (self.__operand_byte_size[op_strings[1]
+                                                                .split()[0]])
                 try:
-                    ret = self.__resolve_value_at_address(address_location)
+                    ret = self.__resolve_value_at_address(
+                            address_location, reference_byte_size)
                 except StaticAnalyserException:
                     # Not a big deal if it fails
                     pass
@@ -746,7 +760,7 @@ class CodeAnalyser:
 
         return ret
 
-    def __resolve_value_at_address(self, address):
+    def __resolve_value_at_address(self, address, reference_byte_size):
 
         value = None
 
@@ -764,7 +778,8 @@ class CodeAnalyser:
         # expected by the code (because the code modifies it while running) so
         # it may give invalid results.
         if utils.search_raw_data and value is None:
-            value = get_value_at_address(self.binary, address)
+            value = get_value_at_address(self.binary, address,
+                                         reference_byte_size)
 
             # If the content is 0, it will be considered that the value is not
             # initialised and None will be returned, even though it could be

@@ -219,7 +219,8 @@ def get_string_at_address(binary, address):
     section_end_offset = string.index(b"\x00") # string terminator
     return string[:section_end_offset].decode("utf8")
 
-def get_value_at_address(binary, address, endianness='little', signed=False):
+def get_value_at_address(binary, address, reference_byte_size,
+                         endianness='little', signed=False):
     """Return the 64 bits value located at the given address in a binary.
 
     Parameters
@@ -228,6 +229,8 @@ def get_value_at_address(binary, address, endianness='little', signed=False):
         the binary to look into
     address : int
         address of the searched value
+    reference_byte_size : int
+        size in bytes of the value that is referenced
     endianness : string
         endianness of the architecture, little by default (as in x86_64)
     signed : bool
@@ -249,8 +252,8 @@ def get_value_at_address(binary, address, endianness='little', signed=False):
     target_section = get_section_from_address(binary, address)
 
     section_start_offset = address - target_section.virtual_address
-    value = bytearray(target_section.content)[section_start_offset
-                                              :section_start_offset+8]
+    value = bytearray(target_section.content)[
+            section_start_offset:section_start_offset+reference_byte_size]
     value = int.from_bytes(value, byteorder=endianness, signed=signed)
     return value
 
