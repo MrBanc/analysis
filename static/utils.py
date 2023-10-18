@@ -18,6 +18,8 @@ use_log_file = True
 max_backtrack_insns = 20
 skip_data = False
 all_imported_functions = True
+search_function_pointers = True
+search_raw_data = True
 
 cur_depth = -1
 

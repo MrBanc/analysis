@@ -353,7 +353,7 @@ class CodeAnalyser:
             if e.is_critical:
                 sys.stderr.write(f"{e}\n")
             else:
-                utils.print_warning(f"{e}\n")
+                utils.print_warning(f"{e}")
 
     def __backtrack_dlmopen(self, list_inst):
 
@@ -480,7 +480,7 @@ class CodeAnalyser:
             dest_address = self.__get_destination_address(
                     ins.op_str, utils.compute_rip(ins),
                     ins.group(CS_GRP_CALL))
-        elif ins.regs_access()[1]:
+        elif utils.search_function_pointers and ins.regs_access()[1]:
             # Check for function pointers. This slows down the process a
             # bit, is approximative and rarely brings results so one might
             # want to remove it
@@ -763,7 +763,7 @@ class CodeAnalyser:
         # Note that most of the time the given value will not be the one
         # expected by the code (because the code modifies it while running) so
         # it may give invalid results.
-        if value is None:
+        if utils.search_raw_data and value is None:
             value = get_value_at_address(self.binary, address)
 
             # If the content is 0, it will be considered that the value is not
