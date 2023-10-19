@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from os.path import isfile
 
 import lief
-from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL
+from capstone import (Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL,
+                      CS_OP_IMM, CS_OP_FP, CS_OP_MEM)
 from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
@@ -489,10 +490,14 @@ class CodeAnalyser:
             dest_address = self.__get_destination_address(
                     ins.op_str, utils.compute_rip(ins),
                     ins.group(CS_GRP_CALL))
-        elif utils.search_function_pointers and ins.regs_access()[1]:
-            # Check for function pointers. This slows down the process a
-            # bit, is approximative and rarely brings results so one might
-            # want to remove it
+        # capstone bug (?): memory operands seem to be considered of type "FP"
+        elif utils.search_function_pointers and (ins.op_count(CS_OP_IMM)
+                                                 or ins.op_count(CS_OP_FP)
+                                                 or ins.op_count(CS_OP_MEM)):
+            # Every immediate or memory operand is examined as a potential
+            # function pointer. This slows down the process a bit, is
+            # approximative and rarely brings results therefore it can be
+            # deactivated with command line args
             assigned = self.__compute_assigned_value(ins)
             if isinstance(assigned, int) and assigned > 0:
                 dest_address = assigned
