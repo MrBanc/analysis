@@ -260,10 +260,19 @@ class CodeAnalyser:
 
                 self.__analyse_call_to_plt(list_inst, dest_address,
                                            f_called_list, syscalls_set)
-            elif detect_functions and ins.group(CS_GRP_CALL):
+            elif detect_functions and (ins.group(CS_GRP_CALL)
+                                       or utils.search_function_pointers):
                 f = self.__get_local_function_called(dest_address,
                                                      show_warnings)
                 if f is None:
+                    continue
+                if f.boundaries[0] >= f.boundaries[1]:
+                    # TODO: trouver une solution générale pour essayer
+                    # d'analyser la fonction même si on a pas la taille ?
+                    if f.name == "__restore_rt":
+                        # particular case where for some reason the ELF
+                        # indicates that this function's size is 0
+                        syscalls_set.add(syscalls.syscalls_map[0xf])
                     continue
 
                 f_array = [f]
