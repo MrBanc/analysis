@@ -5,7 +5,7 @@ i=1
 for line in $(cat /home/ben/Documents/unif/github/research/analysis/static/tests/scripts/get_syscalls_found.sh  | grep "^/bin/")
 do
     echo "$i/$n_lines: $line"
-    result=$(timeout 30 python static_analyser.py --app $line -l f -v t -d f --csv f 2>&1 | grep "^Total number of syscalls:" | cut -d":" -f 2)
+    result=$(timeout 120 python static_analyser.py --app $line -l f -v t -d f --csv f 2>&1 | grep "^Total number of syscalls:" | cut -d":" -f 2)
     # I know, there are two spaces like this... But I won't change it so that it is easier to compare with previous results
     echo "$line: $result" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/nb_syscalls_found
     ((i++))
