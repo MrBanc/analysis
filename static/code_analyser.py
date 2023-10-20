@@ -308,8 +308,9 @@ class CodeAnalyser:
                     continue
 
                 f_array = [f]
-                self.__analyse_syscall_functions(f_array, list_inst,
-                                                 syscalls_set)
+                if ins.group(CS_GRP_CALL):
+                    self.__analyse_syscall_functions(f_array, list_inst,
+                                                     syscalls_set)
                 if not f_array:
                     continue
 
@@ -325,7 +326,9 @@ class CodeAnalyser:
 
         f_to_analyse = self.__wrapper_get_function_called(
                                     dest_address, list_inst)
-        self.__analyse_syscall_functions(f_to_analyse, list_inst, syscalls_set)
+        if list_inst[-1].group(CS_GRP_CALL):
+            self.__analyse_syscall_functions(f_to_analyse, list_inst,
+                                             syscalls_set)
         # Even if f_called_list is None, f_to_analyse needs to be
         # cleaned from local functions
         self.__mov_local_funs_to(f_called_list, f_to_analyse)
