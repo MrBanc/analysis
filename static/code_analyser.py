@@ -731,7 +731,7 @@ class CodeAnalyser:
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
                 self.__backtrack_dlmopen(list_inst)
-            elif f.name == "dlsym":
+            elif f.name in ("dlsym", "dlvsym"):
                 utils.log(f"dlsym instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
