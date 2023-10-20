@@ -103,6 +103,7 @@ class CodeAnalyser:
                            "yword": 32,
                            "zword": 64}
 
+
     def __init__(self, path):
 
         lief_binary = lief.parse(path)
@@ -127,20 +128,51 @@ class CodeAnalyser:
         self.__address_to_fun_map = None
         self.__f_name_to_addr_map = None
 
-        if not self.binary.has_dyn_libraries:
-            return
+        if self.binary.has_dyn_libraries:
+            try:
+                self.__init_lib_analyser()
+            except StaticAnalyserException as e:
+                sys.stderr.write(f"[ERROR] library analyser of "
+                                 f"{self.binary.path} couldn't be created: "
+                                 f"{e}\n")
+                self.binary.has_dyn_libraries = False
 
-        try:
-            self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
-                    self.binary.lief_binary, self.binary.path)
-        except StaticAnalyserException as e:
-            sys.stderr.write(f"[ERROR] library analyser of "
-                             f"{self.binary.path} couldn't be created: {e}\n")
-            self.binary.has_dyn_libraries = False
+        self.__dlsym_f_names = set()
+
+    def launch_analysis(self, syscalls_set):
+        """Entry point of the Code Analyser. Updates the syscall set
+        passed as argument after analysing the binary.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        """
+
+        self.get_used_syscalls_text_section(syscalls_set)
+
+        # Some of the function calls might not have been detected due to
+        # informations that can only be obtained at runtime. Therefore, all the
+        # imported functions are then analysed (if they haven't been already).
+        # Be careful that it is possible to have imported functions that are
+        # never used in the code. But because the goal of this program is to
+        # have an upper bound, this function is called by default.
+        if utils.all_imported_functions:
+            self.analyse_imported_functions(syscalls_set)
+
+        while self.__dlsym_f_names:
+            # The order of analysis of the code is not the order in which it
+            # will be analysed. It is therefore possible to find a dlsym
+            # instruction before the dlopen instruction that would have loaded
+            # the library needed by dlsym. To avoid such cases, all the
+            # functions called by dlsym are resolved and analysed only here.
+            # The function that are analysed here can, once again, not be
+            # analysed in the correct order, hence this while loop.
+            self.__analyse_dlsym_fct(syscalls_set)
 
     def get_used_syscalls_text_section(self, syscalls_set):
-        """Entry point of the Code Analyser. Updates the syscall set
-        passed as argument after analysing the `.text` of the binary.
+        """Updates the syscall set passed as argument after analysing the
+        `.text` of the binary.
 
         Parameters
         ----------
@@ -442,11 +474,10 @@ class CodeAnalyser:
 
             utils.log(f"Found: {fun_name}\n", "backtrack.log")
 
-            return self.__lib_analyser.get_function_with_name(fun_name)
+            self.__dlsym_f_names.add(fun_name)
         except StaticAnalyserException as e:
             utils.log(f"Ignore {hex(fun_name_address)}\n", "backtrack.log")
             sys.stderr.write(f"{e}\n")
-            return []
 
     def __backtrack_syscalls(self, list_inst, syscalls_set,
                              is_function=False):
@@ -494,6 +525,9 @@ class CodeAnalyser:
 
         dest_address = None
         show_warnings = True
+
+        if ins.group(CS_GRP_JUMP):
+            show_warnings = False
 
         if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
             dest_address = self.__get_destination_address(
@@ -679,10 +713,11 @@ class CodeAnalyser:
 
         called_plt_f = self.__lib_analyser.get_function_called(f_address)
 
-        loaded_fun = []
         for f in called_plt_f:
             if not utils.f_name_from_path(f.library_path).startswith("libc"):
                 continue
+            # No need to check if self.__lib_analyser is initialised because if
+            # not, this function will never be called
             if f.name == "dlopen":
                 utils.log(f"dlopen instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
@@ -697,9 +732,9 @@ class CodeAnalyser:
                 utils.log(f"dlsym instruction: {hex(list_inst[-1].address)} "
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str}",
                           "backtrack.log")
-                loaded_fun.extend(self.__backtrack_dlsym(list_inst))
+                self.__backtrack_dlsym(list_inst)
 
-        return called_plt_f + loaded_fun
+        return called_plt_f
 
     def __process_lib_paths_by_dlopen(self, lib_paths):
         """Remove or transform entries of lib_paths into actual libraries
@@ -825,6 +860,35 @@ class CodeAnalyser:
 
         return ret
 
+    def __analyse_dlsym_fct(self, syscalls_set):
+
+        # analysing syscall functions is useless as the syscall ID is given as
+        # an argument
+        if "syscall" in self.__dlsym_f_names:
+            self.__dlsym_f_names.remove("syscall")
+
+        f_to_analyse = []
+        for fun_name in self.__dlsym_f_names.copy():
+            f = self.__lib_analyser.get_function_with_name(fun_name)
+            if not f:
+                # leave it in the set because it may need a library that will
+                # be loaded (with dlopen) in the following analysis
+                continue
+            f_to_analyse.append(f)
+            self.__dlsym_f_names.remove(fun_name)
+
+        if not f_to_analyse:
+            # If no functions were found, no further analysis can be performed.
+            # The content of __dlsym_f_names thus needs to be emptied to avoid
+            # trying to continue the analysis indefinitely
+            self.__dlsym_f_names.clear()
+            return
+
+        # loops in the call graph do not cause loops here because if a function
+        # has already been analysed, it won't be analysed again and therefore
+        # the functions it is calling won't be added to `__dlsym_f_names`
+        self.__lib_analyser.get_used_syscalls(syscalls_set, f_to_analyse)
+
     def __is_reg(self, string):
         """Returns true if the given string is the name of a (x86_64 general
         purpose) register identifier.
@@ -872,3 +936,14 @@ class CodeAnalyser:
 
         raise StaticAnalyserException(f"{reg_id}, the given reg_id does not "
                                       f"correspond to a register id.")
+
+    def __init_lib_analyser(self):
+        """
+        Raises
+        ------
+        StaticAnalyserException
+            If the library analyser couldn't be created
+        """
+
+        self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
+                self.binary.lief_binary, self.binary.path)
