@@ -874,7 +874,7 @@ class CodeAnalyser:
                 # leave it in the set because it may need a library that will
                 # be loaded (with dlopen) in the following analysis
                 continue
-            f_to_analyse.append(f)
+            f_to_analyse.extend(f)
             self.__dlsym_f_names.remove(fun_name)
 
         if not f_to_analyse:
