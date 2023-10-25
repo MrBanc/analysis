@@ -42,6 +42,10 @@ class CodeAnalyser:
     analyse_code(self, insns, syscalls_set, f_called_list=None):
         Main function of the Code Analyser. Updates the syscall set and the
         list of functions called after analysing the given instructions.
+    analyse_detected_dlsym_functions(self, syscalls_set):
+        Analyse all the functions inside `self.__dlsym_f_names`. If new
+        functions detected with dlsym are found or if a function in the list
+        couldn't be analysed, they will be analysed in the next iteration.
     """
 
     def __init__(self, elf_analyser):
@@ -99,7 +103,11 @@ class CodeAnalyser:
             # functions called by dlsym are resolved and analysed only here.
             # The function that are analysed here can, once again, not be
             # analysed in the correct order, hence this while loop.
-            self.__analyse_detected_dlsym_functions(syscalls_set)
+            self.analyse_detected_dlsym_functions(syscalls_set)
+            # It is unlikely that libraries use runtime loading techniques, but
+            # we never know
+            self.__lib_analyser.analyse_detected_dlsym_for_all_libs(
+                    syscalls_set)
 
     # -------------------------- Main Functionalities -------------------------
 
@@ -301,6 +309,50 @@ class CodeAnalyser:
 
     # --------------------------- Libraries Related ---------------------------
 
+    def analyse_detected_dlsym_functions(self, syscalls_set):
+        """Analyse all the functions inside `self.__dlsym_f_names`. If new
+        functions detected with dlsym are found or if a function in the list
+        couldn't be analysed, they will be analysed in the next iteration.
+        (because new libraries could be found with dlopen during the current
+        iteration)
+
+        The loop stops when no functions could be analysed in an iteration
+        (either because it wasn't found or because it has already been
+        analysed).
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        """
+
+        # analysing syscall functions is useless as the syscall ID is given as
+        # an argument
+        if "syscall" in self.__dlsym_f_names:
+            self.__dlsym_f_names.remove("syscall")
+
+        f_to_analyse = []
+        for fun_name in self.__dlsym_f_names.copy():
+            f = self.__lib_analyser.get_function_with_name(fun_name)
+            if not f:
+                # leave it in the set because it may need a library that will
+                # be loaded (with dlopen) in the following analysis
+                continue
+            f_to_analyse.extend(f)
+            self.__dlsym_f_names.remove(fun_name)
+
+        if not f_to_analyse:
+            # If no functions were found, no further analysis can be performed.
+            # The content of __dlsym_f_names thus needs to be emptied to avoid
+            # trying to continue the analysis indefinitely
+            self.__dlsym_f_names.clear()
+            return
+
+        # loops in the call graph do not cause loops here because if a function
+        # has already been analysed, it won't be analysed again and therefore
+        # the functions it is calling won't be added to `__dlsym_f_names`
+        self.__lib_analyser.get_used_syscalls(syscalls_set, f_to_analyse)
+
     def __init_lib_analyser(self):
         """
         Raises
@@ -470,35 +522,6 @@ class CodeAnalyser:
                     f"[ERROR] The library paths {lib_paths_copy} loaded with "
                     f"dlopen in {self.elf_analyser.binary.path} does not lead "
                     f"to valid binaries or scripts")
-
-    def __analyse_detected_dlsym_functions(self, syscalls_set):
-
-        # analysing syscall functions is useless as the syscall ID is given as
-        # an argument
-        if "syscall" in self.__dlsym_f_names:
-            self.__dlsym_f_names.remove("syscall")
-
-        f_to_analyse = []
-        for fun_name in self.__dlsym_f_names.copy():
-            f = self.__lib_analyser.get_function_with_name(fun_name)
-            if not f:
-                # leave it in the set because it may need a library that will
-                # be loaded (with dlopen) in the following analysis
-                continue
-            f_to_analyse.extend(f)
-            self.__dlsym_f_names.remove(fun_name)
-
-        if not f_to_analyse:
-            # If no functions were found, no further analysis can be performed.
-            # The content of __dlsym_f_names thus needs to be emptied to avoid
-            # trying to continue the analysis indefinitely
-            self.__dlsym_f_names.clear()
-            return
-
-        # loops in the call graph do not cause loops here because if a function
-        # has already been analysed, it won't be analysed again and therefore
-        # the functions it is calling won't be added to `__dlsym_f_names`
-        self.__lib_analyser.get_used_syscalls(syscalls_set, f_to_analyse)
 
     # ------------------------------ Backtracking -----------------------------
 

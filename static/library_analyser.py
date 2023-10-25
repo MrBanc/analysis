@@ -452,6 +452,19 @@ class LibraryUsageAnalyser:
                              f"analyser for the library {lib_path}: {e}\n")
         self.__libraries[lib_name].code_analyser = code_analyser
 
+    def analyse_detected_dlsym_for_all_libs(self, syscalls_set):
+        """Calls the `analyse_detected_dlsym_functions` of CodeAnalyser on all
+        libraries.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        """
+
+        for lib in self.__libraries.values():
+            lib.code_analyser.analyse_detected_dlsym_functions(syscalls_set)
+
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
         passed as argument after analysing the given function(s).
