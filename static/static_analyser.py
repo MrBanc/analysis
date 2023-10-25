@@ -6,12 +6,11 @@ Parses the input, calls the elf and code analyser and prints the results.
 
 import sys
 import argparse
-import lief
 
 import utils
 import syscalls
 from code_analyser import CodeAnalyser
-from elf_analyser import get_syscalls_from_symbols, is_valid_binary
+from elf_analyser import ELFAnalyser
 from custom_exception import StaticAnalyserException
 
 
@@ -151,18 +150,15 @@ def launch_analysis():
         continuation.
     """
 
-    binary = lief.parse(utils.app)
-    if not is_valid_binary(binary):
-        raise StaticAnalyserException("The given binary is not a CLASS64 "
-                                      "ELF file.")
+    elf_analyser = ELFAnalyser(utils.app)
 
     utils.print_verbose("Analysing the ELF file. This may take some "
                         "times...")
 
     syscalls_set = set()
-    get_syscalls_from_symbols(binary, syscalls_set)
+    elf_analyser.get_syscalls_from_symbols(syscalls_set)
 
-    code_analyser = CodeAnalyser(utils.app)
+    code_analyser = CodeAnalyser(elf_analyser)
 
     code_analyser.launch_analysis(syscalls_set)
 

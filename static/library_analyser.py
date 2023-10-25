@@ -1,8 +1,5 @@
 """
 Contains the LibraryUsageAnalyser class and the LibFunction and Library
-dataclasses.
-
-Analyses the library usage of a binary.
 """
 
 import subprocess
@@ -20,10 +17,9 @@ from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 
 import utils
 import code_analyser as ca
+import elf_analyser as ea
 from custom_exception import StaticAnalyserException
-from elf_analyser import (is_valid_binary, is_valid_binary_path,
-                          get_section_from_address, PLT_SECTION,
-                          PLT_SEC_SECTION)
+from elf_analyser import PLT_SECTION, PLT_SEC_SECTION
 
 
 # Ordered so that the first should be checked before the other
@@ -90,9 +86,9 @@ class Library:
 
 
 class LibraryUsageAnalyser:
-    """LibraryUsageAnalyser(binary) -> CodeAnalyser
+    """LibraryUsageAnalyser(elf_analyser) -> CodeAnalyser
 
-    Class use to store information about and analyse the shared libraries
+    Class used to store information about and analyse the shared libraries
     used by an ELF executable.
 
     Public Methods
@@ -130,36 +126,32 @@ class LibraryUsageAnalyser:
     __libraries = {}
 
 
-    def __init__(self, binary, path):
+    def __init__(self, elf_analyser):
 
-        if not is_valid_binary(binary):
-            raise StaticAnalyserException("The given binary is not a CLASS64 "
-                                          "ELF file.")
+        self.elf_analyser = elf_analyser
 
-        self.__plt_sec_section = binary.get_section(PLT_SEC_SECTION)
+        lb = self.elf_analyser.binary.lief_binary
+
+        self.__plt_sec_section = lb.get_section(PLT_SEC_SECTION)
         if self.__plt_sec_section is None:
-            self.__plt_section = binary.get_section(PLT_SECTION)
+            self.__plt_section = lb.get_section(PLT_SECTION)
             if self.__plt_section is None:
                 raise StaticAnalyserException(".plt and .plt.sec sections not "
                                               "found.")
 
-        self.__got_rel = binary.pltgot_relocations
+        self.__got_rel = lb.pltgot_relocations
         if self.__got_rel is None:
             raise StaticAnalyserException(".got relocations not found.")
         self.__got_rel = {rel.address: rel
                           for rel in self.__got_rel}
 
-        # In the most recent version of lief to date (0.14.0.dev0), the `name`
-        # attribute of `binary` has been deleted. We therefore manually specify
-        # the path.
-        self.__binary_path = path # binary.name
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is
         # found.
         self.__md.skipdata = utils.skip_data
 
-        self.__used_libraries = binary.libraries
+        self.__used_libraries = lb.libraries
         # contains libraries detected by ldd but not by lief (so they may be
         # libraries that are not directly used by the binaries as ldd shows
         # dependencies of dependencies)
@@ -167,7 +159,7 @@ class LibraryUsageAnalyser:
         self.__find_used_libraries()
 
         self.__used_libraries_aliases = defaultdict(list)
-        self.__find_used_libraries_aliases(binary.symbols_version_requirement)
+        self.__find_used_libraries_aliases(lb.symbols_version_requirement)
 
     def is_call_to_plt(self, address):
         """Supposing that the address given is used as a destination for a jmp
@@ -256,7 +248,8 @@ class LibraryUsageAnalyser:
         if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.IRELATIVE):
             if rel.addend:
-                return [LibFunction(name="", library_path=self.__binary_path,
+                return [LibFunction(name="",
+                                    library_path=self.elf_analyser.binary.path,
                                     boundaries=(rel.addend, -1))]
             return []
 
@@ -355,7 +348,7 @@ class LibraryUsageAnalyser:
             lib_to_check = self.__potentially_used_libraries
 
         for lib_name in lib_to_check:
-            lib = LibraryUsageAnalyser.__libraries[lib_name]
+            lib = self.__libraries[lib_name]
             if f_name not in lib.callable_fun_boundaries:
                 continue
             if (len(lib.callable_fun_boundaries[f_name]) != 2
@@ -378,17 +371,17 @@ class LibraryUsageAnalyser:
                              f"{f_name}. Continuing...\n")
         elif len(functions) > 1:
             sys.stderr.write(f"[WARNING] Multiple possible library functions "
-                             f"were found for {f_name} in {self.__binary_path}"
-                             f": {functions}.\n"
+                             f"were found for {f_name} in "
+                             f"{self.elf_analyser.binary.path}: {functions}.\n"
                              f"All of them will be considered.\n")
 
         if functions and use_potential_libs:
-            utils.print_warning(f"[WARNING]: The library function {f_name} "
-                                f"used by {self.__binary_path}, couldn't be "
-                                f"found in the libraries detected by `lief` "
-                                f"(or `dlopen` etc) but was found in a library"
-                                f" detected by `ldd`. This one will be "
-                                f"considered.")
+            utils.print_warning(
+                    f"[WARNING]: The library function {f_name} used by "
+                    f"{self.elf_analyser.binary.path}, couldn't be found in "
+                    f"the libraries detected by `lief` (or `dlopen` etc) but "
+                    f"was found in a library detected by `ldd`. This one will "
+                    f"be considered.")
 
         return functions
 
@@ -428,7 +421,7 @@ class LibraryUsageAnalyser:
             else:
                 self.__used_libraries.append(lib_name)
 
-        if lib_name in LibraryUsageAnalyser.__libraries:
+        if lib_name in self.__libraries:
             return
 
         lib_binary = lief.parse(lib_path)
@@ -447,12 +440,17 @@ class LibraryUsageAnalyser:
         # constructor will bring us back in this function and if the
         # __libraries variable does not contain the entry, an infinite loop
         # may occur.
-        LibraryUsageAnalyser.__libraries[lib_name] = Library(
+        self.__libraries[lib_name] = Library(
                 path=lib_path, callable_fun_boundaries=callable_fun_boundaries,
                 code_analyser=None)
-        code_analyser = ca.CodeAnalyser(lib_path)
-        LibraryUsageAnalyser.__libraries[lib_name].code_analyser = \
-                code_analyser
+        code_analyser = None
+        try:
+            elf_analyser = ea.ELFAnalyser(lib_path)
+            code_analyser = ca.CodeAnalyser(elf_analyser)
+        except StaticAnalyserException as e:
+            sys.stderr.write(f"[ERROR] Error during the creation of the code "
+                             f"analyser for the library {lib_path}: {e}\n")
+        self.__libraries[lib_name].code_analyser = code_analyser
 
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
@@ -487,13 +485,13 @@ class LibraryUsageAnalyser:
         for f in functions:
             funs_called = []
             function_syscalls = set()
-            if f in LibraryUsageAnalyser.__analysed_functions:
+            if f in self.__analysed_functions:
                 utils.log(f"D-{utils.cur_depth}: {f.name}@"
                           f"{utils.f_name_from_path(f.library_path)} - at "
                           f"{hex(f.boundaries[0])} - done",
                           "lib_functions.log", utils.cur_depth)
                 continue
-            LibraryUsageAnalyser.__analysed_functions.add(f)
+            self.__analysed_functions.add(f)
 
             utils.log(f"D-{utils.cur_depth}: {f.name}@"
                       f"{utils.f_name_from_path(f.library_path)} - at "
@@ -508,7 +506,7 @@ class LibraryUsageAnalyser:
                 sys.stderr.write(f"{e}\n")
                 continue
 
-            (LibraryUsageAnalyser.__libraries[lib_name].code_analyser
+            (self.__libraries[lib_name].code_analyser
              .analyse_code(insns, function_syscalls, funs_called))
 
             # Get all the syscalls used by the called function
@@ -554,14 +552,14 @@ class LibraryUsageAnalyser:
 
     def __find_used_libraries(self):
 
-        if self.__binary_path != utils.app:
+        if self.elf_analyser.binary.path != utils.app:
             # A binary sometimes uses the .plt section to call one of its own
             # functions. It isn't necessary to do it for the main app as
             # function calls aren't relevant there.
-            self.add_used_library(self.__binary_path)
+            self.add_used_library(self.elf_analyser.binary.path)
 
         try:
-            ldd_output = subprocess.run(["ldd", self.__binary_path],
+            ldd_output = subprocess.run(["ldd", self.elf_analyser.binary.path],
                                         check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
@@ -570,7 +568,7 @@ class LibraryUsageAnalyser:
                                           added_by_ldd=True)
                 elif utils.f_name_from_path(parts[0]) in self.__used_libraries:
                     self.add_used_library(parts[0], added_by_ldd=True)
-            if not set(self.__used_libraries).issubset(LibraryUsageAnalyser
+            if not set(self.__used_libraries).issubset(self
                                                        .__libraries.keys()):
                 utils.print_warning("[WARNING] The `ldd` command didn't find "
                                     "all the libraries used.\nTrying to find "
@@ -586,14 +584,14 @@ class LibraryUsageAnalyser:
     def __find_used_libraries_manually(self):
 
         lib_names = [lib for lib in self.__used_libraries
-                     if lib not in LibraryUsageAnalyser.__libraries]
+                     if lib not in self.__libraries]
 
         # TODO: If this is still not enough, adding a subprocess to use
         # `locate` for the other libraries is a possibility.
 
         lib_paths = self.get_libraries_paths_manually(lib_names)
         for path in lib_paths:
-            if is_valid_binary_path(path):
+            if self.elf_analyser.is_valid_binary_path(path):
                 self.add_used_library(path)
 
         if len(lib_names) > 0:
@@ -631,10 +629,8 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        target_section = get_section_from_address(
-                LibraryUsageAnalyser.__libraries[lib_name].code_analyser
-                .binary,
-                function.boundaries[0])
+        target_section = (self.__libraries[lib_name].code_analyser.elf_analyser
+                          .get_section_from_address(function.boundaries[0]))
         f_start_offset = (function.boundaries[0]
                           - target_section.virtual_address)
         f_end_offset = function.boundaries[1] - target_section.virtual_address
