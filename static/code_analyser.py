@@ -548,7 +548,7 @@ class CodeAnalyser:
                                                  .registers[focus_reg]):
                     continue
 
-                assigned_value = code_utils.compute_assigned_value(
+                assigned_value = code_utils.get_assigned_value(
                         list_inst[i], self.elf_analyser)
 
                 ret = -1
@@ -558,11 +558,11 @@ class CodeAnalyser:
                 elif isinstance(assigned_value, int):
                     ret = assigned_value
                 elif code_utils.is_reg(assigned_value):
-                    # `__compute_assigned_value` already returned the reg key
+                    # `get_assigned_value` already returned the reg key
                     focus_reg = assigned_value
                     utils.log(f"[Shifting focus to {focus_reg}]",
                               "backtrack.log", indent=2)
-                    continue
+                    break # break out of the inner for loop, not the outer one
 
                 return ret
 

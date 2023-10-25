@@ -75,7 +75,7 @@ def extract_destination_address(ins, elf_analyser):
         show_warnings = False
 
     if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-        dest_address = __get_call_destination_address(ins.op_str,
+        dest_address = __compute_operand_address_value(ins.op_str,
                                                  utils.compute_rip(ins),
                                                  elf_analyser,
                                                  ins.group(CS_GRP_CALL))
@@ -88,7 +88,7 @@ def extract_destination_address(ins, elf_analyser):
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
-        assigned = compute_assigned_value(ins, elf_analyser)
+        assigned = get_assigned_value(ins, elf_analyser)
         if isinstance(assigned, int) and assigned > 0:
             dest_address = assigned
         # If `assigned` is a register there is no need to backtrack it as
@@ -100,9 +100,9 @@ def extract_destination_address(ins, elf_analyser):
 
     return dest_address, show_warnings
 
-def compute_assigned_value(ins, elf_analyser):
-    """Returns the value that is being assigned to the destination operand in
-    the given instruction.
+def get_assigned_value(ins, elf_analyser):
+    """Returns the value (or register) that is being assigned to the
+    destination operand in the given instruction.
 
     Parameters
     ----------
@@ -113,8 +113,9 @@ def compute_assigned_value(ins, elf_analyser):
 
     Returns
     -------
-    assigned_val : int
-        the assigned value, or None in case of error
+    assigned_val : int or str
+        the assigned value, which can either be a number or a register name (or
+        None in case of error)
     """
 
     mnemonic = ins.mnemonic
@@ -128,25 +129,11 @@ def compute_assigned_value(ins, elf_analyser):
     op_strings[1] = op_strings[1].strip()
 
     if mnemonic == "mov":
-        if utils.is_number(op_strings[1]):
-            assigned_val = utils.str2int(op_strings[1])
-        elif is_reg(op_strings[1]):
+        if is_reg(op_strings[1]):
             assigned_val = __get_reg_key(op_strings[1])
-        elif "[rip" in op_strings[1]:
-            address_location = __compute_rip_operation(
-                    op_strings[1], utils.compute_rip(ins))
-            reference_byte_size = (__operand_byte_size[op_strings[1]
-                                                            .split()[0]])
-            try:
-                assigned_val = elf_analyser.resolve_value_at_address(
-                        address_location, reference_byte_size)
-            except StaticAnalyserException:
-                # Not a big deal if it fails
-                pass
-        elif "rip" in op_strings[1]:
-            # will probably never enter here but we never know
-            assigned_val = __compute_rip_operation(op_strings[1],
-                                             utils.compute_rip(ins))
+        else:
+            assigned_val = __compute_operand_address_value(
+                    op_strings[1], utils.compute_rip(ins), elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
         assigned_val = 0
     elif mnemonic == "lea" and "rip" in op_strings[1]:
@@ -230,33 +217,35 @@ def is_reg(string):
         True if the string is a register identifier
     """
 
+    if not isinstance(string, str):
+        return False
+
     for reg_ids in registers.values():
         if string in reg_ids:
             return True
 
     return False
 
-def __get_call_destination_address(operand, rip_value, elf_analyser,
+def __compute_operand_address_value(operand, rip_value, elf_analyser,
                                    show_warnings):
-    """Returns the destination address of the given operand of the call (or
-    jmp).
+    """Returns the resulting address of the given operand.
 
     Parameters
     ----------
     operand : str
-        operand of the call (or jump)
+        operand containing an address or a reference to an address
     rip_value : int
         the value of the rip register (address of next instruction)
     elf_analyser : ELFAnalyser
         instance of ELFAnalyser corresponding to the analysed binary
     show_warnings : bool
-        whether or not should a warning be thrown if no destination was
-        found
+        whether or not should a warning be thrown if the resulting address
+        couldn't be found
 
     Returns
     -------
     address : int
-        destination address of the given operand of the call (or jump)
+        resulting address of the given operand
     """
 
     address = None
