@@ -136,7 +136,7 @@ def get_assigned_value(ins, elf_analyser):
                     op_strings[1], utils.compute_rip(ins), elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
         assigned_val = 0
-    elif mnemonic == "lea" and bool(re.match(r'\[.*\]', op_strings[1])):
+    elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
         assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
                                                        utils.compute_rip(ins),
                                                        elf_analyser, False)
@@ -286,7 +286,7 @@ def __compute_rip_operation(operand, rip_value):
 
     pattern = r'.*rip ([+-]) ([^]]*).*'
     match = re.search(pattern, operand)
-    pattern_is_matched = (bool(re.match(pattern, operand))
+    pattern_is_matched = (bool(re.fullmatch(pattern, operand))
                           or bool(re.search(f'\\[{pattern}\\]', operand)))
 
     if (pattern_is_matched and utils.is_number(match.group(2))):
