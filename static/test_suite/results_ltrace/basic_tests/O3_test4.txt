@@ -1,0 +1,2 @@
+1 putchar
+2 write

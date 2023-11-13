@@ -1,0 +1,12 @@
+1 access
+1 arch_prctl
+1 brk
+1 execve
+1 munmap
+1 read
+2 close
+2 fstat
+2 openat
+2 write
+3 mprotect
+7 mmap
