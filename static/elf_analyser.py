@@ -349,6 +349,9 @@ class ELFAnalyser:
 
         value = None
 
+        if address < 0:
+            return value
+
         # try to resolve the value given the relocation information of the ELF
         rel = self.binary.lief_binary.get_relocation(address)
         if rel and rel.has_symbol and rel.symbol.name != "":
