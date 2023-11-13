@@ -224,8 +224,8 @@ class CodeAnalyser:
 
             # --- Function calls detection (until the end of the loop) ---
             dest_address, show_warnings = (
-                    code_utils.extract_destination_address(
-                        ins, self.elf_analyser))
+                    code_utils.extract_destination_address(list_inst,
+                                                           self.elf_analyser))
 
             if dest_address is None:
                 continue
@@ -293,9 +293,11 @@ class CodeAnalyser:
                       f"{list_inst[-1].op_str} from "
                       f"{self.elf_analyser.binary.path}", "backtrack.log")
         if not is_function:
-            nb_syscall = self.__backtrack_register("eax", list_inst)
+            nb_syscall = code_utils.backtrack_register("eax", list_inst,
+                                                       self.elf_analyser)
         else:
-            nb_syscall = self.__backtrack_register("edi", list_inst)
+            nb_syscall = code_utils.backtrack_register("edi", list_inst,
+                                                       self.elf_analyser)
 
         if nb_syscall in syscalls.syscalls_map:
             name = syscalls.syscalls_map[nb_syscall]
@@ -304,8 +306,8 @@ class CodeAnalyser:
             syscalls_set.add(name)
         else:
             utils.log(f"Ignore {nb_syscall}\n", "backtrack.log")
-            utils.print_verbose(f"Syscall instruction found but ignored: "
-                                f"{nb_syscall}")
+            utils.print_verbose(f"Syscall instruction detected but syscall ID "
+                                f"not found or invalid: {nb_syscall}")
 
     # --------------------------- Libraries Related ---------------------------
 
@@ -385,11 +387,12 @@ class CodeAnalyser:
         try:
             # When calling dlopen, the first argument (in `edi`) contains a
             # pointer to the name of the library
-            lib_name_address = self.__backtrack_register("edi", list_inst)
+            lib_name_address = code_utils.backtrack_register("edi", list_inst,
+                                                             self.elf_analyser)
             self.__add_library_from_dlopen(lib_name_address)
 
         except StaticAnalyserException as e:
-            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
+            utils.log(f"Ignore {lib_name_address}\n", "backtrack.log")
             if e.is_critical:
                 sys.stderr.write(f"{e}\n")
             else:
@@ -400,12 +403,13 @@ class CodeAnalyser:
         try:
             # When calling dlmopen, the second argument (in `esi`) contains a
             # pointer to the name of the library
-            lib_name_address = self.__backtrack_register("esi", list_inst)
+            lib_name_address = code_utils.backtrack_register("esi", list_inst,
+                                                             self.elf_analyser)
             # The procedure is the same as for dlopen, thus the function name
             self.__add_library_from_dlopen(lib_name_address)
 
         except StaticAnalyserException as e:
-            utils.log(f"Ignore {hex(lib_name_address)}\n", "backtrack.log")
+            utils.log(f"Ignore {lib_name_address}\n", "backtrack.log")
             if e.is_critical:
                 sys.stderr.write(f"{e}\n")
             else:
@@ -414,9 +418,10 @@ class CodeAnalyser:
     def __backtrack_dlsym(self, list_inst):
 
         try:
-            fun_name_address = self.__backtrack_register("esi", list_inst)
+            fun_name_address = code_utils.backtrack_register("esi", list_inst,
+                                                             self.elf_analyser)
 
-            if fun_name_address < 0:
+            if fun_name_address is None or fun_name_address < 0:
                 raise StaticAnalyserException(
                         f"[WARNING] A function loaded with dlsym in "
                         f"{self.elf_analyser.binary.path} could not be found")
@@ -428,7 +433,7 @@ class CodeAnalyser:
 
             self.__dlsym_f_names.add(fun_name)
         except StaticAnalyserException as e:
-            utils.log(f"Ignore {hex(fun_name_address)}\n", "backtrack.log")
+            utils.log(f"Ignore {fun_name_address}\n", "backtrack.log")
             sys.stderr.write(f"{e}\n")
 
     def __detect_and_process_runtime_loading_functions(self, called_plt_f,
@@ -463,7 +468,7 @@ class CodeAnalyser:
             # A NULL ptr means dlmopen was use to get a handle on the main
             # (current) executable
             return
-        if file_name_address < 0:
+        if file_name_address is None or  file_name_address < 0:
             raise StaticAnalyserException(
                     f"[WARNING] A library loaded with `dlopen` in "
                     f"{self.elf_analyser.binary.path} could not be found",
@@ -522,48 +527,3 @@ class CodeAnalyser:
                     f"[ERROR] The library paths {lib_paths_copy} loaded with "
                     f"dlopen in {self.elf_analyser.binary.path} does not lead "
                     f"to valid binaries or scripts")
-
-    # ------------------------------ Backtracking -----------------------------
-
-    def __backtrack_register(self, focus_reg, list_inst):
-        # Beware that it will be considered that the value is put inside the
-        # register in one operation. For example, this type of code is not
-        # supported:
-        # mov rdi, 0x1234
-        # shl rdi, 16
-        # mov di, 0x5678
-
-        index = len(list_inst) - 1
-        last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
-        for i in range(index - 1, last_ins_index - 1, -1):
-            if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
-                continue
-
-            utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
-                      f" {list_inst[i].op_str}", "backtrack.log", indent=1)
-
-            regs_write = list_inst[i].regs_access()[1]
-            for r in regs_write:
-                if self.__md.reg_name(r) not in (code_utils
-                                                 .registers[focus_reg]):
-                    continue
-
-                assigned_value = code_utils.get_assigned_value(
-                        list_inst[i], self.elf_analyser)
-
-                ret = -1
-                if assigned_value is None:
-                    utils.log("[Operation not supported]",
-                              "backtrack.log", indent=2)
-                elif isinstance(assigned_value, int):
-                    ret = assigned_value
-                elif code_utils.is_reg(assigned_value):
-                    # `get_assigned_value` already returned the reg key
-                    focus_reg = assigned_value
-                    utils.log(f"[Shifting focus to {focus_reg}]",
-                              "backtrack.log", indent=2)
-                    break # break out of the inner for loop, not the outer one
-
-                return ret
-
-        return -1

@@ -2,10 +2,13 @@
 Provide functions to analyse or process elements of the (assembly or binary)
 code.
 """
-import re
 
-from capstone import (CS_GRP_JUMP, CS_GRP_CALL,
+import re
+import sys
+
+from capstone import (Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL,
                       CS_OP_IMM, CS_OP_FP, CS_OP_MEM)
+from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
 from custom_exception import StaticAnalyserException
@@ -41,8 +44,8 @@ __operand_byte_size = {"byte": 1,
                        "zword": 64}
 
 
-def extract_destination_address(ins, elf_analyser):
-    """Try to extract a destination address with the instruction given.
+def extract_destination_address(list_inst, elf_analyser):
+    """Try to extract a destination address from the last instruction given.
     The objective is to find addresses that would lead to functions so only
     operands of calls (or jumps) are considered (but not checked).
 
@@ -57,8 +60,8 @@ def extract_destination_address(ins, elf_analyser):
 
     Parameters
     ----------
-    ins : capstone instruction
-        the instruction to inspect
+    list_inst : list of capstone instructions
+        the instructions that lead to the instruction to inspect (included)
     elf_analyser : ELFAnalyser
         instance of ELFAnalyser corresponding to the analysed binary
 
@@ -69,26 +72,23 @@ def extract_destination_address(ins, elf_analyser):
     """
 
     dest_address = None
-    show_warnings = True
+    show_warnings = not list_inst[-1].group(CS_GRP_JUMP)
 
-    if ins.group(CS_GRP_JUMP):
-        show_warnings = False
-
-    if ins.group(CS_GRP_JUMP) or ins.group(CS_GRP_CALL):
-        dest_address = __compute_operand_address_value(ins.op_str,
-                                                 utils.compute_rip(ins),
-                                                 elf_analyser,
-                                                 ins.group(CS_GRP_CALL))
+    if list_inst[-1].group(CS_GRP_JUMP) or list_inst[-1].group(CS_GRP_CALL):
+        dest_address = __compute_operand_address_value(list_inst[-1].op_str,
+                                                       list_inst,
+                                                       elf_analyser,
+                                                       show_warnings)
     # TODO: verify if it's a bug or if you just don't understand.
     # capstone bug (?): memory operands seem to be considered of type "FP"
-    elif utils.search_function_pointers and (ins.op_count(CS_OP_IMM)
-                                             or ins.op_count(CS_OP_FP)
-                                             or ins.op_count(CS_OP_MEM)):
+    elif utils.search_function_pointers and (list_inst[-1].op_count(CS_OP_IMM)
+                                             or list_inst[-1].op_count(CS_OP_FP)
+                                             or list_inst[-1].op_count(CS_OP_MEM)):
         # Every immediate or memory operand is examined as a potential
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
-        assigned = get_assigned_value(ins, elf_analyser)
+        assigned = get_assigned_value(list_inst, elf_analyser)
         if isinstance(assigned, int) and assigned > 0:
             dest_address = assigned
         # If `assigned` is a register there is no need to backtrack it as
@@ -100,14 +100,14 @@ def extract_destination_address(ins, elf_analyser):
 
     return dest_address, show_warnings
 
-def get_assigned_value(ins, elf_analyser):
+def get_assigned_value(list_inst, elf_analyser):
     """Returns the value (or register) that is being assigned to the
     destination operand in the given instruction.
 
     Parameters
     ----------
-    ins : capstone instruction
-        the instruction to consider
+    list_inst : capstone instruction
+        the instructions leading to the one to consider (included)
     elf_analyser : ELFAnalyser
         instance of ELFAnalyser corresponding to the analysed binary
 
@@ -118,8 +118,10 @@ def get_assigned_value(ins, elf_analyser):
         None in case of error)
     """
 
-    mnemonic = ins.mnemonic
-    op_strings = ins.op_str.split(",")
+    mnemonic = list_inst[-1].mnemonic
+    op_strings = list_inst[-1].op_str.split(",")
+
+    # TODO support movsx, movsxd, movl etc et les autres instructions faciles à supporter
 
     assigned_val = None
     if mnemonic not in ("mov", "xor", "lea"):
@@ -130,18 +132,69 @@ def get_assigned_value(ins, elf_analyser):
 
     if mnemonic == "mov":
         if is_reg(op_strings[1]):
+            # __compute_operand_address_value takes care of registers using
+            # backtracking but in this context we want the name of the register
+            # so that the calling function is the one to perform the
+            # backtracking
             assigned_val = __get_reg_key(op_strings[1])
         else:
             assigned_val = __compute_operand_address_value(
-                    op_strings[1], utils.compute_rip(ins), elf_analyser, False)
+                    op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
         assigned_val = 0
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
-        assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
-                                                       utils.compute_rip(ins),
+        if is_reg(op_strings[1][1:-1]):
+            # Same remark as above
+            assigned_val = __get_reg_key(op_strings[1][1:-1])
+        else:
+            assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
+                                                       list_inst,
                                                        elf_analyser, False)
 
     return assigned_val
+
+def backtrack_register(focus_reg, list_inst, elf_analyser):
+    # Beware that it will be considered that the value is put inside the
+    # register in one operation. For example, this type of code is not
+    # supported:
+    # mov rdi, 0x1234
+    # shl rdi, 16
+    # mov di, 0x5678
+
+    md = Cs(CS_ARCH_X86, CS_MODE_64)
+
+    index = len(list_inst) - 1
+    last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
+    for i in range(index - 1, last_ins_index - 1, -1):
+        if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
+            continue
+
+        utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
+                  f" {list_inst[i].op_str}", "backtrack.log", indent=1)
+
+        regs_write = list_inst[i].regs_access()[1]
+        for r in regs_write:
+            if md.reg_name(r) not in registers[focus_reg]:
+                continue
+
+            assigned_value = get_assigned_value(list_inst[0:i+1], elf_analyser)
+
+            ret = None
+            if assigned_value is None:
+                utils.log("[Operation not supported]",
+                          "backtrack.log", indent=2)
+            elif isinstance(assigned_value, int):
+                ret = assigned_value
+            elif is_reg(assigned_value):
+                # `get_assigned_value` already returned the reg key
+                focus_reg = assigned_value
+                utils.log(f"[Shifting focus to {focus_reg}]",
+                          "backtrack.log", indent=2)
+                break # break out of the inner for loop, not the outer one
+
+            return ret
+
+    return None
 
 def mov_local_funs_to(f_to, f_from, elf_analyser):
     """Move the functions from .plt that lead to an IRELATIVE .got entry
@@ -210,7 +263,7 @@ def is_reg(string):
     Parameters
     ----------
     string : str
-        the string that may contain a register identifier
+        the string that may represent a register identifier
 
     Returns
     -------
@@ -227,16 +280,49 @@ def is_reg(string):
 
     return False
 
-def __compute_operand_address_value(operand, rip_value, elf_analyser,
-                                   show_warnings):
+def __contains_reg(string):
+    """Returns true if the given string contains the name of a (x86_64 general
+    purpose) register identifier.
+
+    Parameters
+    ----------
+    string : str
+        the string that may contain a register identifier
+
+    Returns
+    -------
+    is_reg : bool
+        True if the string contains a register identifier
+    """
+
+    if not isinstance(string, str):
+        return False
+
+    for reg_ids in registers.values():
+        for identifier in reg_ids:
+            if identifier in string:
+                return True
+
+    return False
+
+def __compute_operand_address_value(operand, list_inst, elf_analyser,
+                                    show_warnings):
     """Returns the resulting address of the given operand.
+
+    This function can also be used to compute operand values that are not
+    addresses (like constants) as they can be interpreted as addresses.
+
+    If the previous instructions are not given, the function will not try to
+    backtrack the value of registers.
 
     Parameters
     ----------
     operand : str
         operand containing an address or a reference to an address
-    rip_value : int
-        the value of the rip register (address of next instruction)
+    list_inst : list of capstone instructions
+        the list of instructions that have been analysed in the current scope
+        (generally the current function or the whole .text). Giving only the
+        last instruction is valid, but then no backtracking will take place
     elf_analyser : ELFAnalyser
         instance of ELFAnalyser corresponding to the analysed binary
     show_warnings : bool
@@ -249,23 +335,34 @@ def __compute_operand_address_value(operand, rip_value, elf_analyser,
         resulting address of the given operand
     """
 
+    use_backtracking = len(list_inst) > 1
     address = None
 
-    if utils.is_number(operand):
-        address = utils.str2int(operand)
-    elif "[rip" in operand:
-        address_location = __compute_rip_operation(operand, rip_value)
-        reference_byte_size = __operand_byte_size[operand.split()[0]]
+    brackets_expr = re.search(r'\[(.*)\]', operand)
+
+    if bool(re.search(r'[a-z]+:', operand)): # example: word ptr fs:[...]
+        # not supported (yet?)
+        pass
+    elif not use_backtracking and __contains_reg(operand): # except rip
+        pass
+    elif bool(brackets_expr):
         try:
+            address_location = __compute_reg_operation(brackets_expr.group(1),
+                                                       list_inst, elf_analyser)
+            reference_byte_size = __operand_byte_size[operand.split()[0]]
             address = elf_analyser.resolve_value_at_address(
                     address_location, reference_byte_size)
-        except StaticAnalyserException:
+        except StaticAnalyserException as e:
+            if e.is_critical:
+                sys.stderr.write(f"{e}\n")
             # A warning will anyway be throwed later if needed
-            pass
-
-    elif "rip" in operand:
-        # will probably never enter here but we never know
-        address = __compute_rip_operation(operand, rip_value)
+    else: # does not contains square brackets or sections
+        try:
+            address = __compute_reg_operation(operand, list_inst, elf_analyser)
+        except StaticAnalyserException as e:
+            if e.is_critical:
+                sys.stderr.write(f"{e}\n")
+            # A warning will anyway be throwed later if needed
 
     if show_warnings and address is None:
         # TODO: Other things could be done to try obtaining the address
@@ -275,27 +372,64 @@ def __compute_operand_address_value(operand, rip_value, elf_analyser,
 
     return address
 
-def __compute_rip_operation(operand, rip_value):
-    """Beware that it will return the value of the operation with the rip,
+def __compute_reg_operation(operation, list_inst, elf_analyser):
+    """Beware that it will return the value of the operation with the register,
     not the value of the whole operand. For example, if the operand is
     `qword ptr [rip + 0x1234]`, this function will return the result of
     `rip + 0x1234` and not the value located at the address `rip + 0x1234`.
+
+    Raises
+    ------
+    StaticAnalyserException
+        If the value couldn't be computed
     """
 
-    ret = None
+    # TODO Raise exception and catch it in calling functions
 
-    pattern = r'.*rip ([+-]) ([^]]*).*'
-    match = re.search(pattern, operand)
-    pattern_is_matched = (bool(re.fullmatch(pattern, operand))
-                          or bool(re.search(f'\\[{pattern}\\]', operand)))
+    # print(f"gougoug1 {operation}")
 
-    if (pattern_is_matched and utils.is_number(match.group(2))):
-        ret = utils.compute_operation(match.group(1), rip_value,
-                                      utils.str2int(match.group(2)))
-    elif "rip" in operand:
-        utils.print_debug(f"An operand with rip is unsupported: {operand}")
+    terms_and_operands = re.findall(r'[-+*]|[^ -+*]+', operation)
+    terms_and_operands = [token.strip() for token in terms_and_operands]
 
-    return ret
+    for i, token in enumerate(terms_and_operands):
+        if utils.is_number(token):
+            continue
+        if is_reg(token):
+            # TODO logging pour le backtrack. peut-être dans un wrapper ?
+            reg_value = backtrack_register(__get_reg_key(token), list_inst,
+                                           elf_analyser)
+            if not isinstance(reg_value, int):
+                raise StaticAnalyserException("[WARNING] Register backtracing "
+                                              "did not return an int",
+                                              is_critical=False)
+            if reg_value >= 0:
+                terms_and_operands[i] = str(reg_value)
+            else:
+                terms_and_operands[i] = "(" + str(reg_value) + ")"
+        elif "rip" == token:
+            rip_value = utils.compute_rip(list_inst[-1])
+            terms_and_operands[i] = str(rip_value)
+        elif token in ("+", "-", "*"):
+            pass
+        else:
+            raise StaticAnalyserException(f"[WARNING] Unsupported token in a "
+                                          f"reg operation: {token}",
+                                          is_critical=True)
+
+    if len(terms_and_operands) < 1:
+        raise StaticAnalyserException("[WARNING] Empty operation",
+                                      is_critical=False)
+
+    # print(f"gougoug2 {terms_and_operands}")
+
+    # The content of terms_and_operands is checked beforehand so using `eval`
+    # in this case should not be dangerous.
+    # pylint: disable=eval-used
+    result = eval("".join(terms_and_operands))
+
+    # print(f"gougoug3 {result}")
+
+    return result
 
 def __get_reg_key(reg_id):
     """Given a register identifier, returns the key to have access to this
@@ -321,5 +455,7 @@ def __get_reg_key(reg_id):
         if reg_id in reg_ids:
             return reg_key
 
-    raise StaticAnalyserException(f"{reg_id}, the given reg_id does not "
-                                  f"correspond to a register id.")
+    # TODO: les fonctions appelantes ne prennent pas en compte cette exception
+    # donc ça fait crash le programme si elle arrive...
+    raise StaticAnalyserException(f"[WARNING] {reg_id}, the given reg_id does "
+                                  f"not correspond to a register id.")
