@@ -13,7 +13,7 @@ OBJ_FILES := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%,$(SRC_FILES))
 all: $(OBJ_FILES)
 
 $(BUILD_DIR)/%: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $<  -ldl
 
 # Clean target
 clean:

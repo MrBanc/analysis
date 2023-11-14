@@ -1,0 +1,6 @@
+1 __errno_location
+1 malloc
+1 mkstemp
+1 unlink
+2 printf
+611 write

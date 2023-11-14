@@ -106,8 +106,6 @@ int main(int argc, char** argv) {
     if (runAll || strcmp(argv[1], "random") == 0){
         RUN_TEST(random);
     }
-    
-    #if 0
     if (runAll || strcmp(argv[1], "strtod") == 0){
         RUN_TEST(strtod);
     }
@@ -117,7 +115,6 @@ int main(int argc, char** argv) {
     if (runAll || strcmp(argv[1], "tgmath") == 0){
         RUN_TEST(tgmath);
     }
-    #endif
     if (runAll || strcmp(argv[1], "utime") == 0){
         RUN_TEST(utime);
     }

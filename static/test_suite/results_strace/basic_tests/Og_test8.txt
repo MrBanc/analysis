@@ -1,0 +1,17 @@
+1 access
+1 arch_prctl
+1 execve
+1 ioctl
+1 prlimit64
+1 rt_sigprocmask
+1 set_robust_list
+1 set_tid_address
+2 rt_sigaction
+3 brk
+4 munmap
+5 read
+7 mprotect
+8 close
+8 openat
+9 fstat
+28 mmap

@@ -23,14 +23,14 @@ COMMON_OBJ := $(patsubst $(COMMON_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRC))
 all: main
 
 main: $(FUNC_OBJ) $(COMMON_OBJ)
-	$(CC) $(CFLAGS) $(CFLAGS_D) $(LDFLAGS) main.c -o $@ $^
+	$(CC) $(CFLAGS) $(CFLAGS_D) main.c -o $@ $^ $(LDFLAGS)
 
 # Pattern rule for building object files
 $(BUILD_DIR)/%.o: $(FUNC_DIR)/%.c
-	$(CC) $(CFLAGS) $(CFLAGS_D) $(LDFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CFLAGS_D) -c -o $@ $< $(LDFLAGS)
 
 $(BUILD_DIR)/%.o: $(COMMON_DIR)/%.c
-	$(CC) $(CFLAGS) $(CFLAGS_D) $(LDFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CFLAGS_D) -c -o $@ $< $(LDFLAGS)
 
 # Clean target
 clean:

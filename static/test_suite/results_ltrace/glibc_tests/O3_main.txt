@@ -11,6 +11,8 @@
 1 initstate
 1 kill
 1 listen
+1 lrint
+1 lrintf
 1 mkstemp
 1 posix_spawn_file_actions_adddup2
 1 posix_spawn_file_actions_destroy
@@ -96,7 +98,6 @@
 4 pthread_cond_signal
 4 putchar
 4 socket
-4 write
 4 __xstat64
 5 __pthread_register_cancel
 5 putc
@@ -115,6 +116,7 @@
 8 getc
 8 sigfillset
 8 strtok
+8 vsnprintf
 9 dirname
 10 fwrite
 10 strcasecmp
@@ -125,6 +127,7 @@
 12 rewind
 12 srandom
 12 tmpfile
+12 write
 13 feof
 14 fgetc
 14 sigaction
@@ -145,18 +148,21 @@
 25 strpbrk
 26 __isoc99_sscanf
 26 mbrtowc
+32 crypt
 33 wcsstr
 39 strerror
 40 wcslen
-41 snprintf
 41 wcscmp
 46 strlen
 46 swprintf
 47 strchr
 55 __errno_location
 63 fnmatch
-91 printf
+94 printf
+99 sin
 101 malloc
+102 strtod
+141 snprintf
 243 strcmp
 987 __ctype_b_loc
 1420 random

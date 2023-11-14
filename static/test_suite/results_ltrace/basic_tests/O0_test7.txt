@@ -1,0 +1,6 @@
+1 dlclose
+1 dlopen
+1 dlsym
+1 putchar
+1 strlen
+17 printf
