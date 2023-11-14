@@ -22,6 +22,7 @@ search_function_pointers = True
 search_raw_data = False
 
 cur_depth = -1
+currently_backtracking = False
 
 
 def print_verbose(msg, indent=0):

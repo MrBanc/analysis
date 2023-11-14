@@ -64,6 +64,9 @@ class CodeAnalyser:
         if self.elf_analyser.binary.has_dyn_libraries:
             try:
                 self.__init_lib_analyser()
+                # TODO: parfois on a des appels à des librairies directement à
+                # travers le .got sans passer par le .plt (par exemple pour
+                # __libc_start_main)
             except StaticAnalyserException as e:
                 sys.stderr.write(f"[ERROR] library analyser of "
                                  f"{self.elf_analyser.binary.path} couldn't be"
@@ -290,16 +293,14 @@ class CodeAnalyser:
             utils.log(f"syscall function called: {hex(list_inst[-1].address)} "
                       f"{list_inst[-1].mnemonic} {list_inst[-1].op_str} from "
                       f"{self.elf_analyser.binary.path}", "backtrack.log")
+            nb_syscall = code_utils.backtrack_register("edi", list_inst,
+                                                       self.elf_analyser)
         else:
             utils.log(f"{detect_syscall_type(list_inst[-1])}: "
                       f"{hex(list_inst[-1].address)} {list_inst[-1].mnemonic} "
                       f"{list_inst[-1].op_str} from "
                       f"{self.elf_analyser.binary.path}", "backtrack.log")
-        if not is_function:
             nb_syscall = code_utils.backtrack_register("eax", list_inst,
-                                                       self.elf_analyser)
-        else:
-            nb_syscall = code_utils.backtrack_register("edi", list_inst,
                                                        self.elf_analyser)
 
         if nb_syscall in syscalls.syscalls_map:

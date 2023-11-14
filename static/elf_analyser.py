@@ -355,6 +355,8 @@ class ELFAnalyser:
         # try to resolve the value given the relocation information of the ELF
         rel = self.binary.lief_binary.get_relocation(address)
         if rel and rel.has_symbol and rel.symbol.name != "":
+            # TODO parfois ça mène vers des fonctions qui ne sont pas locales
+            # on dirait (par exemple pour __libc_start_main)
             value = self.__get_local_function_address(
                     rel.symbol.name, False)
         if rel and value is None and rel.addend != 0:

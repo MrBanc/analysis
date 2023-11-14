@@ -55,7 +55,7 @@ def parse_arguments():
                         help=f'Path to syscall to id map (default: '
                         f'{utils.sys_map})', required=False,
                         default=None) # Set later to better deal with warnings
-    parser.add_argument('--max-backtrack-insns', '-B', type=int, nargs='?',
+    parser.add_argument('--max-backtrack-insns', '-b', type=int, nargs='?',
                         const=True, default=utils.max_backtrack_insns,
                         help=f'Maximum number of instructions to check before '
                         f'a syscall instruction to find its id (default: '

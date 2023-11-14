@@ -113,41 +113,32 @@ def get_assigned_value(list_inst, elf_analyser):
 
     Returns
     -------
-    assigned_val : int or str
-        the assigned value, which can either be a number or a register name (or
-        None in case of error)
+    assigned_val : int or None
+        the assigned value (or None in case of error)
     """
 
     mnemonic = list_inst[-1].mnemonic
     op_strings = list_inst[-1].op_str.split(",")
 
-    # TODO support movsx, movsxd, movl etc et les autres instructions faciles à supporter
+    # TODO support add, movsx, movsxd, movl etc et les autres instructions
+    # faciles à supporter
 
     assigned_val = None
     if mnemonic not in ("mov", "xor", "lea"):
+        if utils.currently_backtracking:
+            utils.log("[Operation not supported]", "backtrack.log", indent=2)
         return assigned_val
 
     op_strings[0] = op_strings[0].strip()
     op_strings[1] = op_strings[1].strip()
 
     if mnemonic == "mov":
-        if is_reg(op_strings[1]):
-            # __compute_operand_address_value takes care of registers using
-            # backtracking but in this context we want the name of the register
-            # so that the calling function is the one to perform the
-            # backtracking
-            assigned_val = __get_reg_key(op_strings[1])
-        else:
-            assigned_val = __compute_operand_address_value(
+        assigned_val = __compute_operand_address_value(
                     op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
         assigned_val = 0
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
-        if is_reg(op_strings[1][1:-1]):
-            # Same remark as above
-            assigned_val = __get_reg_key(op_strings[1][1:-1])
-        else:
-            assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
+        assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
                                                        list_inst,
                                                        elf_analyser, False)
 
@@ -163,6 +154,9 @@ def backtrack_register(focus_reg, list_inst, elf_analyser):
 
     md = Cs(CS_ARCH_X86, CS_MODE_64)
 
+    was_already_backtracking = utils.currently_backtracking
+    utils.currently_backtracking = True
+
     index = len(list_inst) - 1
     last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
     for i in range(index - 1, last_ins_index - 1, -1):
@@ -177,23 +171,19 @@ def backtrack_register(focus_reg, list_inst, elf_analyser):
             if md.reg_name(r) not in registers[focus_reg]:
                 continue
 
-            assigned_value = get_assigned_value(list_inst[0:i+1], elf_analyser)
+            assigned_value = get_assigned_value(list_inst[last_ins_index:i+1],
+                                                elf_analyser)
 
             ret = None
-            if assigned_value is None:
-                utils.log("[Operation not supported]",
-                          "backtrack.log", indent=2)
-            elif isinstance(assigned_value, int):
+            if isinstance(assigned_value, int):
                 ret = assigned_value
-            elif is_reg(assigned_value):
-                # `get_assigned_value` already returned the reg key
-                focus_reg = assigned_value
-                utils.log(f"[Shifting focus to {focus_reg}]",
-                          "backtrack.log", indent=2)
-                break # break out of the inner for loop, not the outer one
 
+            utils.currently_backtracking = was_already_backtracking
             return ret
 
+    utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
+
+    utils.currently_backtracking = was_already_backtracking
     return None
 
 def mov_local_funs_to(f_to, f_from, elf_analyser):
@@ -344,7 +334,8 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
         # not supported (yet?)
         pass
     elif not use_backtracking and __contains_reg(operand): # except rip
-        pass
+        if utils.currently_backtracking:
+            utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
     elif bool(brackets_expr):
         try:
             address_location = __compute_reg_operation(brackets_expr.group(1),
@@ -395,9 +386,24 @@ def __compute_reg_operation(operation, list_inst, elf_analyser):
         if utils.is_number(token):
             continue
         if is_reg(token):
+            if utils.currently_backtracking:
+                utils.log(f"[Shifting focus to {token}]",
+                          "backtrack.log", indent=2)
+            else:
+                utils.log(f"Value of interest, start backtracking: "
+                          f"{hex(list_inst[-1].address)} {list_inst[-1].mnemonic} "
+                          f"{list_inst[-1].op_str} from "
+                          f"{elf_analyser.binary.path}",
+                          "backtrack.log", indent=0)
             # TODO logging pour le backtrack. peut-être dans un wrapper ?
             reg_value = backtrack_register(__get_reg_key(token), list_inst,
                                            elf_analyser)
+            if utils.currently_backtracking:
+                utils.log(f"[{token} value found: {reg_value}]",
+                          "backtrack.log", indent=2)
+            else:
+                utils.log(f"Value found: {reg_value}\n", "backtrack.log",
+                          indent=0)
             if not isinstance(reg_value, int):
                 raise StaticAnalyserException("[WARNING] Register backtracing "
                                               "did not return an int",
