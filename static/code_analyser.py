@@ -92,7 +92,8 @@ class CodeAnalyser:
         # Be careful that it is possible to have imported functions that are
         # never used in the code. But because the goal of this program is to
         # have an upper bound, this function is called by default.
-        if utils.all_imported_functions:
+        if (utils.all_imported_functions
+            and self.elf_analyser.binary.has_dyn_libraries):
             self.analyse_imported_functions(syscalls_set)
 
         while self.__dlsym_f_names:
@@ -128,9 +129,11 @@ class CodeAnalyser:
         while bytes_to_analyse > 0:
             to_analyse = bytearray(text_section.content)[text_section.size
                                                          - bytes_to_analyse:]
+            # ---------------- Main part of the function here ----------------
             bytes_analysed = self.analyse_code(
                     self.__md.disasm(to_analyse, start_analyse_at),
                     syscalls_set)
+            # ----------------------------------------------------------------
 
             bytes_to_analyse -= bytes_analysed
             if not bytes_to_analyse:
@@ -150,7 +153,7 @@ class CodeAnalyser:
             bytes_to_analyse -= bytes_to_skip
 
     def analyse_imported_functions(self, syscalls_set):
-        """Analyse the functions imported by the binary ,as specified within
+        """Analyse the functions imported by the binary, as specified within
         the ELF.
 
         Note that functions already analysed won't be analysed again as
