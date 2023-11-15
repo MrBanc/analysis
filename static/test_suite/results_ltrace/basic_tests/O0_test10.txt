@@ -1,7 +1,8 @@
-1 __errno_location
-1 malloc
-1 memset
-1 mkstemp
-1 unlink
-2 printf
-611 write
+__errno_location
+function
+malloc
+memset
+mkstemp
+printf
+unlink
+write

@@ -1,16 +1,17 @@
-1 close
-1 getgrgid
-1 getpid
-1 getpwuid
-1 lseek
-1 nanosleep
-1 open
-1 read
-1 remove
-1 strlen
-1 unlink
-1 write
-1 __xstat
-2 puts
-3 ctime
-11 printf
+close
+ctime
+function
+getgrgid
+getpid
+getpwuid
+lseek
+nanosleep
+open
+printf
+puts
+read
+remove
+strlen
+unlink
+write
+__xstat

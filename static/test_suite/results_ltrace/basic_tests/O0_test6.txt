@@ -1,13 +1,14 @@
-1 bind
-1 close
-1 htons
-1 listen
-1 open
-1 printf
-1 remove
-1 signal
-1 socket
-1 wait
-1 write
-2 fork
-2 puts
+bind
+close
+fork
+function
+htons
+listen
+open
+printf
+puts
+remove
+signal
+socket
+wait
+write

@@ -1,5 +1,6 @@
-1 dlclose
-1 dlopen
-1 dlsym
-1 putchar
-17 printf
+dlclose
+dlopen
+dlsym
+function
+printf
+putchar

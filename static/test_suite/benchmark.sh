@@ -33,6 +33,37 @@ build_binaries() {
     cd .. || die "cd failed"
 }
 
+iterate_output(){
+    dir="$1"
+    binary="$2"
+
+    for file in "${results}_${binary}/${dir}"/*; do
+        compare_output "$file" "${results}_static_analyser/${dir}/$(basename $file)"
+    done
+}
+
+compare_output(){
+    f1="$1"
+    f2="$2"
+    sort "$f1" | uniq > /tmp/sorted_f1
+    sort "$f2" | uniq > /tmp/sorted_f2
+
+    comm -23 /tmp/sorted_f1 /tmp/sorted_f2 > /tmp/f1_not_in_f2
+
+    a=$(wc -l /tmp/f1_not_in_f2|awk '{ print $1 }')
+    b=$(wc -l /tmp/sorted_f2|awk '{ print $1 }')
+
+    echo -n "$(basename $f1): "
+    if [ -s /tmp/f1_not_in_f2 ]; then
+        echo -n "[MISSING $a/$b] "
+        awk '{print}' ORS=' ' < /tmp/f1_not_in_f2
+    else
+        echo -n "[OK $a/$b] "
+    fi
+    echo " "
+    rm /tmp/sorted_f1 /tmp/sorted_f2 /tmp/f1_not_in_f2
+}
+
 benchmark_binaries(){
 
     dir="$1"
@@ -40,10 +71,15 @@ benchmark_binaries(){
     cd "${dir}" || die "cd failed"
     rm -rf "${results}_${binary}/${dir}" &> "/dev/null"
     mkdir -p "${results}_${binary}/${dir}" || die "mkdir failed"
-    echo "Benchmarking ${dir} tests..."
+    echo "Benchmarking ${dir} with ${binary}..."
     for flag in "${array_flags[@]}"; do
-        for file in "${build}_all/$flag"/*; do 
-            "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $4,$NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached'| sed '/^$/d' | sort -n > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+        for file in "${build}_all/$flag"/*; do
+            if [ "$binary" == "static_analyser" ]; then
+                timeout 60 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f -v f |awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+            else
+                #TODO: Add $4, and sort -n to have the number of occurences
+                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+            fi
         done
     done
     cd .. || die "cd failed"
@@ -57,6 +93,14 @@ if [ ! -d "${glibc}/${build}_all" ]; then
     build_binaries "${glibc}"
 fi
 
-benchmark_binaries "${basic}" "strace" && benchmark_binaries "${basic}" "ltrace" 
+mkdir -p "${results}" || die "mkdir failed"
 
-benchmark_binaries "${glibc}" "strace" && benchmark_binaries "${glibc}" "ltrace"
+directories=("basic_tests" "glibc_tests")
+binaries=("static_analyser" "strace" "ltrace")
+
+for dir in "${directories[@]}"; do
+    for binary in "${binaries[@]}"; do
+        benchmark_binaries "${dir}" "${binary}"
+    done
+    iterate_output "${dir}" "strace" > "${results}_all/${dir}_strace.txt"
+done

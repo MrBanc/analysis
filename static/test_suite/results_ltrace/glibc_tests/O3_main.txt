@@ -1,168 +1,169 @@
-1 accept
-1 clearenv
-1 clock_gettime
-1 connect
-1 fileno
-1 fputc
-1 fread
-1 fseeko
-1 ftello
-1 hdestroy
-1 initstate
-1 kill
-1 listen
-1 lrint
-1 lrintf
-1 mkstemp
-1 posix_spawn_file_actions_adddup2
-1 posix_spawn_file_actions_destroy
-1 posix_spawn_file_actions_init
-1 pthread_barrier_init
-1 pthread_cond_broadcast
-1 pthread_mutexattr_init
-1 pthread_mutexattr_setrobust
-1 pthread_setcanceltype
-1 realloc
-1 recvfrom
-1 sem_init
-1 sem_unlink
-1 sendto
-1 setsockopt
-1 sigismember
-1 strtoul
-1 tzset
-1 unlink
-1 unsetenv
-1 utimensat
-1 waitpid
-1 wcscpy
-1 wcstoul
-1 __xstat
-2 bind
-2 fcntl
-2 fdopen
-2 fgets
-2 fmemopen
-2 fprintf
-2 fputs
-2 getegid
-2 getgid
-2 getppid
-2 getsockname
-2 getuid
-2 hcreate
-2 memcmp
-2 memcpy
-2 mktime
-2 nl_langinfo
-2 open_memstream
-2 pclose
-2 pipe
-2 popen
-2 posix_spawn_file_actions_addclose
-2 pthread_barrier_wait
-2 pthread_getspecific
-2 pthread_key_create
-2 pthread_key_delete
-2 pthread_mutex_consistent
-2 putenv
-2 qsort
-2 sem_close
-2 sem_open
-2 sem_post
-2 sem_wait
-2 setlocale
-2 sigaddset
-2 sigemptyset
-2 signal
-2 strncat
-2 strrchr
-2 strspn
-2 time
-2 __vsnprintf_chk
-3 gmtime
-3 nanosleep
-3 pthread_cancel
-3 pthread_cond_destroy
-3 pthread_cond_init
-3 sem_getvalue
-3 setenv
-3 sigprocmask
-3 __strtol_internal
-3 ungetc
-4 fflush
-4 getenv
-4 geteuid
-4 getpid
-4 mbsrtowcs
-4 pthread_cond_signal
-4 putchar
-4 socket
-4 __xstat64
-5 __pthread_register_cancel
-5 putc
-6 __fxstat
-6 __isoc99_fwscanf
-6 pthread_mutex_destroy
-6 pthread_mutex_init
-6 pthread_setspecific
-6 __sigsetjmp
-6 wcstol
-7 pthread_cond_wait
-7 read
-7 __xpg_basename
-8 close
-8 futimens
-8 getc
-8 sigfillset
-8 strtok
-8 vsnprintf
-9 dirname
-10 fwrite
-10 strcasecmp
-10 strchrnul
-10 strtol
-11 __isoc99_fscanf
-12 fseek
-12 rewind
-12 srandom
-12 tmpfile
-12 write
-13 feof
-14 fgetc
-14 sigaction
-15 hsearch
-15 pthread_create
-15 pthread_join
-16 _setjmp
-16 strcpy
-16 strcspn
-16 strdup
-18 fclose
-18 pthread_mutex_unlock
-19 mempcpy
-20 setstate
-23 free
-23 ftell
-23 pthread_mutex_lock
-25 strpbrk
-26 __isoc99_sscanf
-26 mbrtowc
-32 crypt
-33 wcsstr
-39 strerror
-40 wcslen
-41 wcscmp
-46 strlen
-46 swprintf
-47 strchr
-55 __errno_location
-63 fnmatch
-94 printf
-99 sin
-101 malloc
-102 strtod
-141 snprintf
-243 strcmp
-987 __ctype_b_loc
-1420 random
+accept
+bind
+clearenv
+clock_gettime
+close
+connect
+crypt
+__ctype_b_loc
+dirname
+__errno_location
+fclose
+fcntl
+fdopen
+feof
+fflush
+fgetc
+fgets
+fileno
+fmemopen
+fnmatch
+fprintf
+fputc
+fputs
+fread
+free
+fseek
+fseeko
+ftell
+ftello
+function
+futimens
+fwrite
+__fxstat
+getc
+getegid
+getenv
+geteuid
+getgid
+getpid
+getppid
+getsockname
+getuid
+gmtime
+hcreate
+hdestroy
+hsearch
+initstate
+__isoc99_fscanf
+__isoc99_fwscanf
+__isoc99_sscanf
+kill
+listen
+lrint
+lrintf
+malloc
+mbrtowc
+mbsrtowcs
+memcmp
+memcpy
+mempcpy
+mkstemp
+mktime
+nanosleep
+nl_langinfo
+open_memstream
+pclose
+pipe
+popen
+posix_spawn_file_actions_addclose
+posix_spawn_file_actions_adddup2
+posix_spawn_file_actions_destroy
+posix_spawn_file_actions_init
+printf
+pthread_barrier_init
+pthread_barrier_wait
+pthread_cancel
+pthread_cond_broadcast
+pthread_cond_destroy
+pthread_cond_init
+pthread_cond_signal
+pthread_cond_wait
+pthread_create
+pthread_getspecific
+pthread_join
+pthread_key_create
+pthread_key_delete
+pthread_mutexattr_init
+pthread_mutexattr_setrobust
+pthread_mutex_consistent
+pthread_mutex_destroy
+pthread_mutex_init
+pthread_mutex_lock
+pthread_mutex_unlock
+__pthread_register_cancel
+pthread_setcanceltype
+pthread_setspecific
+putc
+putchar
+putenv
+qsort
+random
+read
+realloc
+recvfrom
+rewind
+sem_close
+sem_getvalue
+sem_init
+sem_open
+sem_post
+sem_unlink
+sem_wait
+sendto
+setenv
+_setjmp
+setlocale
+setsockopt
+setstate
+sigaction
+sigaddset
+sigemptyset
+sigfillset
+sigismember
+signal
+sigprocmask
+__sigsetjmp
+sin
+snprintf
+socket
+srandom
+strcasecmp
+strchr
+strchrnul
+strcmp
+strcpy
+strcspn
+strdup
+strerror
+strlen
+strncat
+strpbrk
+strrchr
+strspn
+strtod
+strtok
+strtol
+__strtol_internal
+strtoul
+swprintf
+time
+tmpfile
+tzset
+ungetc
+unlink
+unsetenv
+utimensat
+vsnprintf
+__vsnprintf_chk
+waitpid
+wcscmp
+wcscpy
+wcslen
+wcsstr
+wcstol
+wcstoul
+write
+__xpg_basename
+__xstat
+__xstat64

@@ -1,52 +1,53 @@
-1 accept
-1 connect
-1 ioctl
-1 kill
-1 link
-1 listen
-1 lstat
-1 recvfrom
-1 rt_sigreturn
-1 sendto
-1 setsockopt
-1 set_tid_address
-1 statfs
-1 tgkill
-2 bind
-2 dup2
-2 getegid
-2 getgid
-2 getppid
-2 getsockname
-2 getuid
-2 pipe
-2 pipe2
-3 access
-3 arch_prctl
-3 clock_nanosleep
-3 execve
-3 unlink
-4 geteuid
-4 socket
-4 wait4
-5 stat
-7 munmap
-8 getpid
-8 utimensat
-9 brk
-9 prlimit64
-14 rt_sigprocmask
-15 madvise
-16 mprotect
-16 set_robust_list
-17 clone
-18 fcntl
-22 lseek
-27 write
-29 openat
-35 read
-39 fstat
-42 close
-49 mmap
-54 futex
-262 rt_sigaction
+accept
+access
+arch_prctl
+bind
+brk
+clock_nanosleep
+clone
+close
+connect
+dup2
+execve
+fcntl
+fstat
+futex
+getegid
+geteuid
+getgid
+getpid
+getppid
+getsockname
+getuid
+ioctl
+kill
+link
+listen
+lseek
+lstat
+madvise
+mmap
+mprotect
+munmap
+openat
+pipe
+pipe2
+prlimit64
+read
+recvfrom
+rt_sigaction
+rt_sigprocmask
+rt_sigreturn
+sendto
+set_robust_list
+setsockopt
+set_tid_address
+socket
+stat
+statfs
+syscall
+tgkill
+unlink
+utimensat
+wait4
+write

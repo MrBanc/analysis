@@ -1,18 +1,19 @@
-1 access
-1 arch_prctl
-1 execve
-1 ioctl
-1 prlimit64
-1 rt_sigprocmask
-1 set_robust_list
-1 set_tid_address
-1 write
-2 munmap
-2 rt_sigaction
-3 brk
-4 read
-6 close
-6 mprotect
-6 openat
-7 fstat
-23 mmap
+access
+arch_prctl
+brk
+close
+execve
+fstat
+ioctl
+mmap
+mprotect
+munmap
+openat
+prlimit64
+read
+rt_sigaction
+rt_sigprocmask
+set_robust_list
+set_tid_address
+syscall
+write
