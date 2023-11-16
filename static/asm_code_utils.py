@@ -84,9 +84,8 @@ def extract_destination_address(list_inst, elf_analyser):
                                                        show_warnings)
     # TODO: verify if it's a bug or if you just don't understand.
     # capstone bug (?): memory operands seem to be considered of type "FP"
-    elif utils.search_function_pointers and (list_inst[-1].op_count(CS_OP_IMM)
-                                             or list_inst[-1].op_count(CS_OP_FP)
-                                             or list_inst[-1].op_count(CS_OP_MEM)):
+    elif (utils.search_function_pointers
+          and __may_discover_f_pointer(list_inst[-1])):
         # Every immediate or memory operand is examined as a potential
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
@@ -509,3 +508,16 @@ def __get_reg_key(reg_id):
     # donc ça fait crash le programme si elle arrive...
     raise StaticAnalyserException(f"[WARNING] {reg_id}, the given reg_id does "
                                   f"not correspond to a register id.")
+
+def __may_discover_f_pointer(ins):
+
+    op_strings = ins.op_str.split(",")
+
+    # If the second operand is a register, it could contain a function pointer.
+    # However, false is returned to avoid doing twice the same thing because if
+    # it is possible to find a function pointer by backtracking this register,
+    # it will already have been found when analysing the previous instructions.
+    return ( (ins.op_count(CS_OP_IMM)
+              or ins.op_count(CS_OP_FP)
+              or ins.op_count(CS_OP_MEM))
+            and len(op_strings) == 2 and not is_reg(op_strings[1].strip()))
