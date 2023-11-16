@@ -303,6 +303,13 @@ class CodeAnalyser:
             nb_syscall = code_utils.backtrack_register("eax", list_inst,
                                                        self.elf_analyser)
 
+        # the `syscall` instruction look into `eax` (32 bits), not `rax` (64
+        # bits). Because `backtrack_register` returns a value on 64 bits, there
+        # may have been an overflow on 32 bits (for example because of negative
+        # values in 2-th complement).
+        if isinstance(nb_syscall, int):
+            nb_syscall %= 2**32
+
         if nb_syscall in syscalls.syscalls_map:
             name = syscalls.syscalls_map[nb_syscall]
             utils.print_verbose(f"Syscall found: {name}: {nb_syscall}")

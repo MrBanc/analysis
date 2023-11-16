@@ -349,7 +349,7 @@ class ELFAnalyser:
 
         value = None
 
-        if address < 0:
+        if address < 0 or address >= 2**64:
             return value
 
         # try to resolve the value given the relocation information of the ELF

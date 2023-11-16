@@ -2,19 +2,19 @@
 /bin/newgidmap:  73
 /bin/pstree:  55
 /bin/gawk:  96
-/bin/make: 
+/bin/make:  134
 /bin/ncat:  92
 /bin/ps:  61
 /bin/vulkaninfo:  57
-/bin/mariadb: 
-/bin/ibus: 
-/bin/VBoxClient: 
-/bin/ssh: 
+/bin/mariadb:  99
+/bin/ibus:  125
+/bin/VBoxClient:  109
+/bin/ssh:  103
 /bin/gamemode-simulate-game:  38
 /bin/wine64:  45
 /bin/zsh:  102
-/bin/docker: 
-/bin/vlc: 
-/bin/nvidia-powerd: 
-/bin/nvidia-persistenced: 
+/bin/docker:  73
+/bin/vlc:  78
+/bin/nvidia-powerd:  100
+/bin/nvidia-persistenced:  81
 /bin/nmap:  99

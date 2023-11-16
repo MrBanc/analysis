@@ -69,6 +69,9 @@ def extract_destination_address(list_inst, elf_analyser):
     -------
     dest_address : int
         potential destination address extracted from the instruction
+    show_warnings : bool
+        whether or not a warning should be throwed if this destination address
+        leads to something unexpected
     """
 
     dest_address = None
@@ -88,9 +91,7 @@ def extract_destination_address(list_inst, elf_analyser):
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
-        assigned = get_assigned_value(list_inst, elf_analyser)
-        if isinstance(assigned, int) and assigned > 0:
-            dest_address = assigned
+        dest_address = get_assigned_value(list_inst, elf_analyser)
         # If `assigned` is a register there is no need to backtrack it as
         # the operation at the end of the backtrack which sets the value
         # will already have been inspected as a potential function pointer
@@ -98,11 +99,19 @@ def extract_destination_address(list_inst, elf_analyser):
 
         show_warnings = False
 
+    if not isinstance(dest_address, int) or dest_address <= 0:
+        dest_address = None
+
     return dest_address, show_warnings
 
 def get_assigned_value(list_inst, elf_analyser):
     """Returns the value (or register) that is being assigned to the
     destination operand in the given instruction.
+
+    Important note: because the returned value could be an address, this
+    function does not try to translate values represented with 2-th complement
+    into negative values. If this function is used to obtain values which are
+    not addresses, the calling function should be the one to deal with this.
 
     Parameters
     ----------
@@ -135,22 +144,31 @@ def get_assigned_value(list_inst, elf_analyser):
     if mnemonic == "mov":
         assigned_val = __compute_operand_address_value(
                     op_strings[1], list_inst, elf_analyser, False)
-    elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
-        assigned_val = 0
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
         assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
                                                        list_inst,
                                                        elf_analyser, False)
+    elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
+        assigned_val = 0
 
     return assigned_val
 
 def backtrack_register(focus_reg, list_inst, elf_analyser):
+    # TODO: put these two comments into method docstring + do docstring
+
     # Beware that it will be considered that the value is put inside the
     # register in one operation. For example, this type of code is not
     # supported:
     # mov rdi, 0x1234
     # shl rdi, 16
     # mov di, 0x5678
+
+    # Important note: because the returned value could be an address, this
+    # function does not try to translate values represented with 2-th
+    # complement into negative values. If this function is used to obtain
+    # values which are not addresses, the calling function should be the one to
+    # deal with this.
+
 
     md = Cs(CS_ARCH_X86, CS_MODE_64)
 
@@ -305,6 +323,12 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
     If the previous instructions are not given, the function will not try to
     backtrack the value of registers.
 
+    Important note: because the returned value is supposed to be an address,
+    this function does not try to translate values represented with 2-th
+    complement into negative values. If this function is used to obtain values
+    which are not addresses, the calling function should be the one to deal
+    with this.
+
     Parameters
     ----------
     operand : str
@@ -338,9 +362,12 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
     elif bool(brackets_expr):
         try:
-            address_location = __compute_reg_operation(brackets_expr.group(1),
+            address_location = __compute_operation(brackets_expr.group(1),
                                                        list_inst, elf_analyser)
             reference_byte_size = __operand_byte_size[operand.split()[0]]
+            # Manipulating negative numbers in 2th complement could lead to
+            # arithmetic overflow which should be ignored
+            address_location %= 2**64
             address = elf_analyser.resolve_value_at_address(
                     address_location, reference_byte_size)
         except StaticAnalyserException as e:
@@ -349,7 +376,9 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             # A warning will anyway be throwed later if needed
     else: # does not contains square brackets or sections
         try:
-            address = __compute_reg_operation(operand, list_inst, elf_analyser)
+            address = __compute_operation(operand, list_inst, elf_analyser)
+            # same remark as above
+            address %= 2**64
         except StaticAnalyserException as e:
             if e.is_critical:
                 sys.stderr.write(f"{e}\n")
@@ -363,11 +392,26 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
 
     return address
 
-def __compute_reg_operation(operation, list_inst, elf_analyser):
-    """Beware that it will return the value of the operation with the register,
-    not the value of the whole operand. For example, if the operand is
-    `qword ptr [rip + 0x1234]`, this function will return the result of
-    `rip + 0x1234` and not the value located at the address `rip + 0x1234`.
+def __compute_operation(operation, list_inst, elf_analyser):
+    """There are two important notes about this function:
+
+    1. It will only return the value of the operation, not the value of the
+    whole operand. For example, if the operand is `qword ptr [rip + 0x1234]`,
+    this function will return the result of `rip + 0x1234` and not the value
+    located at the address `rip + 0x1234`.
+
+    2. It will not try to understand the actual decimal value corresponding to
+    this number. For example, if the computed value is 0xfffffffb, then
+    4294967291 will be returned (and not -5, using 2th complement). This also
+    holds for arithmetic overflow : the returned value could be greater than
+    2**64.
+    The reason why this function does not try to deal with it is because the
+    calling function could want to read the value represented as a signed or an
+    unsigned number. Also, it would need to know on how many bits the value is
+    represented, which would be cumbersome.
+    It should not cause any problems as adding a negative number in 2th
+    complement is the same as adding its unsigned value and then taking the 2th
+    complement.
 
     Raises
     ------
@@ -418,8 +462,8 @@ def __compute_reg_operation(operation, list_inst, elf_analyser):
         elif token in ("+", "-", "*"):
             pass
         else:
-            raise StaticAnalyserException(f"[WARNING] Unsupported token in a "
-                                          f"reg operation: {token}",
+            raise StaticAnalyserException(f"[WARNING] Unsupported token in an "
+                                          f"operation: {token}",
                                           is_critical=True)
 
     if len(terms_and_operands) < 1:
