@@ -45,7 +45,6 @@ set_tid_address
 socket
 stat
 statfs
-syscall
 tgkill
 unlink
 utimensat

@@ -15,5 +15,4 @@ rt_sigaction
 rt_sigprocmask
 set_robust_list
 set_tid_address
-syscall
 write

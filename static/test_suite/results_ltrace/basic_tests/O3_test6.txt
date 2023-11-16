@@ -1,7 +1,6 @@
 bind
 close
 fork
-function
 listen
 open
 printf

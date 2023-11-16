@@ -1,6 +1,5 @@
 dlclose
 dlopen
 dlsym
-function
 printf
 putchar

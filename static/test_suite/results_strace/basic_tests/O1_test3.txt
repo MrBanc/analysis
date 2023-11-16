@@ -9,5 +9,4 @@ mprotect
 munmap
 openat
 read
-syscall
 write

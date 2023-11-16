@@ -28,7 +28,6 @@ fseek
 fseeko
 ftell
 ftello
-function
 futimens
 fwrite
 __fxstat

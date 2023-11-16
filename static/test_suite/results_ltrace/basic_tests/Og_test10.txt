@@ -1,5 +1,4 @@
 __errno_location
-function
 malloc
 mkstemp
 printf

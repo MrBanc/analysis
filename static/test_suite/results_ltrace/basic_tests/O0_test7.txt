@@ -1,7 +1,6 @@
 dlclose
 dlopen
 dlsym
-function
 printf
 putchar
 strlen

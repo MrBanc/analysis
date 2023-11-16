@@ -11,6 +11,5 @@ mprotect
 munmap
 openat
 read
-syscall
 unlink
 write

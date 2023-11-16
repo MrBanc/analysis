@@ -1,6 +1,5 @@
 close
 ctime
-function
 getgrgid
 getpid
 getpwuid

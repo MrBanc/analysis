@@ -1,6 +1,6 @@
-O0_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
-O1_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
-O2_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
-O3_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
-Og_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
-Os_main.txt: [MISSING 10/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address syscall  
+O0_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+O1_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+O2_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+O3_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+Og_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+Os_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  

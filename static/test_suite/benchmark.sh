@@ -78,7 +78,7 @@ benchmark_binaries(){
                 timeout 60 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f -v f |awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
             else
                 #TODO: Add $4, and sort -n to have the number of occurences
-                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall'  -e '^function'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
             fi
         done
     done
