@@ -4,7 +4,6 @@ Main file of the program.
 Parses the input, calls the elf and code analyser and prints the results.
 """
 
-import sys
 import argparse
 
 import utils
@@ -24,7 +23,7 @@ def main():
         parse_arguments()
         syscalls_set = launch_analysis()
     except StaticAnalyserException as e:
-        sys.stderr.write(f"[ERROR] {e}\n")
+        utils.print_error(f"[ERROR] {e}")
         return 1
 
     display_results(syscalls_set)
@@ -69,6 +68,11 @@ def parse_arguments():
             '--show-warnings', '-w', type=utils.str2bool, nargs='?',
             const=True, default=utils.show_warnings,
             help=f'Show all warnings (default: {utils.show_warnings})')
+    disp_log_group.add_argument(
+            '--show-errors', '-e', type=utils.str2bool, nargs='?',
+            const=True, default=utils.show_errors,
+            help=f'Show errors (critical warnings) (default:'
+            f'{utils.show_errors})')
     disp_log_group.add_argument(
             '--display', '-d', type=utils.str2bool, nargs='?', const=True,
             default=utils.display_syscalls,
@@ -116,6 +120,7 @@ def parse_arguments():
     utils.app = args.app
     utils.verbose = args.verbose
     utils.show_warnings = args.show_warnings
+    utils.show_errors = args.show_errors
     utils.display_syscalls = args.display
     utils.display_csv = args.csv
 

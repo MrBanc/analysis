@@ -4,7 +4,6 @@ code.
 """
 
 import re
-import sys
 
 from capstone import (Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL,
                       CS_OP_IMM, CS_OP_FP, CS_OP_MEM)
@@ -371,7 +370,7 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
                     address_location, reference_byte_size)
         except StaticAnalyserException as e:
             if e.is_critical:
-                sys.stderr.write(f"{e}\n")
+                utils.print_error(f"{e}")
             # A warning will anyway be throwed later if needed
     else: # does not contains square brackets or sections
         try:
@@ -380,7 +379,7 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             address %= 2**64
         except StaticAnalyserException as e:
             if e.is_critical:
-                sys.stderr.write(f"{e}\n")
+                utils.print_error(f"{e}")
             # A warning will anyway be throwed later if needed
 
     if show_warnings and address is None:

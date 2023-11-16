@@ -4,8 +4,6 @@ Contains the CodeAnalyser class.
 Disassembles and analyses the code to detect syscalls.
 """
 
-import sys
-
 from os.path import isfile
 
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_CALL
@@ -68,9 +66,9 @@ class CodeAnalyser:
                 # travers le .got sans passer par le .plt (par exemple pour
                 # __libc_start_main)
             except StaticAnalyserException as e:
-                sys.stderr.write(f"[ERROR] library analyser of "
-                                 f"{self.elf_analyser.binary.path} couldn't be"
-                                 f" created: {e}\n")
+                utils.print_error(f"[ERROR] library analyser of "
+                                  f"{self.elf_analyser.binary.path} couldn't be"
+                                  f" created: {e}")
                 self.elf_analyser.binary.has_dyn_libraries = False
 
         self.__dlsym_f_names = set()
@@ -143,15 +141,15 @@ class CodeAnalyser:
                 continue
             stopped_at = (text_section.virtual_address + text_section.size
                           - bytes_to_analyse)
-            sys.stderr.write(f"[ERROR] analysis of `.text` section of "
-                             f"{self.elf_analyser.binary.path} stopped at "
-                             f"{hex(stopped_at)} (probably due to some data "
-                             f"found inside). Trying to continue the analysis "
-                             f"at the next function...\n")
+            utils.print_error(f"[ERROR] analysis of `.text` section of "
+                              f"{self.elf_analyser.binary.path} stopped at "
+                              f"{hex(stopped_at)} (probably due to some data "
+                              f"found inside). Trying to continue the analysis"
+                              f" at the next function...")
             start_analyse_at = (self.elf_analyser
                                 .find_next_function_addr(stopped_at))
             bytes_to_skip = start_analyse_at - stopped_at
-            sys.stderr.write(f"[ERROR] {bytes_to_skip} bytes skipped\n")
+            utils.print_error(f"[ERROR] {bytes_to_skip} bytes skipped")
 
             bytes_to_analyse -= bytes_to_skip
 
@@ -218,9 +216,9 @@ class CodeAnalyser:
 
             # --- Error management ---
             if ins.id in (X86_INS_DATA16, X86_INS_INVALID):
-                sys.stderr.write(f"[WARNING] data instruction found in "
-                                 f"{self.elf_analyser.binary.path} at address "
-                                 f"{hex(ins.address)}\n")
+                utils.print_error(f"[WARNING] data instruction found in "
+                                  f"{self.elf_analyser.binary.path} at address"
+                                  f" {hex(ins.address)}")
                 continue
 
             # --- Syscalls detection ---
@@ -405,7 +403,7 @@ class CodeAnalyser:
         except StaticAnalyserException as e:
             utils.log(f"Ignore {lib_name_address}\n", "backtrack.log")
             if e.is_critical:
-                sys.stderr.write(f"{e}\n")
+                utils.print_error(f"{e}")
             else:
                 utils.print_warning(f"{e}")
 
@@ -422,7 +420,7 @@ class CodeAnalyser:
         except StaticAnalyserException as e:
             utils.log(f"Ignore {lib_name_address}\n", "backtrack.log")
             if e.is_critical:
-                sys.stderr.write(f"{e}\n")
+                utils.print_error(f"{e}")
             else:
                 utils.print_warning(f"{e}\n")
 
@@ -445,7 +443,7 @@ class CodeAnalyser:
             self.__dlsym_f_names.add(fun_name)
         except StaticAnalyserException as e:
             utils.log(f"Ignore {fun_name_address}\n", "backtrack.log")
-            sys.stderr.write(f"{e}\n")
+            utils.print_error(f"{e}")
 
     def __detect_and_process_runtime_loading_functions(self, called_plt_f,
                                                        list_inst):
@@ -528,7 +526,7 @@ class CodeAnalyser:
                     lib_paths.extend(self.__lib_analyser
                                      .get_lib_from_GNU_ld_script(p))
                 except FileNotFoundError:
-                    sys.stderr.write(f"[ERROR] File not found at {p}")
+                    utils.print_error(f"[ERROR] File not found at {p}")
                 except UnicodeDecodeError:
                     pass
                 finally:

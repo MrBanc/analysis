@@ -3,7 +3,6 @@ Contains the LibraryUsageAnalyser class and the LibFunction and Library
 """
 
 import subprocess
-import sys
 import re
 
 from os.path import exists
@@ -253,8 +252,8 @@ class LibraryUsageAnalyser:
                                     boundaries=(rel.addend, -1))]
             return []
 
-        sys.stderr.write(f"[WARNING] A function name couldn't be found for "
-                         f"the .plt slot at address {hex(f_address)}\n")
+        utils.print_error(f"[WARNING] A function name couldn't be found for "
+                          f"the .plt slot at address {hex(f_address)}")
         return []
 
     def get_libraries_paths_manually(self, lib_names):
@@ -310,7 +309,7 @@ class LibraryUsageAnalyser:
                         path_pattern = r'[\(\s](/[^\s]*)'
                         lib_paths.extend(re.findall(path_pattern, line))
         except FileNotFoundError:
-            sys.stderr.write(f"There is no GNU ld script at {script_path}")
+            utils.print_error(f"There is no GNU ld script at {script_path}")
 
         return lib_paths
 
@@ -367,13 +366,13 @@ class LibraryUsageAnalyser:
             if not use_potential_libs:
                 return self.get_function_with_name(f_name,
                                                    use_potential_libs=True)
-            sys.stderr.write(f"[WARNING] No library function was found for "
-                             f"{f_name}. Continuing...\n")
+            utils.print_error(f"[WARNING] No library function was found for "
+                              f"{f_name}. Continuing...")
         elif len(functions) > 1:
-            sys.stderr.write(f"[WARNING] Multiple possible library functions "
-                             f"were found for {f_name} in "
-                             f"{self.elf_analyser.binary.path}: {functions}.\n"
-                             f"All of them will be considered.\n")
+            utils.print_error(f"[WARNING] Multiple possible library functions "
+                              f"were found for {f_name} in "
+                              f"{self.elf_analyser.binary.path}: {functions}.\n"
+                              f"All of them will be considered.")
 
         if functions and use_potential_libs:
             utils.print_warning(
@@ -448,8 +447,8 @@ class LibraryUsageAnalyser:
             elf_analyser = ea.ELFAnalyser(lib_path)
             code_analyser = ca.CodeAnalyser(elf_analyser)
         except StaticAnalyserException as e:
-            sys.stderr.write(f"[ERROR] Error during the creation of the code "
-                             f"analyser for the library {lib_path}: {e}\n")
+            utils.print_error(f"[ERROR] Error during the creation of the code "
+                              f"analyser for the library {lib_path}: {e}")
         self.__libraries[lib_name].code_analyser = code_analyser
 
     def analyse_detected_dlsym_for_all_libs(self, syscalls_set):
@@ -516,7 +515,7 @@ class LibraryUsageAnalyser:
             try:
                 insns = self.__get_function_insns(f)
             except StaticAnalyserException as e:
-                sys.stderr.write(f"{e}\n")
+                utils.print_error(f"{e}")
                 continue
 
             (self.__libraries[lib_name].code_analyser
@@ -608,9 +607,9 @@ class LibraryUsageAnalyser:
                 self.add_used_library(path)
 
         if len(lib_names) > 0:
-            sys.stderr.write(f"[ERROR] The following libraries couldn't be "
-                             f"found and therefore won't be analysed: "
-                             f"{lib_names}\n")
+            utils.print_error(f"[ERROR] The following libraries couldn't be "
+                              f"found and therefore won't be analysed: "
+                              f"{lib_names}")
             self.__used_libraries = [l for l in self.__used_libraries
                                      if l not in lib_names]
 

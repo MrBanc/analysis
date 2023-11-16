@@ -1,6 +1,7 @@
 """Contains analysis global parameters and helper functions"""
 
 import argparse
+import sys
 
 
 DEBUG = True
@@ -11,6 +12,7 @@ app = "redis-server-static"
 sys_map = "syscalls_map"
 verbose = True
 show_warnings = True
+show_errors = True
 display_syscalls = True
 display_csv = False
 logging = False
@@ -52,6 +54,20 @@ def print_warning(warning, indent=0):
     """
     if show_warnings:
         print(indent * "\t" + warning)
+
+def print_error(error, indent=0):
+    """Prints the error with the specified indentation into the error
+    stream if show_errors is True.
+
+    Parameters
+    ----------
+    error : str
+        error to print
+    indent: int
+        number of tabs to add before the msg
+    """
+    if show_errors:
+        sys.stderr.write(indent * "\t" + error + "\n")
 
 def print_debug(msg):
     """Used for debugging purposes only. Print debug messages"""
