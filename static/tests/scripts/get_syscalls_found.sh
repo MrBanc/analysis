@@ -5,9 +5,8 @@ i=1
 for line in $(cat /home/ben/Documents/unif/github/research/analysis/static/tests/scripts/get_syscalls_found.sh  | grep "^/bin/")
 do
     echo "$i/$n_lines: $line"
-    result=$(timeout 600 python static_analyser.py --app $line -l f -v t -d f --csv f 2>&1 | grep "^Total number of syscalls:" | cut -d":" -f 2)
-    # I know, there are two spaces like this... But I won't change it so that it is easier to compare with previous results
-    echo "$line: $result" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/nb_syscalls_found
+    result=$(/usr/bin/time -v timeout 600 python static_analyser.py --app $line -l f -v t -d f --csv f 2>&1 | sed -n -e '/^Total number of syscalls:/p' -e '/Elapsed (wall clock) time/p' | awk '{print $NF}' | awk 'BEGIN {RS=""; FS="\n"} { printf("%s\telapsed time: %s", $1, $2) }')
+    echo -e "$line: $result" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/nb_syscalls_found
     ((i++))
     sleep 1
 done

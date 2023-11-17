@@ -428,6 +428,16 @@ def __compute_operation(operation, list_inst, elf_analyser):
         if utils.is_number(token):
             continue
         if is_reg(token):
+            reg_key = __get_reg_key(token)
+            if reg_key in ("ebp", "esp"):
+                if utils.currently_backtracking:
+                    utils.log("[Cancel backtracking (stack-related register)]",
+                              "backtrack.log", indent=2)
+                raise StaticAnalyserException("[WARNING] Register backtracking"
+                                              " used the value of a stack "
+                                              "related register",
+                                              is_critical=False)
+
             if utils.currently_backtracking:
                 utils.log(f"[Shifting focus to {token}]",
                           "backtrack.log", indent=2)
@@ -438,8 +448,7 @@ def __compute_operation(operation, list_inst, elf_analyser):
                           f"{elf_analyser.binary.path}",
                           "backtrack.log", indent=0)
             # TODO logging pour le backtrack. peut-être dans un wrapper ?
-            reg_value = backtrack_register(__get_reg_key(token), list_inst,
-                                           elf_analyser)
+            reg_value = backtrack_register(reg_key, list_inst, elf_analyser)
             if utils.currently_backtracking:
                 utils.log(f"[{token} value found: {reg_value}]",
                           "backtrack.log", indent=2)
