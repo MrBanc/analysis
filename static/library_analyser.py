@@ -371,7 +371,8 @@ class LibraryUsageAnalyser:
         elif len(functions) > 1:
             utils.print_error(f"[WARNING] Multiple possible library functions "
                               f"were found for {f_name} in "
-                              f"{self.elf_analyser.binary.path}: {functions}.\n"
+                              f"{self.elf_analyser.binary.path}: "
+                              f"{functions}.\n"
                               f"All of them will be considered.")
 
         if functions and use_potential_libs:

@@ -67,8 +67,8 @@ class CodeAnalyser:
                 # __libc_start_main)
             except StaticAnalyserException as e:
                 utils.print_error(f"[ERROR] library analyser of "
-                                  f"{self.elf_analyser.binary.path} couldn't be"
-                                  f" created: {e}")
+                                  f"{self.elf_analyser.binary.path} couldn't "
+                                  f"be created: {e}")
                 self.elf_analyser.binary.has_dyn_libraries = False
 
         self.__dlsym_f_names = set()

@@ -419,6 +419,7 @@ def __compute_operation(operation, list_inst, elf_analyser):
 
     # TODO Raise exception and catch it in calling functions
 
+    # TODO test this function to be sure it works as expected
     # print(f"gougoug1 {operation}")
 
     terms_and_operands = re.findall(r'[-+*]|[^ -+*]+', operation)
@@ -443,11 +444,10 @@ def __compute_operation(operation, list_inst, elf_analyser):
                           "backtrack.log", indent=2)
             else:
                 utils.log(f"Value of interest, start backtracking: "
-                          f"{hex(list_inst[-1].address)} {list_inst[-1].mnemonic} "
-                          f"{list_inst[-1].op_str} from "
-                          f"{elf_analyser.binary.path}",
+                          f"{hex(list_inst[-1].address)} "
+                          f"{list_inst[-1].mnemonic} {list_inst[-1].op_str} "
+                          f"from {elf_analyser.binary.path}",
                           "backtrack.log", indent=0)
-            # TODO logging pour le backtrack. peut-être dans un wrapper ?
             reg_value = backtrack_register(reg_key, list_inst, elf_analyser)
             if utils.currently_backtracking:
                 utils.log(f"[{token} value found: {reg_value}]",
