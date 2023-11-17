@@ -1,0 +1,6 @@
+__errno_location
+malloc
+mkstemp
+printf
+unlink
+write

@@ -1,0 +1,13 @@
+access
+arch_prctl
+brk
+close
+execve
+fstat
+ioctl
+mmap
+mprotect
+munmap
+openat
+read
+write

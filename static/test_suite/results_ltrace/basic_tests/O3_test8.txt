@@ -1,0 +1,6 @@
+dlclose
+dlopen
+dlsym
+printf
+putchar
+puts

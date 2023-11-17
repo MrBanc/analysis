@@ -1,0 +1,13 @@
+bind
+close
+fork
+htons
+listen
+open
+printf
+puts
+remove
+signal
+socket
+wait
+write

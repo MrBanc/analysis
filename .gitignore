@@ -2,3 +2,4 @@
 static/old/
 static/tests.py
 *.DS_STORE
+build*

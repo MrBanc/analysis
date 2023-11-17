@@ -1,0 +1,16 @@
+close
+ctime
+getgrgid
+getpid
+getpwuid
+lseek
+nanosleep
+open
+printf
+puts
+read
+remove
+strlen
+unlink
+write
+__xstat
