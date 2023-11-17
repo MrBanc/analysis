@@ -152,21 +152,36 @@ def get_assigned_value(list_inst, elf_analyser):
     return assigned_val
 
 def backtrack_register(focus_reg, list_inst, elf_analyser):
-    # TODO: put these two comments into method docstring + do docstring
+    """Try to find the value of the given register at the instruction to
+    consider by backtracking its value.
 
-    # Beware that it will be considered that the value is put inside the
-    # register in one operation. For example, this type of code is not
-    # supported:
-    # mov rdi, 0x1234
-    # shl rdi, 16
-    # mov di, 0x5678
+    Two important notes about this function:
 
-    # Important note: because the returned value could be an address, this
-    # function does not try to translate values represented with 2-th
-    # complement into negative values. If this function is used to obtain
-    # values which are not addresses, the calling function should be the one to
-    # deal with this.
+    1. It will be considered that the value is put inside the register in one
+    operation. For example, this type of code is not supported:
+      mov rdi, 0x1234
+      shl rdi, 16
+      mov di, 0x5678
 
+    2. Because the returned value could be an address, this function does not
+    try to translate values represented with 2-th complement into negative
+    values. If this function is used to obtain values which are not addresses,
+    the calling function should be the one to deal with this.
+
+    Parameters
+    ----------
+    focus_reg : str
+        the register to backtrack
+    list_inst : list of capstone instructions
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    register_value : int or None
+        the value of the register (or None in case it couldn't be found)
+    """
 
     md = Cs(CS_ARCH_X86, CS_MODE_64)
 
