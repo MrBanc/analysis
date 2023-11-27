@@ -33,6 +33,9 @@ registers = {'eax':  {'rax','eax','ax','al'},
              'r14d': {'r14','r14d','r14w','r14b'},
              'r15d': {'r15','r15d','r15w','r15b'}}
 
+# Only used for error message management
+__high_byte_regs = ['ah', 'bh', 'ch', 'dh']
+
 __operand_byte_size = {"byte": 1,
                        "word": 2,
                        "dword": 4,
@@ -367,14 +370,15 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
 
     brackets_expr = re.search(r'\[(.*)\]', operand)
 
-    if bool(re.search(r'[a-z]+:', operand)): # example: word ptr fs:[...]
-        # not supported (yet?)
-        pass
-    elif not use_backtracking and __contains_reg(operand): # except rip
-        if utils.currently_backtracking:
-            utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
-    elif bool(brackets_expr):
-        try:
+    try:
+        if bool(re.search(r'[a-z]+:', operand)): # example: word ptr fs:[...]
+            # not supported (yet?)
+            pass
+        elif not use_backtracking and __contains_reg(operand): # except rip
+            if utils.currently_backtracking:
+                utils.log("[cannot backtrack further]",
+                          "backtrack.log", indent=2)
+        elif bool(brackets_expr):
             address_location = __compute_operation(brackets_expr.group(1),
                                                        list_inst, elf_analyser)
             reference_byte_size = __operand_byte_size[operand.split()[0]]
@@ -383,19 +387,14 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             address_location %= 2**64
             address = elf_analyser.resolve_value_at_address(
                     address_location, reference_byte_size)
-        except StaticAnalyserException as e:
-            if e.is_critical:
-                utils.print_error(f"{e}")
-            # A warning will anyway be throwed later if needed
-    else: # does not contains square brackets or sections
-        try:
+        else: # does not contains square brackets or sections
             address = __compute_operation(operand, list_inst, elf_analyser)
             # same remark as above
             address %= 2**64
-        except StaticAnalyserException as e:
-            if e.is_critical:
-                utils.print_error(f"{e}")
-            # A warning will anyway be throwed later if needed
+    except StaticAnalyserException as e:
+        if e.is_critical:
+            utils.print_error(f"{e}")
+        # A warning will anyway be throwed later if needed
 
     if show_warnings and address is None:
         # TODO: Other things could be done to try obtaining the address
@@ -482,9 +481,9 @@ def __compute_operation(operation, list_inst, elf_analyser):
         elif token in ("+", "-", "*"):
             pass
         else:
-            raise StaticAnalyserException(f"[WARNING] Unsupported token in an "
-                                          f"operation: {token}",
-                                          is_critical=True)
+            msg = f"[WARNING] Unsupported token in an operation: {token}"
+            is_critical = token not in __high_byte_regs
+            raise StaticAnalyserException(msg, is_critical=is_critical)
 
     if len(terms_and_operands) < 1:
         raise StaticAnalyserException("[WARNING] Empty operation",
