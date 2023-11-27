@@ -432,9 +432,6 @@ def __compute_operation(operation, list_inst, elf_analyser):
         If the value couldn't be computed
     """
 
-    # TODO test this function to be sure it works as expected
-    # print(f"gougoug1 {operation}")
-
     terms_and_operands = re.findall(r'[-+*]|[^ -+*]+', operation)
     terms_and_operands = [token.strip() for token in terms_and_operands]
 
@@ -493,14 +490,10 @@ def __compute_operation(operation, list_inst, elf_analyser):
         raise StaticAnalyserException("[WARNING] Empty operation",
                                       is_critical=False)
 
-    # print(f"gougoug2 {terms_and_operands}")
-
     # The content of terms_and_operands is checked beforehand so using `eval`
     # in this case should not be dangerous.
     # pylint: disable=eval-used
     result = eval("".join(terms_and_operands))
-
-    # print(f"gougoug3 {result}")
 
     return result
 
