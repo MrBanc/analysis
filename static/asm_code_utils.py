@@ -432,8 +432,6 @@ def __compute_operation(operation, list_inst, elf_analyser):
         If the value couldn't be computed
     """
 
-    # TODO Raise exception and catch it in calling functions
-
     # TODO test this function to be sure it works as expected
     # print(f"gougoug1 {operation}")
 
@@ -444,7 +442,10 @@ def __compute_operation(operation, list_inst, elf_analyser):
         if utils.is_number(token):
             continue
         if is_reg(token):
-            reg_key = __get_reg_key(token)
+            try:
+                reg_key = __get_reg_key(token)
+            except StaticAnalyserException as e:
+                raise e
             if reg_key in ("ebp", "esp"):
                 if utils.currently_backtracking:
                     utils.log("[Cancel backtracking (stack-related register)]",
@@ -471,8 +472,8 @@ def __compute_operation(operation, list_inst, elf_analyser):
                 utils.log(f"Value found: {reg_value}\n", "backtrack.log",
                           indent=0)
             if not isinstance(reg_value, int):
-                raise StaticAnalyserException("[WARNING] Register backtracing "
-                                              "did not return an int",
+                raise StaticAnalyserException("[WARNING] Register backtracking"
+                                              " did not return an int",
                                               is_critical=False)
             if reg_value >= 0:
                 terms_and_operands[i] = str(reg_value)
@@ -527,10 +528,11 @@ def __get_reg_key(reg_id):
         if reg_id in reg_ids:
             return reg_key
 
-    # TODO: les fonctions appelantes ne prennent pas en compte cette exception
-    # donc ça fait crash le programme si elle arrive...
+    # It is critical because it should never happen as `is_reg` should have
+    # verified that it was indeed a register
     raise StaticAnalyserException(f"[WARNING] {reg_id}, the given reg_id does "
-                                  f"not correspond to a register id.")
+                                  f"not correspond to a register id.",
+                                  is_critical=True)
 
 def __may_discover_f_pointer(ins):
 
