@@ -599,8 +599,8 @@ class LibraryUsageAnalyser:
         lib_names = [lib for lib in self.__used_libraries
                      if lib not in self.__libraries]
 
-        # TODO: If this is still not enough, adding a subprocess to use
-        # `locate` for the other libraries is a possibility.
+        # If this is still not enough, adding a subprocess to use `locate` for
+        # the other libraries is a possibility.
 
         lib_paths = self.get_libraries_paths_manually(lib_names)
         for path in lib_paths:
