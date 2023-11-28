@@ -264,6 +264,9 @@ class CodeAnalyser:
                 if f not in f_called_list:
                     f_called_list.append(f)
 
+        if not list_inst:
+            # TODO: raise an exception
+            return 0
         bytes_analysed = (list_inst[-1].address + list_inst[-1].size
                           - list_inst[0].address)
         return bytes_analysed
