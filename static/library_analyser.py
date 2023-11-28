@@ -57,7 +57,8 @@ class LibFunction:
     def __hash__(self):
         return hash((self.library_path, self.boundaries[0]))
     def __eq__(self, other):
-        return (self.library_path == other.library_path
+        return (isinstance(other, LibFunction)
+                and self.library_path == other.library_path
                 and self.boundaries[0] == other.boundaries[0])
 
 
@@ -647,9 +648,14 @@ class LibraryUsageAnalyser:
         f_start_offset = (function.boundaries[0]
                           - target_section.virtual_address)
         f_end_offset = function.boundaries[1] - target_section.virtual_address
-        insns = self.__md.disasm(
-                bytearray(target_section.content)[f_start_offset:f_end_offset],
-                target_section.virtual_address + f_start_offset)
+
+        if f_end_offset < 0 or f_start_offset < 0:
+            insns = None
+        else:
+            insns = self.__md.disasm(
+                    bytearray(target_section.content)[f_start_offset:
+                                                      f_end_offset],
+                    target_section.virtual_address + f_start_offset)
         if insns is None:
             raise StaticAnalyserException(f"The instructions of the function "
                                           f"{function.name} could not be "
