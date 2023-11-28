@@ -472,6 +472,7 @@ class ELFAnalyser:
 
     def __initialize_function_map(self, key_type):
 
+        # TODO: use both functions and dynamic symbols for both maps???
         if key_type == "name":
             self.__f_name_to_addr_map = {}
             for item in self.binary.lief_binary.functions:

@@ -387,7 +387,7 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             address_location %= 2**64
             address = elf_analyser.resolve_value_at_address(
                     address_location, reference_byte_size)
-        else: # does not contains square brackets or sections
+        else: # does not contains square brackets or register prefixing them
             address = __compute_operation(operand, list_inst, elf_analyser)
             # same remark as above
             address %= 2**64
