@@ -97,7 +97,7 @@ class LibraryUsageAnalyser:
         Supposing that the address given is used as a destination for a jmp or
         call instruction, returns true if the result of this instruction is to
         lead to one of the slots inside the `.plt` or the `.plt.sec` sections.
-    get_function_called(self, f_address) -> called_functions
+    get_plt_function_called(self, f_address) -> called_functions
         Returns the function that would be called by jumping to the address
         given in the `.plt` section.
     get_libraries_paths_manually(self, lib_names) -> list of str
@@ -136,14 +136,19 @@ class LibraryUsageAnalyser:
         if self.__plt_sec_section is None:
             self.__plt_section = lb.get_section(PLT_SECTION)
             if self.__plt_section is None:
-                raise StaticAnalyserException(".plt and .plt.sec sections not "
-                                              "found.")
+                utils.print_warning(f"[WARNING] .plt and .plt.sec sections not"
+                                    f" found for "
+                                    f"{self.elf_analyser.binary.path}")
+        else:
+            self.__plt_section = None
 
         self.__got_rel = lb.pltgot_relocations
         if self.__got_rel is None:
-            raise StaticAnalyserException(".got relocations not found.")
-        self.__got_rel = {rel.address: rel
-                          for rel in self.__got_rel}
+            utils.print_warning(f"[WARNING] .got relocations not found for "
+                                f"{self.elf_analyser.binary.path}")
+        else:
+            self.__got_rel = {rel.address: rel
+                              for rel in self.__got_rel}
 
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
@@ -195,16 +200,18 @@ class LibraryUsageAnalyser:
             if (bytearray(self.__plt_sec_section.content)
                            [plt_sec_offset:plt_sec_offset+4] != endbr64_bytes):
                 return False
-        else:
+        elif self.__plt_section:
             plt_boundaries = (self.__plt_section.virtual_address,
                               self.__plt_section.virtual_address
                                         + self.__plt_section.size)
             slots_length = 16
             if (address - plt_boundaries[0]) % slots_length:
                 return False
+        else:
+            return False
         return plt_boundaries[0] <= address < plt_boundaries[1]
 
-    def get_function_called(self, f_address):
+    def get_plt_function_called(self, f_address):
         """Returns the function that would be called by jumping to the address
         given in the `.plt` section.
 
@@ -230,7 +237,8 @@ class LibraryUsageAnalyser:
 
         got_rel_addr = self.__get_got_rel_address(f_address)
 
-        if got_rel_addr not in self.__got_rel:
+        if (self.__got_rel is None or got_rel_addr is None
+                                   or got_rel_addr not in self.__got_rel):
             rel = None
         else:
             rel = self.__got_rel[got_rel_addr]
@@ -535,7 +543,7 @@ class LibraryUsageAnalyser:
 
         jmp_to_got_ins = next_ins = None
 
-        if not self.__plt_sec_section:
+        if self.__plt_section:
             # The instruction at the address pointed to by the int_operand is a
             # jump to a `.got` entry. With the address of this `.got`
             # relocation entry, it is possible to identify the function that
@@ -548,7 +556,7 @@ class LibraryUsageAnalyser:
                     int_operand)
             jmp_to_got_ins = next(insns)
             next_ins = next(insns)
-        else:
+        elif self.__plt_sec_section:
             # The same remark holds but the first instruction is now the
             # instruction right after the address pointed by the int_operand
             # and we work with the .plt.sec section instead.
@@ -560,6 +568,8 @@ class LibraryUsageAnalyser:
             next(insns) # skip the first instruction
             jmp_to_got_ins = next(insns)
             next_ins = next(insns)
+        else:
+            return None
 
         return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
                 + next_ins.address)

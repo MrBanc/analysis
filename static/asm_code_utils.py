@@ -3,6 +3,8 @@ Provide functions to analyse or process elements of the (assembly or binary)
 code.
 """
 
+from dataclasses import dataclass
+
 import re
 
 from capstone import (Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL,
@@ -46,6 +48,26 @@ __operand_byte_size = {"byte": 1,
                        "zword": 64}
 
 
+@dataclass
+class Address:
+    """Represents an address in a binary.
+
+    Attributes
+    ----------
+    value : int
+        the address value
+    is_local : bool
+        whether or not the address is local to the binary
+    f_name : str, optional
+        if the address correspond to the start of a function, this is the name
+        of the function
+    """
+
+    value: int
+    is_local: bool
+    f_name: str = None
+
+
 def extract_destination_address(list_inst, elf_analyser):
     """Try to extract a destination address from the last instruction given.
     The objective is to find addresses that would lead to functions so only
@@ -69,7 +91,7 @@ def extract_destination_address(list_inst, elf_analyser):
 
     Returns
     -------
-    dest_address : int
+    dest_address : Address or None
         potential destination address extracted from the instruction
     show_warnings : bool
         whether or not a warning should be throwed if this destination address
@@ -80,10 +102,10 @@ def extract_destination_address(list_inst, elf_analyser):
     show_warnings = not list_inst[-1].group(CS_GRP_JUMP)
 
     if list_inst[-1].group(CS_GRP_JUMP) or list_inst[-1].group(CS_GRP_CALL):
-        dest_address = __compute_operand_address_value(list_inst[-1].op_str,
-                                                       list_inst,
-                                                       elf_analyser,
-                                                       show_warnings)
+        dest_address = __compute_operand_address(list_inst[-1].op_str,
+                                                 list_inst,
+                                                 elf_analyser,
+                                                 show_warnings)
     # TODO: verify if it's a bug or if you just don't understand.
     # capstone bug (?): memory operands seem to be considered of type "FP"
     elif (utils.search_function_pointers
@@ -100,7 +122,11 @@ def extract_destination_address(list_inst, elf_analyser):
 
         show_warnings = False
 
-    if not isinstance(dest_address, int) or dest_address <= 0:
+    if isinstance(dest_address, int):
+        dest_address = Address(dest_address, True)
+
+    if (dest_address is not None and dest_address.value <= 0
+                                 and dest_address.f_name is None):
         dest_address = None
 
     return dest_address, show_warnings
@@ -142,15 +168,24 @@ def get_assigned_value(list_inst, elf_analyser):
     op_strings[0] = op_strings[0].strip()
     op_strings[1] = op_strings[1].strip()
 
+    # __compute_operand_address is used even though it is not an address
+    # that is expected, because it does exactly what is needed
     if mnemonic == "mov":
-        assigned_val = __compute_operand_address_value(
+        assigned_val = __compute_operand_address(
                     op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
-        assigned_val = __compute_operand_address_value(op_strings[1][1:-1],
-                                                       list_inst,
-                                                       elf_analyser, False)
+        assigned_val = __compute_operand_address(op_strings[1][1:-1],
+                                                 list_inst,
+                                                 elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
         assigned_val = 0
+
+    # Convert the Address object into an int
+    if isinstance(assigned_val, Address):
+        if assigned_val.is_local:
+            assigned_val = assigned_val.value
+        else:
+            assigned_val = None
 
     return assigned_val
 
@@ -244,8 +279,16 @@ def mov_local_funs_to(f_to, f_from, elf_analyser):
         # no name indicates it wasn't an JUMP_SLOT got entry
         if not f.name:
             if f_to is not None:
-                f_to.append(elf_analyser.get_local_function_called(
-                    f.boundaries[0]))
+                local_fun = elf_analyser.get_local_function_called(
+                        f.boundaries[0])
+                if local_fun is None:
+                    utils.print_error(
+                            f"A function from .plt was previously detected but"
+                            f" cannot be found in the symbolic information: "
+                            f"{hex(f.boundaries[0])}. This should be "
+                            f"impossible.")
+                    continue
+                f_to.append(local_fun)
             f_from.pop(i)
 
 def detect_syscall_type(ins):
@@ -329,7 +372,7 @@ def __contains_reg(string):
 
     return False
 
-def __compute_operand_address_value(operand, list_inst, elf_analyser,
+def __compute_operand_address(operand, list_inst, elf_analyser,
                                     show_warnings):
     """Returns the resulting address of the given operand.
 
@@ -361,7 +404,7 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
 
     Returns
     -------
-    address : int
+    address : Address or None
         resulting address of the given operand
     """
 
@@ -385,12 +428,14 @@ def __compute_operand_address_value(operand, list_inst, elf_analyser,
             # Manipulating negative numbers in 2th complement could lead to
             # arithmetic overflow which should be ignored
             address_location %= 2**64
-            address = elf_analyser.resolve_value_at_address(
+            address = elf_analyser.resolve_address_stored_at(
                     address_location, reference_byte_size)
         else: # does not contains square brackets or register prefixing them
-            address = __compute_operation(operand, list_inst, elf_analyser)
+            address_val = __compute_operation(operand, list_inst, elf_analyser)
             # same remark as above
-            address %= 2**64
+            address_val %= 2**64
+            address = Address(address_val,
+                              utils.f_name_from_path(elf_analyser.binary.path))
     except StaticAnalyserException as e:
         if e.is_critical:
             utils.print_error(f"{e}")

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import lief
 
 from custom_exception import StaticAnalyserException
+from asm_code_utils import Address
 import library_analyser
 import syscalls
 import utils
@@ -75,8 +76,8 @@ class ELFAnalyser:
     // Searching in Memory //
     get_string_at_address(self, address)
         Return the string located at a particular address in a binary.
-    resolve_value_at_address(self, address, reference_byte_size)
-        Tries to return the value that would be stored on the given address.
+    resolve_address_stored_at(self, address, reference_byte_size)
+        Tries to return the address that would be stored on the given address.
 
     // Functions Related //
     get_local_function_called(self, f_address, show_warnings=True)
@@ -314,8 +315,9 @@ class ELFAnalyser:
         section_end_offset = string.index(b"\x00") # string terminator
         return string[:section_end_offset].decode("utf8")
 
-    def resolve_value_at_address(self, address, reference_byte_size):
-        """Tries to return the value that would be stored on the given address.
+    def resolve_address_stored_at(self, address_location, reference_byte_size):
+        """Tries to return the address that would be stored on the given
+        address.
 
         First, as the objective is mainly to find function addresses, the
         relocation information is used. If it does not succeed, the raw value
@@ -328,7 +330,7 @@ class ELFAnalyser:
 
         Parameters
         ----------
-        address : int
+        address_location : int
             address to look at
         reference_byte_size : int
             size in bytes of the value that is referenced (1 for word, 2 for
@@ -336,9 +338,9 @@ class ELFAnalyser:
 
         Returns
         -------
-        value : int
-            the value found that would be stored on the given address, or None
-            if no values were found
+        address_found : Address or None
+            the address found that would be stored on the given address, or
+            None if nothing was found
 
         Raises
         ------
@@ -347,37 +349,49 @@ class ELFAnalyser:
             was invalid
         """
 
-        value = None
+        address_found = None
 
-        if address < 0 or address >= 2**64:
-            return value
+        if address_location < 0 or address_location >= 2**64:
+            return address_found
 
-        # try to resolve the value given the relocation information of the ELF
-        rel = self.binary.lief_binary.get_relocation(address)
+        # try to resolve the address to find given the relocation information
+        # of the ELF
+        rel = self.binary.lief_binary.get_relocation(address_location)
         if rel and rel.has_symbol and rel.symbol.name != "":
             # TODO parfois ça mène vers des fonctions qui ne sont pas locales
             # on dirait (par exemple pour __libc_start_main)
-            value = self.__get_local_function_address(
-                    rel.symbol.name, False)
-        if rel and value is None and rel.addend != 0:
-            value = rel.addend
+            value_found = self.__get_local_function_address(rel.symbol.name,
+                                                              False)
+            if value_found is not None:
+                address_found = Address(value_found,
+                                        utils.f_name_from_path(
+                                            self.binary.path))
+            else:
+                address_found = Address(0, "", rel.symbol.name)
+        if rel and address_found is None and rel.addend != 0:
+            value_found = rel.addend
+            address_found = Address(value_found,
+                                    utils.f_name_from_path(self.binary.path))
 
         # If nothing could be found with the previous method, simply look at
         # the content of the binary at this address.
         # Note that most of the time the given value will not be the one
         # expected by the code (because the code modifies it while running) so
         # it may give invalid results.
-        if utils.search_raw_data and value is None:
-            value = self.__read_raw_value_at_address(self.binary, address,
-                                         reference_byte_size)
+        if utils.search_raw_data and address_found is None:
+            value_found = self.__read_raw_value_at_address(self.binary,
+                                                     address_location,
+                                                     reference_byte_size)
+            address_found = Address(value_found,
+                                    utils.f_name_from_path(self.binary.path))
 
             # If the content is 0, it will be considered that the value is not
             # initialised and None will be returned, even though it could be
             # possible in theory that 0 is the actual seeked value
-            if value == 0:
-                value = None
+            if address_found.value == 0:
+                address_found = None
 
-        return value
+        return address_found
 
     def __read_raw_value_at_address(self, address, reference_byte_size,
                              endianness='little', signed=False):
@@ -472,7 +486,10 @@ class ELFAnalyser:
 
     def __initialize_function_map(self, key_type):
 
-        # TODO: use both functions and dynamic symbols for both maps???
+        # Note: self.binary.lief_binary.dynamic_symbols should not be looked at
+        # because it does not contain additional local functions and
+        # contains other information that will confuse the code
+
         if key_type == "name":
             self.__f_name_to_addr_map = {}
             for item in self.binary.lief_binary.functions:

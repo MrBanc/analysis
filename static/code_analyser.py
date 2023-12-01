@@ -206,9 +206,9 @@ class CodeAnalyser:
         """
 
         if f_called_list is None:
-            detect_functions = False
+            detect_local_funs = False
         else:
-            detect_functions = True
+            detect_local_funs = True
 
         list_inst = []
         for _, ins in enumerate(insns):
@@ -231,23 +231,44 @@ class CodeAnalyser:
                     code_utils.extract_destination_address(list_inst,
                                                            self.elf_analyser))
 
+            # TODO mettre la suite de cette fonction dans une fonction à part ?
+
             if dest_address is None:
                 continue
 
-            if (self.elf_analyser.binary.has_dyn_libraries
-                and self.__lib_analyser.is_call_to_plt(dest_address)):
+            if self.elf_analyser.binary.has_dyn_libraries:
+                if (dest_address.f_name is not None
+                    and not dest_address.is_local):
 
-                self.__analyse_call_to_plt(list_inst, dest_address,
-                                           f_called_list, syscalls_set)
-            elif detect_functions and (ins.group(CS_GRP_CALL)
+                    # In some (rare) cases, library functions can be called
+                    # without going through the .plt
+                    funs = self.__lib_analyser.get_function_with_name(
+                            dest_address.f_name)
+                elif (self.__lib_analyser.is_call_to_plt(dest_address.value)
+                      and dest_address.is_local):
+
+                    funs = self.__get_called_plt_functions(dest_address.value,
+                                                        f_called_list)
+                else:
+                    funs = None
+                self.__wrapper_analyse_lib_function(funs, list_inst,
+                                                    syscalls_set)
+                if funs is not None:
+                    # Even if no function was found (funs == []), the address
+                    # did correspond to a library function, so the iteration
+                    # stops here
+                    continue
+
+            if detect_local_funs and (ins.group(CS_GRP_CALL)
                                        or utils.search_function_pointers):
                 f = self.elf_analyser.get_local_function_called(
-                        dest_address, show_warnings)
+                        dest_address.value, show_warnings)
                 if f is None:
                     continue
                 if f.boundaries[0] >= f.boundaries[1]:
                     # TODO: trouver une solution générale pour essayer
                     # d'analyser la fonction même si on a pas la taille ?
+                    # TODO: dans tous les cas on devrait pas le hardcoder ici.
                     if f.name == "__restore_rt":
                         # particular case where for some reason the ELF
                         # indicates that this function's size is 0
@@ -255,9 +276,8 @@ class CodeAnalyser:
                     continue
 
                 f_array = [f]
-                if ins.group(CS_GRP_CALL):
-                    self.__analyse_syscall_functions(f_array, list_inst,
-                                                     syscalls_set)
+                self.__analyse_syscall_functions(f_array, list_inst,
+                                                 syscalls_set)
                 if not f_array:
                     continue
 
@@ -275,6 +295,11 @@ class CodeAnalyser:
 
     def __analyse_syscall_functions(self, f_to_analyse, list_inst,
                                     syscalls_set):
+
+        if not list_inst[-1].group(CS_GRP_CALL):
+            # The function is not called, it is just a function pointer
+            # -> not supported
+            return
 
         for f in f_to_analyse.copy():
             # There should be no need to check the address of the
@@ -378,21 +403,26 @@ class CodeAnalyser:
         self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
                 self.elf_analyser)
 
-    def __analyse_call_to_plt(self, list_inst, dest_address, f_called_list,
-                              syscalls_set):
+    def __get_called_plt_functions(self, plt_fun_addr, f_called_list):
 
-        called_plt_f = self.__lib_analyser.get_function_called(dest_address)
-        self.__detect_and_process_runtime_loading_functions(called_plt_f,
-                                                            list_inst)
-        if list_inst[-1].group(CS_GRP_CALL):
-            self.__analyse_syscall_functions(called_plt_f, list_inst,
-                                             syscalls_set)
+        called_plt_funs = self.__lib_analyser.get_plt_function_called(
+                plt_fun_addr)
         # Even if f_called_list is None, called_plt_f needs to be
         # cleaned from local functions
-        code_utils.mov_local_funs_to(f_called_list, called_plt_f,
+        code_utils.mov_local_funs_to(f_called_list, called_plt_funs,
                                      self.elf_analyser)
-        self.__lib_analyser.get_used_syscalls(syscalls_set,
-                                              called_plt_f)
+        return called_plt_funs
+
+    def __wrapper_analyse_lib_function(self, lib_funs, list_inst,
+                                       syscalls_set):
+
+        if not lib_funs:
+            return
+
+        self.__detect_and_process_runtime_loading_functions(lib_funs,
+                                                            list_inst)
+        self.__analyse_syscall_functions(lib_funs, list_inst, syscalls_set)
+        self.__lib_analyser.get_used_syscalls(syscalls_set, lib_funs)
 
     def __backtrack_dlopen(self, list_inst):
 
@@ -452,7 +482,9 @@ class CodeAnalyser:
                                                        list_inst):
 
         for f in called_plt_f:
-            if not utils.f_name_from_path(f.library_path).startswith("libc"):
+            if (not utils.f_name_from_path(f.library_path).startswith("libc")
+                or not list_inst[-1].group(CS_GRP_CALL)):
+
                 continue
             # No need to check if self.__lib_analyser is initialised because if
             # not, this function will never be called
