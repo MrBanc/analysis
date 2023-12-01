@@ -15,6 +15,6 @@
 /bin/zsh: 102
 /bin/docker: 73
 /bin/vlc: 78
-/bin/nvidia-powerd: 100
+/bin/nvidia-powerd: 90
 /bin/nvidia-persistenced: 81
 /bin/nmap: 99
