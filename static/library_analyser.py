@@ -235,11 +235,15 @@ class LibraryUsageAnalyser:
             function(s) that would be called
         """
 
+        called_functions = []
+
         if not self.__linker_analysed:
             self.__linker_analysed = True
             if self.__plt_section:
-                self.get_plt_function_called(
+                linker_f = self.get_plt_function_called(
                         self.__plt_section.virtual_address, get_linker=True)
+                print(linker_f)
+                called_functions.extend(linker_f)
 
         got_rel_addr = self.__get_got_rel_address(f_address, get_linker)
 
@@ -254,22 +258,26 @@ class LibraryUsageAnalyser:
             # auxiliary version seem to indicate the library from which the
             # function come (example value: 'GLIBC_2.2.5')
             if rel.symbol.symbol_version.has_auxiliary_version:
-                return self.get_function_with_name(
-                        rel.symbol.name,
-                        lib_alias=rel.symbol.symbol_version
-                                     .symbol_version_auxiliary.name)
-            return self.get_function_with_name(rel.symbol.name)
+                called_functions.extend(self.get_function_with_name(
+                    rel.symbol.name,
+                    lib_alias=rel.symbol.symbol_version
+                                 .symbol_version_auxiliary.name))
+                return called_functions
+            called_functions.extend(self
+                                    .get_function_with_name(rel.symbol.name))
+            return called_functions
         if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.IRELATIVE):
             if rel.addend:
-                return [LibFunction(name="",
+                called_functions.append(
+                        LibFunction(name="",
                                     library_path=self.elf_analyser.binary.path,
-                                    boundaries=(rel.addend, -1))]
-            return []
+                                    boundaries=(rel.addend, -1)))
+            return called_functions
 
         utils.print_error(f"[WARNING] A function name couldn't be found for "
                           f"the .plt slot at address {hex(f_address)}")
-        return []
+        return called_functions
 
     def get_libraries_paths_manually(self, lib_names):
         """Helper function to obtain the path of a library from its name.
