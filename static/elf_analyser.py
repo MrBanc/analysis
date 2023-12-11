@@ -427,7 +427,7 @@ class ELFAnalyser:
         section_start_offset = address - target_section.virtual_address
         value = bytearray(target_section.content)[section_start_offset
                                                   :section_start_offset
-                                                   +reference_byte_size * 8]
+                                                   + reference_byte_size * 8]
         value = int.from_bytes(value, byteorder=endianness, signed=signed)
         return value
 
