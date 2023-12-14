@@ -12,10 +12,12 @@ die() {
 }
 
 build_binaries() {
-
     dir="$1"
     rm -rf "${dir:?}/${build}" "${dir}/${build}_all" &> "/dev/null"
-    mkdir -p "${dir}/${build}" &> "/dev/null"|| die "mkdir failed"
+    mkdir -p "${dir:?}/${build}" &> "/dev/null"
+    if [ $? -ne 0 ]; then
+        die "mkdir failed"
+    fi
     cd "${dir}" || die "cd failed"
     echo "Generating ${dir} tests..."
     for flag in "${array_flags[@]}"
@@ -65,7 +67,6 @@ compare_output(){
 }
 
 benchmark_binaries(){
-
     dir="$1"
     binary="$2"
     cd "${dir}" || die "cd failed"
@@ -75,32 +76,78 @@ benchmark_binaries(){
     for flag in "${array_flags[@]}"; do
         for file in "${build}_all/$flag"/*; do
             if [ "$binary" == "static_analyser" ]; then
-                timeout 60 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f -v f |awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f -v f |awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
             else
                 #TODO: Add $4, and sort -n to have the number of occurences
-                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall'  -e '^function'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
             fi
         done
     done
     cd .. || die "cd failed"
 }
 
-if [ ! -d "${basic}/${build}_all" ]; then
-    build_binaries "${basic}"
+
+
+
+
+
+# ---------------------------- MAIN ----------------------------
+
+
+
+
+
+
+if [ $# -eq 0 ]; then
+    echo "No arguments supplied, run all? [y/n]"
+    read -r answer
+    if [ "$answer" == "y" ]; then
+        set -- "-a"
+    else
+        echo "Exiting..."
+        exit 0
+    fi
 fi
 
-if [ ! -d "${glibc}/${build}_all" ]; then
+if [ "$1" == "-h" ]; then
+    echo "Usage: $0 [-b] [-r] [-i] [-c] [-h] [-a]"
+    echo "  -b: build binaries"
+    echo "  -r: run benchmarks"
+    echo "  -i: iterate output"
+    echo "  -c: clean"
+    echo "  -h: help"
+    echo "  -a: all"
+    exit 0
+fi
+
+if [ "$1" == "-c" ]; then
+    rm -rf "${basic}/${build}" "${basic}/${build}_all" "${glibc}/${build}" "${glibc}/${build}_all" "${results}" "${results}_*" &> "/dev/null"
+    exit 0
+fi
+
+if [ "$1" == "-a" ] || [ "$1" == "-b" ]; then
+    rm -rf "${basic}/${build}" "${basic}/${build}_all" "${glibc}/${build}" "${glibc}/${build}_all" &> "/dev/null"
+    build_binaries "${basic}"
     build_binaries "${glibc}"
 fi
 
-mkdir -p "${results}" || die "mkdir failed"
+if [ "$1" == "-a" ] || [ "$1" == "-r" ]; then
+    mkdir -p "${results}" || die "mkdir failed"
 
-directories=("basic_tests" "glibc_tests")
-binaries=("static_analyser" "strace" "ltrace")
+    directories=("basic_tests" "glibc_tests")
+    binaries=("static_analyser" "strace" "ltrace")
 
-for dir in "${directories[@]}"; do
-    for binary in "${binaries[@]}"; do
-        benchmark_binaries "${dir}" "${binary}"
+    for dir in "${directories[@]}"; do
+        for binary in "${binaries[@]}"; do
+            benchmark_binaries "${dir}" "${binary}"
+        done
+        iterate_output "${dir}" "strace" > "${results}_all/${dir}_strace.txt"
     done
-    iterate_output "${dir}" "strace" > "${results}_all/${dir}_strace.txt"
-done
+fi
+
+if [ "$1" == "-i" ]; then
+    directories=("basic_tests" "glibc_tests")
+    for dir in "${directories[@]}"; do
+        iterate_output "${dir}" "strace" > "${results}_all/${dir}_strace.txt"
+    done
+fi
