@@ -1,6 +1,7 @@
 dlclose
 dlopen
 dlsym
+exit_group
 printf
 putchar
 strlen

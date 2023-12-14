@@ -344,7 +344,7 @@ class LibraryUsageAnalyser:
         return lib_paths
 
     def get_function_with_name(self, f_name, lib_alias=None,
-                               use_potential_libs=False, lib_to_check=None):
+                               use_potential_libs=False):
         """Returns the LibFunction dataclass corresponding to the function with
         the given name by looking at the functions available in the libraries
         used by the analysed binary (self).
@@ -364,14 +364,6 @@ class LibraryUsageAnalyser:
             When set to False, if no function is found in the used libraries,
             the potentially used libraries will be looked into in a second
             attempt.
-        lib_to_check : list of str or None
-            list of libraries (names) to look into.
-            !!! Use with caution !!! This is a way to hardcode the list of
-            libraries to look into, which should normally be filled by the
-            function itself, depending on the value of the other arguments. If
-            this argument is not None, the other arguments related to libraries
-            will be ignored and nothing will be returned if the function is not
-            found in the libraries provided.
 
         Returns
         -------
@@ -379,12 +371,9 @@ class LibraryUsageAnalyser:
             the list of functions found
         """
 
-        hardcoded = False
         functions = []
 
-        if lib_to_check is not None:
-            hardcoded = True
-        elif lib_alias is not None:
+        if lib_alias is not None:
             lib_to_check = self.__used_libraries_aliases[lib_alias]
         elif not use_potential_libs:
             lib_to_check = self.__used_libraries
@@ -406,11 +395,6 @@ class LibraryUsageAnalyser:
                 functions.append(to_add)
 
         if not functions:
-            if hardcoded:
-                utils.print_error(f"[ERROR] No library function was found for "
-                                  f"{f_name} in the libraries {lib_to_check}."
-                                  f" Continuing...")
-                return functions
             if lib_alias is not None:
                 return self.get_function_with_name(f_name)
             if not use_potential_libs:
@@ -584,31 +568,7 @@ class LibraryUsageAnalyser:
 
         reloc_fun_name = "_dl_runtime_resolve_xsavec"
 
-        # get_function_with_name is not used because:
-        # - it only looks at the exported functions and this one is not
-        #   exported,
-        # - it only looks at the libraries used by the binary.
-        for f in linker_bin.functions:
-            if f.name == reloc_fun_name:
-                reloc_fun = [LibFunction(name=f.name,
-                                         library_path=linker_path,
-                                         boundaries=(f.address, f.address
-                                                                 + f.size))]
-                break
-
-        if not reloc_fun:
-            utils.print_warning(f"[WARNING] The relocation function "
-                                f"{reloc_fun_name} could not be found in "
-                                f"{linker_name}.")
-            return
-
-        if len(reloc_fun) > 1:
-            utils.print_warning(f"[WARNING] Multiple possible relocation "
-                                f"functions were found for {reloc_fun_name} "
-                                f"in {linker_name}: {reloc_fun}.\n"
-                                f"All of them will be considered.")
-
-        self.get_used_syscalls(syscalls_set, reloc_fun)
+        reloc_fun = self.get_function_with_name(reloc_fun_name)[0]
 
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
@@ -851,3 +811,4 @@ class LibraryUsageAnalyser:
                                           f"found")
 
         return insns
+

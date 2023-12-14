@@ -6,6 +6,8 @@ Utilities to store information about and analyse the ELF 64-bit executable.
 
 from dataclasses import dataclass
 
+import sys
+
 import lief
 
 from custom_exception import StaticAnalyserException
@@ -86,6 +88,9 @@ class ELFAnalyser:
     find_next_function_addr(self, from_addr)
         Returns the address of closest function found after the given address
         by looking at the symbolic information of the ELF.
+    find_next_symbol_addr(self, from_addr, shndx=None):
+        Returns the address of closest symbol found after the given address by
+        looking at the symbolic information of the ELF.
     """
 
     def __init__(self, binary_path):
@@ -516,9 +521,9 @@ class ELFAnalyser:
 
         Parameters
         ----------
-        from_address : int
+        from_addr : int
             address marking the start of the searching area (the given address
-            will be strictly superior to from_address)
+            will be strictly superior to from_addr)
 
         Returns
         -------
@@ -537,3 +542,45 @@ class ELFAnalyser:
         # addresses. Since this code will probably hardly ever be called
         # anyway, I did not try to make it sorted myself.
         return min(k for k in self.__address_to_fun_map if k > from_addr)
+
+    def find_next_symbol_addr(self, from_addr, shndx=None):
+        """Returns the address of closest symbol found after the given
+        address by looking at the symbolic information of the ELF.
+
+        Notes: this function is not optimized to be called many times as it
+        currently is only called once in the whole code.
+
+        Parameters
+        ----------
+        from_addr : int
+            address marking the start of the searching area (the given address
+            will be strictly superior to from_addr)
+        shndx : int
+            index of the section that the given address and the returned
+            address should be in (if None, the section is not checked)
+
+        Returns
+        -------
+        next_symbol_address : int
+            address of the symbol following from_address
+        """
+
+        # When shndx is None, it would be possible to try to find it but it
+        # would be more complicated and I don't think it is necessary for now.
+
+        if shndx == 0:
+            utils.print_warning("[WARNING] The given section index is 0, "
+                                "which is the index of the undefined "
+                                "section. It is therefore impossible to "
+                                "find a symbol in this section.")
+            shndx = None
+
+        min_addr = sys.maxsize
+
+        for symbol in self.binary.lief_binary.symbols:
+            valid_shndx = (symbol.shndx == shndx if shndx is not None
+                           else symbol.shndx != 0)
+            if from_addr < symbol.value < min_addr and valid_shndx:
+                min_addr = symbol.value
+
+        return min_addr

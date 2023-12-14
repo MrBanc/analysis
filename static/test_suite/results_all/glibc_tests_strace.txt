@@ -1,6 +1,6 @@
-O0_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
-O1_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
-O2_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
-O3_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
-Og_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
-Os_main.txt: [MISSING 9/75] access arch_prctl brk getegid geteuid getppid ioctl rt_sigreturn set_tid_address  
+O0_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  
+O1_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  
+O2_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  
+O3_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  
+Og_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  
+Os_main.txt: [MISSING 6/88] getegid geteuid getpgrp getppid gettimeofday kill  

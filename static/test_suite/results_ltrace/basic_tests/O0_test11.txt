@@ -1,2 +1,3 @@
+exit_group
 printf
 strlen

@@ -1,5 +1,7 @@
 bind
 close
+exit
+exit_group
 fork
 htons
 listen

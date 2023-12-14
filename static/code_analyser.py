@@ -62,9 +62,6 @@ class CodeAnalyser:
         if self.elf_analyser.binary.has_dyn_libraries:
             try:
                 self.__init_lib_analyser()
-                # TODO: parfois on a des appels à des librairies directement à
-                # travers le .got sans passer par le .plt (par exemple pour
-                # __libc_start_main)
             except StaticAnalyserException as e:
                 utils.print_error(f"[ERROR] library analyser of "
                                   f"{self.elf_analyser.binary.path} couldn't "
@@ -84,6 +81,13 @@ class CodeAnalyser:
         syscalls_set : set of str
             set of syscalls used by the program analysed
         """
+
+        if self.elf_analyser.binary.has_dyn_libraries:
+            # Analyse the first function of the linker, which is the one that
+            # will be called when executing the program (before any instruction
+            # of the main binary) and if there is a .plt section, also analyse
+            # the linker function that performs .plt functions resolution
+            self.__lib_analyser.analyse_linker_functions(syscalls_set)
 
         self.get_used_syscalls_text_section(syscalls_set)
 

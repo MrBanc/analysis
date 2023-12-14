@@ -1,4 +1,5 @@
 __errno_location
+exit_group
 malloc
 mkstemp
 printf

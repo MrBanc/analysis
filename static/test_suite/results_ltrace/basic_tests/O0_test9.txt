@@ -1,5 +1,7 @@
 close
 ctime
+exit
+exit_group
 getgrgid
 getpid
 getpwuid
@@ -10,7 +12,7 @@ printf
 puts
 read
 remove
+stat
 strlen
 unlink
 write
-__xstat

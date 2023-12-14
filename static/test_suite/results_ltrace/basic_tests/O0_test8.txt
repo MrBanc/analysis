@@ -1,7 +1,6 @@
-dlclose
+directory
+dlerror
 dlopen
-dlsym
-printf
-putchar
-puts
-strlen
+exit
+exit_group
+fprintf
