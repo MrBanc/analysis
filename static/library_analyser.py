@@ -149,8 +149,6 @@ class LibraryUsageAnalyser:
             self.__got_rel = {rel.address: rel
                               for rel in self.__got_rel}
 
-        self.__linker_analysed = False
-
         self.__md = Cs(CS_ARCH_X86, CS_MODE_64)
         self.__md.detail = True
         # This may lead to errors. So a warning is throwed if indeed data is
@@ -212,7 +210,7 @@ class LibraryUsageAnalyser:
             return False
         return plt_boundaries[0] <= address < plt_boundaries[1]
 
-    def get_plt_function_called(self, f_address, get_linker=False):
+    def get_plt_function_called(self, f_address):
         """Returns the function that would be called by jumping to the address
         given in the `.plt` section.
 
@@ -230,8 +228,6 @@ class LibraryUsageAnalyser:
         ----------
         f_address : int
             address of the .plt slot corresponding to the function
-        get_linker : bool
-            whether to look for the linker call in .plt or not
 
         Returns
         -------
@@ -241,18 +237,7 @@ class LibraryUsageAnalyser:
 
         called_functions = []
 
-        if not self.__linker_analysed:
-            self.__linker_analysed = True
-
-            # analyse the function of the linker that will be called when
-            # calling a library function in order to get its address
-            # TODO: it does not work, need to change/delete this
-            if self.__plt_section:
-                linker_f = self.get_plt_function_called(
-                        self.__plt_section.virtual_address, get_linker=True)
-                called_functions.extend(linker_f)
-
-        got_rel_addr = self.__get_got_rel_address(f_address, get_linker)
+        got_rel_addr = self.__get_got_rel_address(f_address)
 
         if (self.__got_rel is None or got_rel_addr is None
                                    or got_rel_addr not in self.__got_rel):
@@ -525,6 +510,13 @@ class LibraryUsageAnalyser:
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)
 
+        if (linker_name in self.__libraries
+            and linker_path != self.__libraries[linker_name].path):
+
+            utils.print_warning(f"[WARNING]: {linker_name} is in the libraries"
+                                f" but the path is different: {linker_path} vs"
+                                f" {self.__libraries[linker_name].path}. The "
+                                f"former will be used.")
         if (linker_name not in self.__libraries
             or linker_path != self.__libraries[linker_name].path):
 
@@ -568,7 +560,7 @@ class LibraryUsageAnalyser:
                                          boundaries=(0, 0))
             # The boundaries can still be guessed by looking at the next entry
             # in the symbols table and verifying it indeed is in the same
-            # section by using shndx.
+            # section by using shndx. (may leed to overestimation)
             entrypoint.boundaries = (
                     linker_bin.entrypoint,
                     linker_ca.elf_analyser.find_next_symbol_addr(
@@ -680,11 +672,11 @@ class LibraryUsageAnalyser:
 
         utils.cur_depth -= 1
 
-    def __get_got_rel_address(self, int_operand, get_linker=False):
+    def __get_got_rel_address(self, int_operand):
 
         jmp_to_got_ins = None
 
-        if self.__plt_section and (not self.__plt_sec_section or get_linker):
+        if self.__plt_section and not self.__plt_sec_section:
             # The instruction at the address pointed to by the int_operand is a
             # jump to a `.got` entry. With the address of this `.got`
             # relocation entry, it is possible to identify the function that
@@ -694,12 +686,8 @@ class LibraryUsageAnalyser:
             insns = self.__md.disasm(
                     bytearray(self.__plt_section.content)[plt_offset:],
                     int_operand)
-            # If we try to get the linker call (with get_linker=True), the
-            # second instruction is the one we want, so the first is skipped.
-            if get_linker:
-                next(insns)
             jmp_to_got_ins = next(insns)
-        elif self.__plt_sec_section and not get_linker:
+        elif self.__plt_sec_section:
             # The same remark holds but the first instruction is now the
             # instruction right after the address pointed by the int_operand
             # and we work with the .plt.sec section instead.

@@ -572,7 +572,8 @@ class ELFAnalyser:
             utils.print_warning("[WARNING] The given section index is 0, "
                                 "which is the index of the undefined "
                                 "section. It is therefore impossible to "
-                                "find a symbol in this section.")
+                                "find a symbol in this section. (shndx is thus"
+                                " ignored)")
             shndx = None
 
         min_addr = sys.maxsize
