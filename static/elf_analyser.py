@@ -151,7 +151,7 @@ class ELFAnalyser:
             lb = self.binary.lief_binary
 
         return (lb is not None
-                and lb.format == lief.EXE_FORMATS.ELF
+                and lb.format == lief.Binary.FORMATS.ELF
                 and lb.header.identity_class == lief.ELF.ELF_CLASS.CLASS64
                 and lb.header.machine_type == lief.ELF.ARCH.x86_64)
 
