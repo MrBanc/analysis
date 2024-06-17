@@ -216,6 +216,7 @@ class LibraryUsageAnalyser:
         """Returns the function that would be called by jumping to the address
         given in the `.plt` section.
 
+        Return value:
         If the function detected is a function exported from a library, the
         LibFunction entry will be completed. If on the other hand it is a local
         function call, the name of the function will be missing as well as the
@@ -259,11 +260,14 @@ class LibraryUsageAnalyser:
         else:
             rel = self.__got_rel[got_rel_addr]
 
+        # if it is a call to a library function, this if will be true
         if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
             # auxiliary version seem to indicate the library from which the
             # function come (example value: 'GLIBC_2.2.5')
-            if rel.symbol.symbol_version.has_auxiliary_version:
+            # In some (rare) cases, the symbol version is not available
+            if (rel.symbol.symbol_version is not None
+                    and rel.symbol.symbol_version.has_auxiliary_version):
                 called_functions.extend(self.get_function_with_name(
                     rel.symbol.name,
                     lib_alias=rel.symbol.symbol_version
@@ -272,6 +276,7 @@ class LibraryUsageAnalyser:
             called_functions.extend(self
                                     .get_function_with_name(rel.symbol.name))
             return called_functions
+        # if it is a call to a local function, this if will be true
         if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
                     == lief.ELF.RELOCATION_X86_64.IRELATIVE):
             if rel.addend:
