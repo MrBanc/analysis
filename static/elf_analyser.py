@@ -6,8 +6,6 @@ Utilities to store information about and analyse the ELF 64-bit executable.
 
 from dataclasses import dataclass
 
-import sys
-
 import lief
 
 from custom_exception import StaticAnalyserException
@@ -563,6 +561,11 @@ class ELFAnalyser:
         -------
         next_symbol_address : int
             address of the symbol following from_address
+
+        Raises
+        ------
+        StaticAnalyserException
+            If no symbol could be found after the given address
         """
 
         # When shndx is None, it would be possible to try to find it but it
@@ -576,12 +579,16 @@ class ELFAnalyser:
                                 " ignored)")
             shndx = None
 
-        min_addr = sys.maxsize
+        min_addr = 2**64
 
         for symbol in self.binary.lief_binary.symbols:
             valid_shndx = (symbol.shndx == shndx if shndx is not None
                            else symbol.shndx != 0)
             if from_addr < symbol.value < min_addr and valid_shndx:
                 min_addr = symbol.value
+
+        if min_addr == 2**64:
+            raise StaticAnalyserException(f"[WARNING] No symbol could be "
+                                          f"found after address {from_addr}")
 
         return min_addr

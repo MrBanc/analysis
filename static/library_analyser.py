@@ -13,6 +13,10 @@ from collections import defaultdict
 
 import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+try:
+    from r2pipe import open as r2_open
+except ImportError:
+    r2_open = None
 
 import utils
 import code_analyser as ca
@@ -74,7 +78,7 @@ class Library:
         absolute path of the library within the file system
     callable_fun_boundaries : dict(str -> tuple of two int)
         dictionary containing the boundaries of the exportable functions of the
-        library
+        library. The key is the name of the function
     code_analyser : CodeAnalyser
         code analyser instance associated with the library. It will only be
         instanciated if needed.
@@ -356,7 +360,7 @@ class LibraryUsageAnalyser:
             attempt.
         lib_to_check : list of str or None
             list of libraries (names) to look into.
-            !!! Use with caution !!! This is a way to hardcode the list of
+            ! Use with caution ! This is a way to hardcode the list of
             libraries to look into, which should normally be filled by the
             function itself, depending on the value of the other arguments. If
             this argument is not None, the other arguments related to libraries
@@ -464,7 +468,7 @@ class LibraryUsageAnalyser:
         if lib_name in self.__libraries:
             return
 
-        self._register_library(lib_path)
+        self.__register_library(lib_path)
 
     def analyse_detected_dlsym_for_all_libs(self, syscalls_set):
         """Calls the `analyse_detected_dlsym_functions` of CodeAnalyser on all
@@ -484,7 +488,7 @@ class LibraryUsageAnalyser:
         functions. The linker is generally `ld-linux-x86-64.so.2`.
 
         The first function to analyse is actually the first piece of code
-        exectued when launching the program, as the linker is called first.
+        executed when launching the program, as the linker is called first.
 
         The second function to analyse is the function called when doing a
         relocation (in .plt).
@@ -496,116 +500,51 @@ class LibraryUsageAnalyser:
             updated by this function
         """
 
-        # TODO: séparer en plusieurs fonctions (une fonction par point ?)
-
-        # 1. Get the linker binary
-
-        if not self.elf_analyser.binary.lief_binary.has_interpreter:
-            utils.print_warning(f"[WARNING] The binary "
-                                f"{self.elf_analyser.binary.path} does not "
-                                f"have a linker/interpreter/loader. Their "
-                                f"functions won't be analysed.")
+        try:
+            self.__register_linker()
+            linker_ca = self.__get_linker_code_analyser()
+        except StaticAnalyserException as e:
+            utils.print_error(f"[ERROR] Error while retrieving the linker's "
+                              f"code analyser: {e}.")
             return
-
-        linker_path = self.elf_analyser.binary.lief_binary.interpreter
-        linker_name = utils.f_name_from_path(linker_path)
-
-        if (linker_name in self.__libraries
-            and linker_path != self.__libraries[linker_name].path):
-
-            utils.print_warning(f"[WARNING]: {linker_name} is in the libraries"
-                                f" but the path is different: {linker_path} vs"
-                                f" {self.__libraries[linker_name].path}. The "
-                                f"former will be used.")
-        if (linker_name not in self.__libraries
-            or linker_path != self.__libraries[linker_name].path):
-
-            self._register_library(linker_path)
-
-        linker_ca = self.__libraries[linker_name].code_analyser
 
         linker_bin = linker_ca.elf_analyser.binary.lief_binary
 
-        # 2. Get the entrypoint boundaries and store them in a LibFunction
+        # 1. Analyse first function called of the linker
 
-        entrypoint = None
+        linker_entrypoint = self.__get_linker_entrypoint(linker_bin)
 
-        # If the entrypoint is in the functions, then we can easily get the
-        # function boundaries
-        for f in linker_bin.functions:
-            if f.address == linker_bin.entrypoint:
-                entrypoint = LibFunction(name=f.name,
-                                         library_path=linker_path,
-                                         boundaries=(f.address, f.address
-                                                                 + f.size))
-                break
+        print(f"[DEBUG]: linker_entrypoint: {linker_entrypoint}")
 
-        # If not, the symbols of the linker are searched. If it is not in the
-        # symbols, just print a warning but it still can be analysed.
-        shndx = None
-        if entrypoint is None:
-            for s in linker_bin.symbols:
-                if s.value == linker_bin.entrypoint:
-                    entrypoint = LibFunction(name=s.name,
-                                             library_path=linker_path,
-                                             boundaries=(0, 0))
-                    shndx = s.shndx
-                    break
-            if entrypoint is None:
-                utils.print_warning(f"[WARNING] The entrypoint of the linker "
-                                    f"{linker_path} is not in the symbols "
-                                    f"table.")
-                entrypoint = LibFunction(name="[function name not found]",
-                                         library_path=linker_path,
-                                         boundaries=(0, 0))
-            # The boundaries can still be guessed by looking at the next entry
-            # in the symbols table and verifying it indeed is in the same
-            # section by using shndx. (may leed to overestimation)
-            entrypoint.boundaries = (
-                    linker_bin.entrypoint,
-                    linker_ca.elf_analyser.find_next_symbol_addr(
-                        linker_bin.entrypoint, shndx))
+        if linker_entrypoint is not None:
+            self.get_used_syscalls(syscalls_set, [linker_entrypoint])
 
-        # 3. Analyse the code of the entrypoint
+        # 2. Analyse function that is called when doing a relocation (in .plt)
 
-        self.get_used_syscalls(syscalls_set, [entrypoint])
+        reloc_fun = None
 
-        # TODO analyse function that is called when doing a relocation (in .plt)
+        try:
+            # It is necessary to use dynamic analysis to find the relocation
+            # function (see __get_relocation_function_dynamically documentation
+            # for more details)
+            reloc_fun = self.__get_relocation_function_dynamically(linker_bin)
+        except StaticAnalyserException as e:
+            utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
+                              f"relocation function address failed: {e}.\n"
+                              f"An alternative is to analyse the most common "
+                              f"relocation functions "
+                              f"(e.g. _dl_runtime_resolve_xsavec of "
+                              f"ld-linux-x86-64.so.2), hoping that it is the "
+                              f"one used. Would you like to do that? [Y/n]")
+            if input().lower() != 'y':
+                return
 
-        # For now, it is just hardcoded for ld-linux-x86-64.so.2
-        # TODO: if indeed we hardcode it, we should do it for the most common
-        # interpreters, not just ld-linux
+            reloc_fun = self.__get_relocation_function_hardcoded(linker_bin)
 
-        if linker_name != "ld-linux-x86-64.so.2":
-            return
+        print(f"[DEBUG]: reloc_fun: {reloc_fun}")
 
-        reloc_fun_name = "_dl_runtime_resolve_xsavec"
-
-        # get_function_with_name is not used because:
-        # - it only looks at the exported functions and this one is not
-        #   exported,
-        # - it only looks at the libraries used by the binary.
-        for f in linker_bin.functions:
-            if f.name == reloc_fun_name:
-                reloc_fun = [LibFunction(name=f.name,
-                                         library_path=linker_path,
-                                         boundaries=(f.address, f.address
-                                                                 + f.size))]
-                break
-
-        if not reloc_fun:
-            utils.print_warning(f"[WARNING] The relocation function "
-                                f"{reloc_fun_name} could not be found in "
-                                f"{linker_name}.")
-            return
-
-        if len(reloc_fun) > 1:
-            utils.print_warning(f"[WARNING] Multiple possible relocation "
-                                f"functions were found for {reloc_fun_name} "
-                                f"in {linker_name}: {reloc_fun}.\n"
-                                f"All of them will be considered.")
-
-        self.get_used_syscalls(syscalls_set, reloc_fun)
+        if reloc_fun is not None:
+            self.get_used_syscalls(syscalls_set, [reloc_fun])
 
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
@@ -672,11 +611,280 @@ class LibraryUsageAnalyser:
 
         utils.cur_depth -= 1
 
-    def __get_got_rel_address(self, int_operand):
+    def __register_linker(self):
+
+        if not self.elf_analyser.binary.lief_binary.has_interpreter:
+            raise StaticAnalyserException(f"The binary "
+                                f"{self.elf_analyser.binary.path} does not "
+                                f"have a linker/interpreter/loader. Their "
+                                f"functions won't be analysed.")
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        if (linker_name in self.__libraries
+            and linker_path != self.__libraries[linker_name].path):
+
+            utils.print_warning(f"[WARNING]: {linker_name} is in the libraries"
+                                f" but the path is different: {linker_path} vs"
+                                f" {self.__libraries[linker_name].path}. The "
+                                f"former will be used.")
+        if (linker_name not in self.__libraries
+            or linker_path != self.__libraries[linker_name].path):
+
+            self.__register_library(linker_path)
+
+    def __get_linker_code_analyser(self):
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        linker_ca = self.__libraries[linker_name].code_analyser
+
+        if linker_ca is None:
+            raise StaticAnalyserException(f"The code analyser for the linker "
+                                          f"{linker_name} has not been "
+                                          f"instanciated yet.")
+        return linker_ca
+
+    def __get_linker_entrypoint(self, linker_bin):
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        try:
+            return self.__get_local_function(linker_bin.entrypoint,
+                                             linker_name)
+        except StaticAnalyserException as e:
+            utils.print_error(f"[ERROR] The linker's entrypoint function could"
+                              f" not be found: {e}.")
+            return None
+
+    def __get_relocation_function_dynamically(self, linker_bin):
+        """Get the relocation function of the linker dynamically.
+
+        The relocation function is the function called when doing a relocation
+        (in .plt). It is generally `_dl_runtime_resolve_xsavec` for the linker
+        `ld-linux-x86-64.so.2`. But this is not the only possibility, thus this
+        function is used to find it automatically.
+
+        The function is called through the generic entry of the .plt section by
+        jumping to its address, which is located in the .got section. The
+        problem is that this address is not known statically and is only known
+        at runtime. Thus, the address is found using dynamic analysis.
+
+        Parameters
+        ----------
+        linker_bin : class binary of lief
+            the binary of the linker
+
+        Returns
+        -------
+        reloc_fun : LibFunction
+            the relocation function found
+
+        Raises
+        ------
+        StaticAnalyserException
+            if the dynamic analysis fails
+        """
+
+        # Find the address of the .got entry where the relocation function's
+        # address will be stored
+
+        reloc_got_addr = self.__get_got_rel_address(
+               self.__plt_section.virtual_address, is_first_plt_entry=True)
+
+        # The relocation function address is found using dynamic
+        # analysis as it will only be known at runtime.
+
+        if r2_open is None:
+            raise StaticAnalyserException("r2pipe is not installed.")
+        r2_bin = r2_open(self.elf_analyser.binary.path, flags=["-2"])
+
+        r2_bin.cmd('doo') # (start debugging)
+        bin_entry = self.elf_analyser.binary.lief_binary.entrypoint
+        r2_bin.cmd(f'db {hex(bin_entry)}') # (set breakpoint)
+        r2_bin.cmd('dc') # (continue until breakpoint)
+        r2_bin.cmd(f's {hex(reloc_got_addr)}') # (move focus to the address)
+        got_entry_content = r2_bin.cmd('p8 6') # (print 6 bytes)
+
+        # convert to big endian
+        reloc_fun_addr = int.from_bytes(bytes.fromhex(got_entry_content),
+                                        byteorder='little')
+
+        # Get where the linker is mapped in memory and compare it to the
+        # address of relocation function address to find the offset.
+
+        memory_mappings = r2_bin.cmd('dm')
+
+        linker_mappings = self.__get_linker_mappings(memory_mappings)
+
+        if self.__mappings_not_contiguous(linker_mappings):
+            # Could be possible to find the offset anyway but it is not
+            # implemented (yet?).
+            raise StaticAnalyserException("The mappings of the linker are not "
+                                          "contiguous.")
+
+        linker_mapped_address = int(linker_mappings[0].split(' - ')[0].strip(),
+                                    16)
+
+        reloc_fun_offset = reloc_fun_addr - linker_mapped_address
+
+        # Get the function name from the linker's symbols by looking at
+        # the offset found.
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        try:
+            reloc_fun = self.__get_local_function(reloc_fun_offset,
+                                                  linker_name)
+        except StaticAnalyserException as e:
+            raise StaticAnalyserException(f"The relocation function could not "
+                                          f" be found: {e}") from e
+
+        if reloc_fun is None:
+            raise StaticAnalyserException("The relocation function could not "
+                                          "be found.")
+
+        return reloc_fun
+
+    def __get_linker_mappings(self, memory_mappings):
+
+        lines = memory_mappings.split('\n')
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        return [l for l in lines if linker_name in l]
+
+    def __mappings_not_contiguous(self, linker_mappings):
+
+        contiguous = True
+        for i in range(len(linker_mappings) - 1):
+            end_address_current = linker_mappings[i].split(' - ')[1].strip()
+            start_address_next = linker_mappings[i+1].split(' - ')[0].strip()
+
+            if end_address_current != start_address_next:
+                contiguous = False
+                break
+
+        return not contiguous
+
+    def __get_relocation_function_hardcoded(self, linker_bin):
+
+        # TODO: It would be nice to do it for the most common interpreters,
+        # not just ld-linux on 64 bits. Quand tu feras ça, modifie le
+        # message d'erreur ci dessus pour qu'il s'adapte au linker utilisé
+        # (et si le linker est pas pris en charge, propose ld-linux sur
+        # x86_64 mais dis que c'est pas celui utilisé)
+
+        # TODO relire car j'ai juste copié collé ça sans trop regarder (il était ailleurs avant)
+
+        linker_path = self.elf_analyser.binary.lief_binary.interpreter
+        linker_name = utils.f_name_from_path(linker_path)
+
+        if linker_name != "ld-linux-x86-64.so.2":
+            return None
+
+        reloc_fun_name = "_dl_runtime_resolve_xsavec"
+
+        # get_function_with_name is not used because:
+        # - it only looks at the exported functions and this one is not
+        #   exported,
+        # - it only looks at the libraries used by the binary.
+        for f in linker_bin.functions:
+            if f.name == reloc_fun_name:
+                reloc_fun = [LibFunction(name=f.name,
+                                         library_path=linker_path,
+                                         boundaries=(f.address, f.address
+                                                                 + f.size))]
+                break
+        if not reloc_fun:
+            for f in linker_bin.symbols:
+                if f.name == reloc_fun_name:
+                    reloc_fun = [LibFunction(name=f.name,
+                                             library_path=linker_path,
+                                             boundaries=(f.value, f.value
+                                                                   + f.size))]
+                    break
+
+        if not reloc_fun:
+            utils.print_warning(f"[WARNING] The relocation function "
+                                f"{reloc_fun_name} could not be found in "
+                                f"{linker_name}.")
+            return None
+
+        if len(reloc_fun) > 1:
+            utils.print_warning(f"[WARNING] Multiple possible relocation "
+                                f"functions were found for {reloc_fun_name} "
+                                f"in {linker_name}: {reloc_fun}.\n"
+                                f"All of them will be considered.")
+
+        return reloc_fun
+
+    def __get_local_function(self, f_address, lib_name):
+
+        lib = self.__libraries[lib_name]
+        lib_bin = lib.code_analyser.elf_analyser.binary.lief_binary
+
+        # If the f_address is in the functions, then we can easily get the
+        # function boundaries
+        local_function = None
+        for f in lib_bin.functions:
+            if f.address == f_address:
+                local_function = LibFunction(name=f.name,
+                                         library_path=lib.path,
+                                         boundaries=(f.address, f.address
+                                                                 + f.size))
+                break
+
+        # If not, the symbols of the libraries are searched. If it is not in
+        # the symbols, just print a warning but it still can be analysed.
+        shndx = None
+        if local_function is None:
+            for s in lib_bin.symbols:
+                if s.value == f_address:
+                    local_function = LibFunction(name=s.name,
+                                                 library_path=lib.path,
+                                                 boundaries=(s.value,
+                                                             s.value + s.size))
+                    shndx = s.shndx
+                    break
+            if local_function is None:
+                utils.print_warning(f"[WARNING] The function at address "
+                                    f"{hex(f_address)} of the library "
+                                    f"{lib.path} is not in the symbols table.")
+                local_function = LibFunction(name="[function name not found]",
+                                    library_path=lib.path,
+                                    boundaries=(0, 0))
+
+        if local_function.boundaries[0] == 0:
+            raise StaticAnalyserException("The function boundaries could not "
+                                          "be found")
+
+        # Sometimes, it is equal to 0, even if it was in the symbols table.
+        if local_function.boundaries[1] <= local_function.boundaries[0]:
+            # The boundaries can still be guessed by looking at the next entry
+            # in the symbols table and verifying it indeed is in the same
+            # section by using shndx. (may leed to overestimation)
+            try:
+                local_function.boundaries = (
+                    f_address,
+                    lib.code_analyser.elf_analyser.find_next_symbol_addr(
+                        f_address, shndx))
+            except StaticAnalyserException as e:
+                raise StaticAnalyserException(f"The function boundaries "
+                                          f"could not be found: {e}") from e
+
+        return local_function
+
+    def __get_got_rel_address(self, int_operand, is_first_plt_entry=False):
 
         jmp_to_got_ins = None
 
-        if self.__plt_section and not self.__plt_sec_section:
+        if self.__plt_section and (not self.__plt_sec_section or is_first_plt_entry):
             # The instruction at the address pointed to by the int_operand is a
             # jump to a `.got` entry. With the address of this `.got`
             # relocation entry, it is possible to identify the function that
@@ -686,8 +894,13 @@ class LibraryUsageAnalyser:
             insns = self.__md.disasm(
                     bytearray(self.__plt_section.content)[plt_offset:],
                     int_operand)
+            # If we try to get the linker call (i.e. we are looking in the
+            # first plt entry), the second instruction is the one we want, so
+            # the first is skipped.
+            if is_first_plt_entry:
+                next(insns)
             jmp_to_got_ins = next(insns)
-        elif self.__plt_sec_section:
+        elif self.__plt_sec_section and not is_first_plt_entry:
             # The same remark holds but the first instruction is now the
             # instruction right after the address pointed by the int_operand
             # and we work with the .plt.sec section instead.
@@ -761,7 +974,7 @@ class LibraryUsageAnalyser:
             for aux_sym in svr.get_auxiliary_symbols():
                 self.__used_libraries_aliases[aux_sym.name].append(svr.name)
 
-    def _register_library(self, lib_path):
+    def __register_library(self, lib_path):
 
         # Beware before using this function:
         # - It only register the library in the __libraries variable, i.e. for
