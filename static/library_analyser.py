@@ -536,7 +536,10 @@ class LibraryUsageAnalyser:
                               f"(e.g. _dl_runtime_resolve_xsavec of "
                               f"ld-linux-x86-64.so.2), hoping that it is the "
                               f"one used. Would you like to do that? [y/N]")
-            if input().lower() != 'y':
+            if utils.user_input.lower() == 'a':
+                if input().lower() != 'y':
+                    return
+            elif utils.user_input.lower() != 'y':
                 return
 
             reloc_fun = self.__get_relocation_function_hardcoded(linker_bin)

@@ -82,7 +82,7 @@ class CodeAnalyser:
             set of syscalls used by the program analysed
         """
 
-        if self.elf_analyser.binary.has_dyn_libraries:
+        if self.elf_analyser.binary.has_dyn_libraries and utils.analyse_linker:
             # Analyse the first function of the linker, which is the one that
             # will be called when executing the program (before any instruction
             # of the main binary) and if there is a .plt section, also analyse

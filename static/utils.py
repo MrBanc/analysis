@@ -22,6 +22,8 @@ skip_data = False
 all_imported_functions = True
 search_function_pointers = True
 search_raw_data = False
+analyse_linker = False
+user_input = "A"
 
 cur_depth = -1
 currently_backtracking = False

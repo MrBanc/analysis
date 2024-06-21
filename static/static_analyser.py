@@ -115,6 +115,16 @@ def parse_arguments():
             f'qword ptr [0x1234]`, the 64 bits value at address 0x1234 inside'
             f' the binary will be treated as a potential pointer to a '
             f'function) (default: {utils.search_raw_data})')
+    functionalities_group.add_argument(
+            '--analyse-linker', '-A', type=utils.str2bool, nargs='?',
+            const=True, default=utils.analyse_linker, help=f'Analyse the '
+            f'linker/loader functions (default: {utils.analyse_linker})')
+    functionalities_group.add_argument(
+            '--user-input', '-U',
+            default=utils.user_input, help=f'A: Ask the user for each '
+            f'proposition (e.g. do you want to analyse X), Y: Always say yes '
+            f'(lead to overestimation), N: Always say no (default: '
+            f'{utils.user_input})')
     args = parser.parse_args()
 
     utils.app = args.app
@@ -140,10 +150,15 @@ def parse_arguments():
         utils.clean_logs()
 
     utils.max_backtrack_insns = args.max_backtrack_insns
+    utils.analyse_linker = args.analyse_linker
     utils.skip_data = args.skip_data
     utils.all_imported_functions = args.all_imported_functions
     utils.search_function_pointers = args.search_function_pointers
     utils.search_raw_data = args.search_raw_data
+    if args.user_input.lower() not in ['a', 'y', 'n']:
+        raise StaticAnalyserException("Invalid value for user input. Must be "
+                                      "either A, Y or N.")
+    utils.user_input = args.user_input.lower()
 
 def launch_analysis():
     """Launch the analysis on the binary
