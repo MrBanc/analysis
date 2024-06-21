@@ -530,12 +530,12 @@ class LibraryUsageAnalyser:
             reloc_fun = self.__get_relocation_function_dynamically(linker_bin)
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
-                              f"relocation function address failed: {e}.\n"
+                              f"relocation function address failed: {e}\n"
                               f"An alternative is to analyse the most common "
                               f"relocation functions "
                               f"(e.g. _dl_runtime_resolve_xsavec of "
                               f"ld-linux-x86-64.so.2), hoping that it is the "
-                              f"one used. Would you like to do that? [Y/n]")
+                              f"one used. Would you like to do that? [y/N]")
             if input().lower() != 'y':
                 return
 
@@ -700,7 +700,13 @@ class LibraryUsageAnalyser:
 
         if r2_open is None:
             raise StaticAnalyserException("r2pipe is not installed.")
-        r2_bin = r2_open(self.elf_analyser.binary.path, flags=["-2"])
+        try:
+            r2_bin = r2_open(self.elf_analyser.binary.path, flags=["-2"])
+        except Exception as e: # r2pipe raises generic exceptions...
+            if "Cannot find radare2 in PATH" in str(e):
+                raise StaticAnalyserException(
+                        "Cannot find radare2 in PATH.") from e
+            raise e
 
         r2_bin.cmd('doo') # (start debugging)
         bin_entry = self.elf_analyser.binary.lief_binary.entrypoint
@@ -780,8 +786,6 @@ class LibraryUsageAnalyser:
         # (et si le linker est pas pris en charge, propose ld-linux sur
         # x86_64 mais dis que c'est pas celui utilisé)
 
-        # TODO relire car j'ai juste copié collé ça sans trop regarder (il était ailleurs avant)
-
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)
 
@@ -794,6 +798,7 @@ class LibraryUsageAnalyser:
         # - it only looks at the exported functions and this one is not
         #   exported,
         # - it only looks at the libraries used by the binary.
+        reloc_fun = None
         for f in linker_bin.functions:
             if f.name == reloc_fun_name:
                 reloc_fun = [LibFunction(name=f.name,
