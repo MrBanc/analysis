@@ -120,7 +120,7 @@ def parse_arguments():
             const=True, default=utils.analyse_linker, help=f'Analyse the '
             f'linker/loader functions (default: {utils.analyse_linker})')
     functionalities_group.add_argument(
-            '--user-input', '-U',
+            '--user-input', '-u',
             default=utils.user_input, help=f'A: Ask the user for each '
             f'proposition (e.g. do you want to analyse X), Y: Always say yes '
             f'(lead to overestimation), N: Always say no (default: '
