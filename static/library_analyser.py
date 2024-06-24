@@ -15,6 +15,7 @@ import lief
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 try:
     from r2pipe import open as r2_open
+    import json
 except ImportError:
     r2_open = None
 
@@ -527,7 +528,7 @@ class LibraryUsageAnalyser:
             # It is necessary to use dynamic analysis to find the relocation
             # function (see __get_relocation_function_dynamically documentation
             # for more details)
-            reloc_fun = self.__get_relocation_function_dynamically(linker_bin)
+            reloc_fun = [self.__get_relocation_function_dynamically(linker_bin)]
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
                               f"relocation function address failed: {e}\n"
@@ -547,7 +548,7 @@ class LibraryUsageAnalyser:
         print(f"[DEBUG]: reloc_fun: {reloc_fun}")
 
         if reloc_fun is not None:
-            self.get_used_syscalls(syscalls_set, [reloc_fun])
+            self.get_used_syscalls(syscalls_set, reloc_fun)
 
     def get_used_syscalls(self, syscalls_set, functions):
         """Main method of the Library Analyser. Updates the syscall set
@@ -692,11 +693,16 @@ class LibraryUsageAnalyser:
             if the dynamic analysis fails
         """
 
-        # Find the address of the .got entry where the relocation function's
-        # address will be stored
+        # The following code is commented as the address obtained sometimes
+        # corresponds to the virtual address and sometimes to the offset from
+        # the beginning of the mapping. Thus instead, this address is found
+        # using r2 instead.
 
-        reloc_got_addr = self.__get_got_rel_address(
-               self.__plt_section.virtual_address, is_first_plt_entry=True)
+        # # Find the address of the .got entry where the relocation function's
+        # # address will be stored
+
+        # reloc_got_addr = self.__get_got_rel_address(
+        #        self.__plt_section.virtual_address, is_first_plt_entry=True)
 
         # The relocation function address is found using dynamic
         # analysis as it will only be known at runtime.
@@ -704,47 +710,86 @@ class LibraryUsageAnalyser:
         if r2_open is None:
             raise StaticAnalyserException("r2pipe is not installed.")
         try:
-            r2_bin = r2_open(self.elf_analyser.binary.path, flags=["-2"])
+            r2_bin = r2_open(self.elf_analyser.binary.path, flags=["-d", "-2"])
         except Exception as e: # r2pipe raises generic exceptions...
             if "Cannot find radare2 in PATH" in str(e):
                 raise StaticAnalyserException(
                         "Cannot find radare2 in PATH.") from e
             raise e
 
-        r2_bin.cmd('doo') # (start debugging)
-        bin_entry = self.elf_analyser.binary.lief_binary.entrypoint
-        r2_bin.cmd(f'db {hex(bin_entry)}') # (set breakpoint)
-        r2_bin.cmd('dc') # (continue until breakpoint)
-        r2_bin.cmd(f's {hex(reloc_got_addr)}') # (move focus to the address)
-        got_entry_content = r2_bin.cmd('p8 6') # (print 6 bytes)
+        try:
+            # Note: I cannot find the meaning ot entry0 in the r2 documentation but
+            # it seems to be an alias for the entrypoint. If in the future, this
+            # does not work, an alternative is to obtain the address of the
+            # entrypoint from the command "ie". It is also possible that the "aaa"
+            # command needs to be called to find entry0 sometimes, but it is rather
+            # slow, thus I do not use it here as it works without it.
+            # Another possibility is to compute it with the offset.
+            r2_bin.cmd('db entry0') # (set breakpoint to entrypoint)
+            r2_bin.cmd('dc') # (continue until breakpoint)
+            # Get where the linker is mapped in memory and compare it to the
+            # address of relocation function address to find the offset.
 
-        # convert to big endian
-        reloc_fun_addr = int.from_bytes(bytes.fromhex(got_entry_content),
-                                        byteorder='little')
+            memory_mappings = json.loads(r2_bin.cmd('dmj'))
 
-        # Get where the linker is mapped in memory and compare it to the
-        # address of relocation function address to find the offset.
+            linker_path = self.elf_analyser.binary.lief_binary.interpreter
+            linker_name = utils.f_name_from_path(linker_path)
+            # binary_path = self.elf_analyser.binary.path
+            # binary_name = utils.f_name_from_path(binary_path)
+            linker_mappings = self.__grep_file_mappings(memory_mappings,
+                                                        linker_name)
+            # binary_mappings = self.__grep_file_mappings(memory_mappings,
+            #                                             binary_name)
 
-        memory_mappings = r2_bin.cmd('dm')
+            if (self.__mappings_not_contiguous(linker_mappings)
+                # or self.__mappings_not_contiguous(binary_mappings)
+                or len(linker_mappings) < 1): # or len(binary_mappings) < 1):
+                # Could be possible to find the offset even if they aren't
+                # contiguous but it is not implemented (yet?).
+                raise StaticAnalyserException("The mappings of the linker or "
+                                              "binary are not contiguous or have "
+                                              "not been found.")
 
-        linker_mappings = self.__get_linker_mappings(memory_mappings)
+            linker_mapped_address = linker_mappings[0]['addr']
+            # binary_mapped_address = binary_mappings[0]['addr']
 
-        if self.__mappings_not_contiguous(linker_mappings):
-            # Could be possible to find the offset anyway but it is not
-            # implemented (yet?).
-            raise StaticAnalyserException("The mappings of the linker are not "
-                                          "contiguous.")
+            sections_info = r2_bin.cmd('iS')
+            plt_section_addr = self.__get_plt_addr_from_r2_info(sections_info)
 
-        linker_mapped_address = int(linker_mappings[0].split(' - ')[0].strip(),
-                                    16)
+            # reloc_got_loaded_addr = binary_mapped_address + reloc_got_addr
+            # r2_bin.cmd(f's {hex(reloc_got_loaded_addr)}')
+            # got_entry_content = r2_bin.cmd('p8 6') # (print 6 bytes)
+            # # convert to big endian
+            # reloc_fun_addr = int.from_bytes(bytes.fromhex(got_entry_content),
+            #                                 byteorder='little')
+
+            r2_bin.cmd(f's {hex(plt_section_addr)}') # (focus on the address)
+            dis_inst = r2_bin.cmd('pd 2') # (disassemble two instructions)
+        finally:
+            r2_bin.cmd('doc') # close debugger (Otherwise, the process can stay
+                              # alive, even after killing r2)
+            r2_bin.quit()
+        second_instr_pattern = (r"jmp *qword *\[(0x)?[a-fA-F0-9]+\] *; *"
+                             r"\[(0x)?[a-fA-F0-9]+(:\d+)?\]=(0x)?[a-fA-F0-9]+")
+        # need to use -2 because there may be comment lines beforehand and
+        # there is an empty line at the end
+        if re.search(second_instr_pattern, dis_inst.split('\n')[-2]) is None:
+            raise StaticAnalyserException("The second instruction of the .plt "
+                                          "section has not the expected "
+                                          "format.")
+
+        got_entry_content = re.search(r"=((0x)?[a-fA-F0-9]+)",
+                                      dis_inst.split('\n')[-2]).group(1)
+        reloc_fun_addr = utils.str2int(got_entry_content)
+
+        if reloc_fun_addr is None or reloc_fun_addr == 0:
+            raise StaticAnalyserException("The relocation function address "
+                                          "could not be found.")
 
         reloc_fun_offset = reloc_fun_addr - linker_mapped_address
 
         # Get the function name from the linker's symbols by looking at
         # the offset found.
-
-        linker_path = self.elf_analyser.binary.lief_binary.interpreter
-        linker_name = utils.f_name_from_path(linker_path)
 
         try:
             reloc_fun = self.__get_local_function(reloc_fun_offset,
@@ -759,27 +804,33 @@ class LibraryUsageAnalyser:
 
         return reloc_fun
 
-    def __get_linker_mappings(self, memory_mappings):
+    def __grep_file_mappings(self, memory_mappings, file_name):
 
-        lines = memory_mappings.split('\n')
-
-        linker_path = self.elf_analyser.binary.lief_binary.interpreter
-        linker_name = utils.f_name_from_path(linker_path)
-
-        return [l for l in lines if linker_name in l]
+        return [m for m in memory_mappings if (
+            ('name' in m and file_name == utils.f_name_from_path(m['name']))
+            or
+            ('file' in m and file_name == utils.f_name_from_path(m['file'])))]
 
     def __mappings_not_contiguous(self, linker_mappings):
 
         contiguous = True
         for i in range(len(linker_mappings) - 1):
-            end_address_current = linker_mappings[i].split(' - ')[1].strip()
-            start_address_next = linker_mappings[i+1].split(' - ')[0].strip()
+            end_address_current = linker_mappings[i]['addr_end']
+            start_address_next = linker_mappings[i+1]['addr']
 
             if end_address_current != start_address_next:
                 contiguous = False
                 break
 
         return not contiguous
+
+    def __get_plt_addr_from_r2_info(self, sections_info):
+
+        for line in sections_info.split('\n'):
+            if line.split() and ".plt" == line.split()[-1]:
+                return int(line.split()[3], 16)
+
+        raise StaticAnalyserException("The .plt section could not be found.")
 
     def __get_relocation_function_hardcoded(self, linker_bin):
 
@@ -892,7 +943,8 @@ class LibraryUsageAnalyser:
 
         jmp_to_got_ins = None
 
-        if self.__plt_section and (not self.__plt_sec_section or is_first_plt_entry):
+        if self.__plt_section and (not self.__plt_sec_section
+                                   or is_first_plt_entry):
             # The instruction at the address pointed to by the int_operand is a
             # jump to a `.got` entry. With the address of this `.got`
             # relocation entry, it is possible to identify the function that
