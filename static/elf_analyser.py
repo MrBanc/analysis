@@ -480,9 +480,9 @@ class ELFAnalyser:
 
         if key not in map_dict:
             if show_warnings:
-                utils.print_warning(f"[WARNING] A function was called but "
-                                    f"couldn't be found with its {key_type}: "
-                                    f"{key}")
+                utils.print_warning(f"[WARNING] A function was called in "
+                                    f"{self.binary.path} but couldn't be found"
+                                    f" with its {key_type}: {key}")
             return None
 
         return map_dict[key]
