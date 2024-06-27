@@ -522,6 +522,12 @@ class LibraryUsageAnalyser:
 
         # 2. Analyse function that is called when doing a relocation (in .plt)
 
+        if not self.__lazy_binding_used():
+            # If lazy binding is not used, the relocation function is not used
+            # and there is no need to analyse it.
+            print("[DEBUG]: Lazy binding not used")
+            return
+
         reloc_fun = None
 
         try:
@@ -531,17 +537,7 @@ class LibraryUsageAnalyser:
             reloc_fun = [self.__get_relocation_function_dynamically(linker_bin)]
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
-                              f"relocation function address failed: {e}\n"
-                              f"An alternative is to analyse the most common "
-                              f"relocation functions "
-                              f"(e.g. _dl_runtime_resolve_xsavec of "
-                              f"ld-linux-x86-64.so.2), hoping that it is the "
-                              f"one used. Would you like to do that? [y/N]")
-            if utils.user_input.lower() == 'a':
-                if input().lower() != 'y':
-                    return
-            elif utils.user_input.lower() != 'y':
-                return
+                              f"relocation function address failed: {e}\n")
 
             reloc_fun = self.__get_relocation_function_hardcoded(linker_bin)
 
@@ -663,6 +659,22 @@ class LibraryUsageAnalyser:
             utils.print_error(f"[ERROR] The linker's entrypoint function could"
                               f" not be found: {e}.")
             return None
+
+    def __lazy_binding_used(self):
+
+        for e in self.elf_analyser.binary.lief_binary.dynamic_entries:
+            if (e.tag == lief.ELF.DYNAMIC_TAGS.FLAGS
+                and e.has(lief.ELF.DYNAMIC_FLAGS.BIND_NOW)):
+
+                # This could for example be the result of compiling with "-z
+                # now" or using musl
+                return False
+
+        ld_bind_now = environment_var.get("LD_BIND_NOW")
+        if ld_bind_now is not None and ld_bind_now != "":
+            return False
+
+        return True
 
     def __get_relocation_function_dynamically(self, linker_bin):
         """Get the relocation function of the linker dynamically.
@@ -843,10 +855,38 @@ class LibraryUsageAnalyser:
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)
 
-        if linker_name != "ld-linux-x86-64.so.2":
+        reloc_fun_name = None
+
+        if linker_name == "ld-linux-x86-64.so.2":
+            reloc_fun_name = "_dl_runtime_resolve_xsavec"
+        elif linker_name == "ld-linux.so.2":
+            reloc_fun_name = "_dl_runtime_resolve"
+        elif "musl" in linker_name:
+            # musl does not use lazy binding
             return None
 
-        reloc_fun_name = "_dl_runtime_resolve_xsavec"
+        if reloc_fun_name is None:
+            return None
+            # Not sure it is a good idea to propose this. I let it here for
+            # now but it is not used.
+            # utils.print_error(
+            #         f"The linker used by {self.elf_analyser.binary.path} is "
+            #         f"{linker_name}. No relocation function is hardcoded for "
+            #         f"this linker. Would you like to analyse the hardcoded "
+            #         f"function for ld-linux-x86-64.so.2 "
+            #         f"(_dl_runtime_resolve_xsavec) instead? [y/N]")
+            # reloc_fun_name = "_dl_runtime_resolve_xsavec"
+            # # TODO: add linker to libraries in the static analyser
+        utils.print_error(
+                    f"The linker used by {self.elf_analyser.binary.path} is "
+                    f"{linker_name}. The relocation function for that linker "
+                    f"is hardcoded to be{reloc_fun_name}. Would you like to "
+                    f"analyse it instead? [y/N]")
+        if utils.user_input.lower() == 'a':
+            if input().lower() != 'y':
+                return None
+        elif utils.user_input.lower() != 'y':
+            return None
 
         # get_function_with_name is not used because:
         # - it only looks at the exported functions and this one is not
