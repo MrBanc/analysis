@@ -22,18 +22,21 @@ class CodeAnalyser:
 
     Class used to analyse the binary code to detect syscalls.
 
-    This class directly analyse what is inside the `.text` sectin of the ELF
-    executable but it also uses `LibraryUsageAnalyser` to (indirectly) analyse
-    syscalls used by shared library calls.
+    This class directly analyse what is inside the executable sections of the
+    ELF executable but it also uses `LibraryUsageAnalyser` to (indirectly)
+    analyse syscalls used by shared library calls.
 
     Public Methods
     --------------
     launch_analysis(self, syscalls_set):
         Entry point of the Code Analyser. Updates the syscall set passed as
         argument after analysing the binary.
-    get_used_syscalls_text_section(self, syscalls_set):
-        Updates the syscall set passed as argument after analysing the `.text`
-        of the binary.
+    get_used_syscalls_all_executable_sections(self, syscalls_set)
+        Updates the syscall set passed as argument after analysing all the
+        executable sections of the binary.
+    get_used_syscalls_of_section(self, syscalls_set):
+        Updates the syscall set passed as argument after analysing the given
+        section of the binary.
     analyse_imported_functions(self, syscalls_set):
         Analyse the functions imported by the binary ,as specified within the
         ELF.
@@ -89,7 +92,7 @@ class CodeAnalyser:
             # the linker function that performs .plt functions resolution
             self.__lib_analyser.analyse_linker_functions(syscalls_set)
 
-        self.get_used_syscalls_text_section(syscalls_set)
+        self.get_used_syscalls_all_executable_sections(syscalls_set)
 
         # Some of the function calls might not have been detected due to
         # informations that can only be obtained at runtime. Therefore, all the
@@ -117,9 +120,9 @@ class CodeAnalyser:
 
     # -------------------------- Main Functionalities -------------------------
 
-    def get_used_syscalls_text_section(self, syscalls_set):
-        """Updates the syscall set passed as argument after analysing the
-        `.text` of the binary.
+    def get_used_syscalls_all_executable_sections(self, syscalls_set):
+        """Updates the syscall set passed as argument after analysing all the
+        executable sections of the binary.
 
         Parameters
         ----------
@@ -127,13 +130,30 @@ class CodeAnalyser:
             set of syscalls used by the program analysed
         """
 
-        text_section = self.elf_analyser.get_text_section()
-        bytes_to_analyse = text_section.size
-        start_analyse_at = text_section.virtual_address
+        for section in self.elf_analyser.binary.lief_binary.sections:
+            if section.name in (".plt.sec", ".plt"):
+                # All functions in the .plt section are analysed in the
+                # `analyse_imported_functions` function
+                continue
+            if self.elf_analyser.is_executable_section(section):
+                self.get_used_syscalls_of_section(section, syscalls_set)
+
+    def get_used_syscalls_of_section(self, section, syscalls_set):
+        """Updates the syscall set passed as argument after analysing the
+        given section of the binary.
+
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        """
+
+        bytes_to_analyse = section.size
+        start_analyse_at = section.virtual_address
 
         while bytes_to_analyse > 0:
-            to_analyse = bytearray(text_section.content)[text_section.size
-                                                         - bytes_to_analyse:]
+            to_analyse = bytearray(section.content)[section.size
+                                                    - bytes_to_analyse:]
             # ---------------- Main part of the function here ----------------
             bytes_analysed = self.analyse_code(
                     self.__md.disasm(to_analyse, start_analyse_at),
@@ -143,10 +163,10 @@ class CodeAnalyser:
             bytes_to_analyse -= bytes_analysed
             if not bytes_to_analyse:
                 continue
-            stopped_at = (text_section.virtual_address + text_section.size
+            stopped_at = (section.virtual_address + section.size
                           - bytes_to_analyse)
-            utils.print_error(f"[ERROR] analysis of `.text` section of "
-                              f"{self.elf_analyser.binary.path} stopped at "
+            utils.print_error(f"[ERROR] analysis of `{section.name}` section "
+                              f"of {self.elf_analyser.binary.path} stopped at "
                               f"{hex(stopped_at)} (probably due to some data "
                               f"found inside). Trying to continue the analysis"
                               f" at the next function...")
@@ -170,10 +190,11 @@ class CodeAnalyser:
             set of syscalls used by the program analysed
         """
 
-        utils.log("\nStarting the analysis of imported functions from .text "
-                  "that might not have been found.\n", "lib_functions.log")
-        utils.log("Starting the analysis of imported functions from .text that"
-                  " might not have been found.\n", "backtrack.log")
+        utils.log("\nStarting the analysis of imported functions from the main"
+                  " binary that might not have been found.\n",
+                  "lib_functions.log")
+        utils.log("Starting the analysis of imported functions from the main "
+                  "binary that might not have been found.\n", "backtrack.log")
 
         for f in self.elf_analyser.binary.lief_binary.imported_functions:
             if "@" in f.name:

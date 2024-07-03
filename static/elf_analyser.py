@@ -18,6 +18,7 @@ import utils
 TEXT_SECTION     = ".text"
 PLT_SECTION      = ".plt"
 PLT_SEC_SECTION  = ".plt.sec"
+RODATA_SECTION   = ".rodata"
 
 
 @dataclass
@@ -72,6 +73,8 @@ class ELFAnalyser:
     get_section_from_address(self, address)
         Returns the section (in lief format) that contains the data or
         instruction located at the given address.
+    is_executable_section(self, section)
+        Returns whether the given section is executable or not.
 
     // Searching in Memory //
     get_string_at_address(self, address)
@@ -207,7 +210,7 @@ class ELFAnalyser:
         Returns
         -------
         rodata_section : lief ELF section
-            the text section as given by lief
+            the rodata section as given by lief
 
         Raises
         ------
@@ -217,7 +220,7 @@ class ELFAnalyser:
 
         if self.binary.rodata_sect is None:
             self.binary.rodata_sect = (self.binary.lief_binary
-                                       .get_section(TEXT_SECTION))
+                                       .get_section(RODATA_SECTION))
         if self.binary.rodata_sect is None:
             raise StaticAnalyserException(".rodata section is not found.")
         return self.binary.rodata_sect
@@ -273,6 +276,22 @@ class ELFAnalyser:
                                           f"found for address {address}")
 
         return section
+
+    def is_executable_section(self, section):
+        """Returns whether the given section is executable or not.
+
+        Parameters
+        ----------
+        section : lief section
+            the section to check
+
+        Returns
+        -------
+        is_executable : bool
+            True if the section is executable
+        """
+
+        return (section.flags & lief.ELF.SECTION_FLAGS.EXECINSTR) != 0
 
     def __get_section_boundaries(self, section):
         """Returns [section_start_address, section_end_address-1]
