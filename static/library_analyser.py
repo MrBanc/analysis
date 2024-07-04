@@ -515,8 +515,6 @@ class LibraryUsageAnalyser:
 
         linker_entrypoint = self.__get_linker_entrypoint(linker_bin)
 
-        print(f"[DEBUG]: linker_entrypoint: {linker_entrypoint}")
-
         if linker_entrypoint is not None:
             self.get_used_syscalls(syscalls_set, [linker_entrypoint])
 
@@ -525,7 +523,6 @@ class LibraryUsageAnalyser:
         if not self.__lazy_binding_used():
             # If lazy binding is not used, the relocation function is not used
             # and there is no need to analyse it.
-            print("[DEBUG]: Lazy binding not used")
             return
 
         reloc_fun = None
@@ -534,14 +531,12 @@ class LibraryUsageAnalyser:
             # It is necessary to use dynamic analysis to find the relocation
             # function (see __get_relocation_function_dynamically documentation
             # for more details)
-            reloc_fun = [self.__get_relocation_function_dynamically(linker_bin)]
+            reloc_fun = [self.__get_relocation_function_dynamically()]
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
                               f"relocation function address failed: {e}\n")
 
             reloc_fun = self.__get_relocation_function_hardcoded(linker_bin)
-
-        print(f"[DEBUG]: reloc_fun: {reloc_fun}")
 
         if reloc_fun is not None:
             self.get_used_syscalls(syscalls_set, reloc_fun)
@@ -596,12 +591,12 @@ class LibraryUsageAnalyser:
             lib_name = utils.f_name_from_path(f.library_path)
             try:
                 insns = self.__get_function_insns(f)
+                (self.__libraries[lib_name].code_analyser
+                 .analyse_code(insns, function_syscalls, funs_called))
             except StaticAnalyserException as e:
-                utils.print_error(f"{e}")
+                utils.print_error(f"[ERROR] Error while analysing the function"
+                                  f" {f.name} in {f.library_path}: {e}.")
                 continue
-
-            (self.__libraries[lib_name].code_analyser
-             .analyse_code(insns, function_syscalls, funs_called))
 
             # Get all the syscalls used by the called function
             self.__get_used_syscalls_recursive(function_syscalls, funs_called)
@@ -676,7 +671,7 @@ class LibraryUsageAnalyser:
 
         return True
 
-    def __get_relocation_function_dynamically(self, linker_bin):
+    def __get_relocation_function_dynamically(self):
         """Get the relocation function of the linker dynamically.
 
         The relocation function is the function called when doing a relocation
@@ -688,11 +683,6 @@ class LibraryUsageAnalyser:
         jumping to its address, which is located in the .got section. The
         problem is that this address is not known statically and is only known
         at runtime. Thus, the address is found using dynamic analysis.
-
-        Parameters
-        ----------
-        linker_bin : class binary of lief
-            the binary of the linker
 
         Returns
         -------
@@ -730,13 +720,13 @@ class LibraryUsageAnalyser:
             raise e
 
         try:
-            # Note: I cannot find the meaning ot entry0 in the r2 documentation but
-            # it seems to be an alias for the entrypoint. If in the future, this
-            # does not work, an alternative is to obtain the address of the
-            # entrypoint from the command "ie". It is also possible that the "aaa"
-            # command needs to be called to find entry0 sometimes, but it is rather
-            # slow, thus I do not use it here as it works without it.
-            # Another possibility is to compute it with the offset.
+            # Note: I cannot find the meaning ot entry0 in the r2 documentation
+            # but it seems to be an alias for the entrypoint. If in the future,
+            # this does not work, an alternative is to obtain the address of
+            # the entrypoint from the command "ie". It is also possible that
+            # the "aaa" command needs to be called to find entry0 sometimes,
+            # but it is rather slow, thus I do not use it here as it works
+            # without it. Another possibility is to compute it with the offset.
             r2_bin.cmd('db entry0') # (set breakpoint to entrypoint)
             r2_bin.cmd('dc') # (continue until breakpoint)
             # Get where the linker is mapped in memory and compare it to the
@@ -759,8 +749,8 @@ class LibraryUsageAnalyser:
                 # Could be possible to find the offset even if they aren't
                 # contiguous but it is not implemented (yet?).
                 raise StaticAnalyserException("The mappings of the linker or "
-                                              "binary are not contiguous or have "
-                                              "not been found.")
+                                              "binary are not contiguous or "
+                                              "have not been found.")
 
             linker_mapped_address = linker_mappings[0]['addr']
             # binary_mapped_address = binary_mappings[0]['addr']
@@ -845,12 +835,6 @@ class LibraryUsageAnalyser:
         raise StaticAnalyserException("The .plt section could not be found.")
 
     def __get_relocation_function_hardcoded(self, linker_bin):
-
-        # TODO: It would be nice to do it for the most common interpreters,
-        # not just ld-linux on 64 bits. Quand tu feras ça, modifie le
-        # message d'erreur ci dessus pour qu'il s'adapte au linker utilisé
-        # (et si le linker est pas pris en charge, propose ld-linux sur
-        # x86_64 mais dis que c'est pas celui utilisé)
 
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)

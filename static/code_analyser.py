@@ -155,9 +155,15 @@ class CodeAnalyser:
             to_analyse = bytearray(section.content)[section.size
                                                     - bytes_to_analyse:]
             # ---------------- Main part of the function here ----------------
-            bytes_analysed = self.analyse_code(
-                    self.__md.disasm(to_analyse, start_analyse_at),
-                    syscalls_set)
+            try:
+                bytes_analysed = self.analyse_code(
+                        self.__md.disasm(to_analyse, start_analyse_at),
+                        syscalls_set)
+            except StaticAnalyserException as e:
+                utils.print_error(f"[ERROR] while analysing the code of "
+                                  f"{section.name} section of "
+                                  f"{self.elf_analyser.binary.path}: {e}")
+                break
             # ----------------------------------------------------------------
 
             bytes_to_analyse -= bytes_analysed
@@ -228,12 +234,12 @@ class CodeAnalyser:
         bytes_analysed : int
             size (in bytes) of the code analysed (rarely used by the calling
             function)
-        """
 
-        if f_called_list is None:
-            detect_local_funs = False
-        else:
-            detect_local_funs = True
+        Raises
+        ------
+        StaticAnalyserException
+            If the given instructions could not be analysed
+        """
 
         list_inst = []
         for _, ins in enumerate(insns):
@@ -256,62 +262,13 @@ class CodeAnalyser:
                     code_utils.extract_destination_address(list_inst,
                                                            self.elf_analyser))
 
-            # TODO mettre la suite de cette fonction dans une fonction à part ?
-
-            if dest_address is None:
-                continue
-
-            if self.elf_analyser.binary.has_dyn_libraries:
-                if (dest_address.f_name is not None
-                    and not dest_address.is_local):
-
-                    # In some (rare) cases, library functions can be called
-                    # without going through the .plt
-                    funs = self.__lib_analyser.get_function_with_name(
-                            dest_address.f_name)
-                elif (self.__lib_analyser.is_call_to_plt(dest_address.value)
-                      and dest_address.is_local):
-
-                    funs = self.__get_called_plt_functions(dest_address.value,
-                                                        f_called_list)
-                else:
-                    funs = None
-                self.__wrapper_analyse_lib_function(funs, list_inst,
-                                                    syscalls_set)
-                if funs is not None:
-                    # Even if no function was found (funs == []), the address
-                    # did correspond to a library function, so the iteration
-                    # stops here
-                    continue
-
-            if detect_local_funs and (ins.group(CS_GRP_CALL)
-                                       or utils.search_function_pointers):
-                f = self.elf_analyser.get_local_function_called(
-                        dest_address.value, show_warnings)
-                if f is None:
-                    continue
-                if f.boundaries[0] >= f.boundaries[1]:
-                    # TODO: trouver une solution générale pour essayer
-                    # d'analyser la fonction même si on a pas la taille ?
-                    # TODO: dans tous les cas on devrait pas le hardcoder ici.
-                    if f.name == "__restore_rt":
-                        # particular case where for some reason the ELF
-                        # indicates that this function's size is 0
-                        syscalls_set.add(syscalls.syscalls_map[0xf])
-                    continue
-
-                f_array = [f]
-                self.__analyse_syscall_functions(f_array, list_inst,
-                                                 syscalls_set)
-                if not f_array:
-                    continue
-
-                if f not in f_called_list:
-                    f_called_list.append(f)
+            self.__analyse_destination_address(dest_address, list_inst,
+                                             syscalls_set, f_called_list,
+                                             show_warnings)
 
         if not list_inst:
-            # TODO: raise an exception
-            return 0
+            raise StaticAnalyserException("[ERROR] The given instructions "
+                                          "could not be analysed", True)
         bytes_analysed = (list_inst[-1].address + list_inst[-1].size
                           - list_inst[0].address)
         return bytes_analysed
@@ -371,7 +328,7 @@ class CodeAnalyser:
             utils.print_verbose(f"Syscall instruction detected but syscall ID "
                                 f"not found or invalid: {nb_syscall}")
 
-    # --------------------------- Libraries Related ---------------------------
+    # -------------------- Libraries or Functions Related ---------------------
 
     def analyse_detected_dlsym_functions(self, syscalls_set):
         """Analyse all the functions inside `self.__dlsym_f_names`. If new
@@ -427,6 +384,80 @@ class CodeAnalyser:
 
         self.__lib_analyser = library_analyser.LibraryUsageAnalyser(
                 self.elf_analyser)
+
+    def __analyse_destination_address(self, dest_address, list_inst,
+                                      syscalls_set, f_called_list,
+                                      show_warnings):
+        """Analyse the destination address and update the syscall set and the
+        list of functions called.
+
+        Parameters
+        ----------
+        dest_address : class Destination
+            destination address to analyse
+        list_inst : list of capstone instruction
+            the instructions leading to the one to consider (included)
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        f_called_list : None or list of LibFunction, optional
+            if a list is given, the functions called by the given instructions
+            will be added in this list
+        show_warnings : bool
+            if True, warnings will be printed if the function called could not
+            be found
+        """
+
+        if dest_address is None:
+            return
+
+        if f_called_list is None:
+            detect_local_funs = False
+        else:
+            detect_local_funs = True
+
+        if self.elf_analyser.binary.has_dyn_libraries:
+            funs = None
+            if (dest_address.f_name is not None
+                and not dest_address.is_local):
+
+                # In some (rare) cases, library functions can be called
+                # without going through the .plt
+                funs = self.__lib_analyser.get_function_with_name(
+                        dest_address.f_name)
+            elif (self.__lib_analyser.is_call_to_plt(dest_address.value)
+                  and dest_address.is_local):
+
+                funs = self.__get_called_plt_functions(dest_address.value,
+                                                       f_called_list)
+            self.__wrapper_analyse_lib_function(funs, list_inst,
+                                                syscalls_set)
+            if funs is not None:
+                # Even if no function was found (funs == []), the address
+                # did correspond to a library function, so the iteration
+                # stops here
+                return
+
+        if detect_local_funs and (list_inst[-1].group(CS_GRP_CALL)
+                                   or utils.search_function_pointers):
+            f = self.elf_analyser.get_local_function_called(
+                    dest_address.value, show_warnings)
+            if f is None:
+                return
+            if f.boundaries[0] >= f.boundaries[1]:
+                # TODO: trouver une solution générale pour essayer
+                # d'analyser la fonction même si on a pas la taille ?
+                # TODO: dans tous les cas on devrait pas le hardcoder ici.
+                if f.name == "__restore_rt":
+                    # particular case where for some reason the ELF
+                    # indicates that this function's size is 0
+                    syscalls_set.add(syscalls.syscalls_map[0xf])
+                return
+
+            f_array = [f]
+            self.__analyse_syscall_functions(f_array, list_inst,
+                                             syscalls_set)
+            if f_array and f not in f_called_list:
+                f_called_list.append(f)
 
     def __get_called_plt_functions(self, plt_fun_addr, f_called_list):
 
