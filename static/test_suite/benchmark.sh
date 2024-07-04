@@ -76,10 +76,12 @@ benchmark_binaries(){
     for flag in "${array_flags[@]}"; do
         for file in "${build}_all/$flag"/*; do
             if [ "$binary" == "static_analyser" ]; then
-                timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y |awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t|awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
             else
-                #TODO: Add $4, and sort -n to have the number of occurences
-                "${binary}" -c -f "./$file" 2>&1 >/dev/null | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                # TODO: Add $4, and sort -n to have the number of occurences
+                # use temporary file because /dev/null would yeild an ioctl syscall
+                "${binary}" -c -f "./$file" 2>&1 > temporary_file | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                rm temporary_file
             fi
         done
     done

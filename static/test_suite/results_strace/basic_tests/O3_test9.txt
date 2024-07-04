@@ -15,7 +15,6 @@ futex
 getdents64
 getpid
 getrandom
-ioctl
 lseek
 mmap
 mprotect

@@ -7,7 +7,6 @@ close
 execve
 fstat
 getrandom
-ioctl
 listen
 mmap
 mprotect

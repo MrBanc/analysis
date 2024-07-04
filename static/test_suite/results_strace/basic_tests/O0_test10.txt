@@ -6,7 +6,6 @@ close
 execve
 fstat
 getrandom
-ioctl
 mmap
 mprotect
 munmap

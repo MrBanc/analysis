@@ -5,7 +5,6 @@ close
 execve
 fstat
 getrandom
-ioctl
 mkdir
 mmap
 mprotect
