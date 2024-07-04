@@ -4,11 +4,11 @@ brk
 close
 directory
 execve
+fstat
 getrandom
 mmap
 mprotect
 munmap
-newfstatat
 openat
 pread64
 prlimit64

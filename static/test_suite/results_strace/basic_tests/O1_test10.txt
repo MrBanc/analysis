@@ -4,12 +4,12 @@ brk
 clock_gettime
 close
 execve
+fstat
 getrandom
 ioctl
 mmap
 mprotect
 munmap
-newfstatat
 openat
 pread64
 prlimit64

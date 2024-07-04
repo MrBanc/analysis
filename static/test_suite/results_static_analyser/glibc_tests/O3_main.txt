@@ -46,6 +46,7 @@ openat
 pipe
 pipe2
 poll
+prctl
 pread64
 prlimit64
 read
@@ -64,7 +65,6 @@ sched_getscheduler
 sched_setaffinity
 sched_setparam
 sched_setscheduler
-sched_yield
 sendto
 setitimer
 setpgid
@@ -84,5 +84,6 @@ uname
 unlink
 utimensat
 wait4
+waitid
 write
 writev

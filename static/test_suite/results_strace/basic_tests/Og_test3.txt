@@ -3,10 +3,10 @@ arch_prctl
 brk
 close
 execve
+fstat
 mmap
 mprotect
 munmap
-newfstatat
 openat
 pread64
 prlimit64

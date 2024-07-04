@@ -8,6 +8,7 @@ execve
 exit
 exit_group
 fcntl
+fstat
 futex
 getcwd
 getdents64
@@ -22,8 +23,8 @@ mremap
 munmap
 newfstatat
 openat
+prctl
 pread64
-prlimit64
 read
 readlinkat
 rseq
@@ -36,11 +37,9 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_setscheduler
-sched_yield
 setitimer
 set_robust_list
 set_tid_address
-sysinfo
 tgkill
 uname
 write

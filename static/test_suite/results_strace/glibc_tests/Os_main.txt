@@ -11,6 +11,7 @@ connect
 dup2
 execve
 fcntl
+fstat
 futex
 getegid
 geteuid
@@ -47,7 +48,6 @@ set_robust_list
 setsockopt
 set_tid_address
 socket
-sysinfo
 tgkill
 uname
 unlink

@@ -5,13 +5,13 @@ brk
 clone
 close
 execve
+fstat
 getrandom
 ioctl
 listen
 mmap
 mprotect
 munmap
-newfstatat
 openat
 pread64
 prlimit64

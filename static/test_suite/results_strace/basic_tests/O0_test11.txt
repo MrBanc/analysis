@@ -3,13 +3,13 @@ arch_prctl
 brk
 close
 execve
+fstat
 getrandom
 ioctl
 mkdir
 mmap
 mprotect
 munmap
-newfstatat
 openat
 pread64
 prlimit64

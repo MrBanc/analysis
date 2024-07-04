@@ -10,6 +10,7 @@ execve
 exit
 exit_group
 fcntl
+fstat
 futex
 getcwd
 getdents64
@@ -29,8 +30,8 @@ newfstatat
 open
 openat
 poll
+prctl
 pread64
-prlimit64
 read
 readlinkat
 recvfrom
@@ -45,7 +46,6 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_setscheduler
-sched_yield
 sendmmsg
 sendto
 setitimer
@@ -54,7 +54,6 @@ setsockopt
 set_tid_address
 socket
 stat
-sysinfo
 tgkill
 uname
 unlink

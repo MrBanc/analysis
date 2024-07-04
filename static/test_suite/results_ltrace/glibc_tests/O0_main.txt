@@ -60,6 +60,7 @@ hsearch
 htonl
 initstate
 isatty
+__isoc23_strtol
 __isoc99_fscanf
 __isoc99_fwscanf
 __isoc99_sscanf
