@@ -2,7 +2,6 @@ access
 arch_prctl
 brk
 close
-directory
 execve
 fstat
 getrandom
