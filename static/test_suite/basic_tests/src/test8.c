@@ -13,7 +13,10 @@ typedef unsigned char *(*MD5Function)(const unsigned char *, size_t, unsigned ch
 typedef unsigned char *(*pcre_compile_t)(const unsigned char *, size_t, unsigned char *);
 
 int main() {
-    void *pcre_handle = dlopen("/lib/x86_64-linux-gnu/libpcre.so.3.13.3", RTLD_LAZY);
+    void *pcre_handle = dlopen("/usr/lib64/libpcre.so", RTLD_LAZY);
+    if (!pcre_handle) {
+        pcre_handle = dlopen("/lib/x86_64-linux-gnu/libpcre.so.3.13.3", RTLD_LAZY);
+    }
     if (!pcre_handle) {
         fprintf(stderr, "Error loading PCRE library: %s\n", dlerror());
         exit(EXIT_FAILURE);

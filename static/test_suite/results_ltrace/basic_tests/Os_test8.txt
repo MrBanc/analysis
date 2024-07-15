@@ -1,5 +1,7 @@
-dlerror
+dlclose
 dlopen
+dlsym
 exit
-exit_group
-fprintf
+printf
+putchar
+puts
