@@ -1,0 +1,6 @@
+exit_group
+free
+printf
+strcmp
+strdup
+__xpg_basename

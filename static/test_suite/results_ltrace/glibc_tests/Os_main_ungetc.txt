@@ -1,0 +1,14 @@
+__errno_location
+exit_group
+fclose
+feof
+fgetc
+fprintf
+fread
+fseek
+ftell
+__isoc99_fscanf
+printf
+strcmp
+tmpfile
+ungetc

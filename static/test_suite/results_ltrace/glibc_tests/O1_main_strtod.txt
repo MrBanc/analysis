@@ -1,0 +1,6 @@
+exit_group
+printf
+sin
+snprintf
+strcmp
+strtod

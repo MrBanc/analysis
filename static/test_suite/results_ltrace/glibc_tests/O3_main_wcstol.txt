@@ -1,0 +1,6 @@
+__errno_location
+exit_group
+printf
+strcmp
+wcstol
+wcstoul

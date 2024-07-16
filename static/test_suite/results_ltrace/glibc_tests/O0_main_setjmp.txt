@@ -1,0 +1,12 @@
+exit_group
+longjmp
+memset
+printf
+_setjmp
+sigaddset
+sigemptyset
+sigismember
+siglongjmp
+sigprocmask
+__sigsetjmp
+strcmp

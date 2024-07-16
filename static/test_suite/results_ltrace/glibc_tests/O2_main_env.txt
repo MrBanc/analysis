@@ -1,0 +1,8 @@
+clearenv
+exit_group
+getenv
+printf
+putenv
+setenv
+strcmp
+unsetenv

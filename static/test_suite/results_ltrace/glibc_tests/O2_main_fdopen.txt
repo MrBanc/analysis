@@ -1,0 +1,12 @@
+__errno_location
+exit_group
+fclose
+fdopen
+fgets
+fseeko
+ftello
+mkstemp
+printf
+strcmp
+unlink
+write

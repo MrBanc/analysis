@@ -1,0 +1,5 @@
+exit_group
+fnmatch
+printf
+putchar
+strcmp

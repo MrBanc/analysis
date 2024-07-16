@@ -1,0 +1,6 @@
+exit_group
+printf
+putchar
+stat
+strcmp
+time

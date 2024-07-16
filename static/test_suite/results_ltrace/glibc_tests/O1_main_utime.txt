@@ -1,0 +1,11 @@
+__errno_location
+exit_group
+fclose
+fileno
+fstat
+futimens
+printf
+strcmp
+time
+tmpfile
+utimensat

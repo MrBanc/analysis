@@ -6,6 +6,10 @@ results="$PWD/results"
 
 array_flags=("O0" "O1" "O2" "O3" "Os" "Og")
 
+glibc_tests=("string" "fdopen" "search_hsearch" "fnmatch" "fscanf" "popen" "socket" "spawn" "qsort" "time" "sscanf" "snprintf" "swprintf" "stat" "string" "strtol" "ungetc" "wcstol" "fwscanf" "basename" "dirname" "memstream" "mbc" "setjmp" "sem" "pthread" "random" "strtod" "crypt" "tgmath" "utime" "wcsstr" "env")
+
+debug=false
+
 die() {
     echo "$@" >&2
     exit 1
@@ -77,6 +81,19 @@ benchmark_binaries(){
         for file in "${build}_all/$flag"/*; do
             if [ "$binary" == "static_analyser" ]; then
                 timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t|awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                if [ "$debug" == "true" ] && [ "$dir" == "$glibc" ]; then
+                    for t in "${glibc_tests[@]}"; do
+                        cp "${results}_${binary}/${dir}/${flag}_$(basename $file).txt" "${results}_${binary}/${dir}/${flag}_$(basename $file)_${t}.txt" 
+                    done
+                    rm "${results}_${binary}/${dir}/${flag}_$(basename $file).txt" 
+                fi
+            elif [ "$debug" == "true" ] && [ "$dir" == "$glibc" ]; then
+                # These result are not fair as the static analyser will only do a single run for all these tests. It is only for a debugging purpose
+                for t in "${glibc_tests[@]}"; do
+                    "${binary}" -c -f -o temporary_trace_result "./$file" $t &> temporary_file_result
+                    cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file)_${t}.txt"
+                    rm temporary_file_result temporary_trace_result
+                done
             else
                 # TODO: Add $4, and sort -n to have the number of occurences
                 # use temporary files because /dev/null would yeild an ioctl

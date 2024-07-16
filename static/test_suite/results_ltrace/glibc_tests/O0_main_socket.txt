@@ -1,0 +1,17 @@
+accept
+bind
+close
+connect
+__errno_location
+exit_group
+fcntl
+getsockname
+htonl
+listen
+memset
+printf
+recvfrom
+sendto
+setsockopt
+socket
+strcmp

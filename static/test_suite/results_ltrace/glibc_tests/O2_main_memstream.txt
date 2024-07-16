@@ -1,0 +1,17 @@
+__errno_location
+exit_group
+fclose
+fflush
+fmemopen
+fprintf
+fputc
+fputs
+free
+fseek
+ftell
+getc
+__isoc99_fscanf
+open_memstream
+printf
+putc
+strcmp

@@ -1,0 +1,9 @@
+exit_group
+nl_langinfo
+printf
+setlocale
+strcmp
+swprintf
+wcscmp
+wcscpy
+wcslen

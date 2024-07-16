@@ -1,0 +1,7 @@
+exit_group
+initstate
+printf
+random
+setstate
+srandom
+strcmp

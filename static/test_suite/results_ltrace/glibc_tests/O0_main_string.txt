@@ -1,0 +1,14 @@
+exit_group
+memcmp
+memset
+printf
+strchr
+strcmp
+strcpy
+strcspn
+strncat
+strncpy
+strpbrk
+strrchr
+strspn
+strtok
