@@ -440,9 +440,11 @@ class CodeAnalyser:
                 # stops here
                 return
 
-        if detect_local_funs and (list_inst[-1].group(CS_GRP_CALL)
-                                  or list_inst[-1].group(CS_GRP_JUMP)
-                                  or utils.search_function_pointers):
+        if (detect_local_funs and dest_address.is_local
+            and (list_inst[-1].group(CS_GRP_CALL)
+                 or list_inst[-1].group(CS_GRP_JUMP)
+                 or utils.search_function_pointers)):
+
             f = self.elf_analyser.get_local_function_called(
                     dest_address.value, show_warnings)
             if f is None:

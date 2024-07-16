@@ -385,15 +385,12 @@ class ELFAnalyser:
             value_found = self.__get_local_function_address(rel.symbol.name,
                                                               False)
             if value_found is not None:
-                address_found = Address(value_found,
-                                        utils.f_name_from_path(
-                                            self.binary.path))
+                address_found = Address(value_found, True)
             else:
-                address_found = Address(0, "", rel.symbol.name)
+                address_found = Address(0, False, rel.symbol.name)
         if rel and address_found is None and rel.addend != 0:
             value_found = rel.addend
-            address_found = Address(value_found,
-                                    utils.f_name_from_path(self.binary.path))
+            address_found = Address(value_found, True)
 
         # If nothing could be found with the previous method, simply look at
         # the content of the binary at this address.
@@ -404,8 +401,7 @@ class ELFAnalyser:
             value_found = self.__read_raw_value_at_address(self.binary,
                                                      address_location,
                                                      reference_byte_size)
-            address_found = Address(value_found,
-                                    utils.f_name_from_path(self.binary.path))
+            address_found = Address(value_found, True)
 
             # If the content is 0, it will be considered that the value is not
             # initialised and None will be returned, even though it could be

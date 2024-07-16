@@ -434,12 +434,11 @@ def __compute_operand_address(operand, list_inst, elf_analyser,
             address_val = __compute_operation(operand, list_inst, elf_analyser)
             # same remark as above
             address_val %= 2**64
-            address = Address(address_val,
-                              utils.f_name_from_path(elf_analyser.binary.path))
+            address = Address(address_val, True)
     except StaticAnalyserException as e:
         if e.is_critical:
             utils.print_error(f"{e}")
-        # A warning will anyway be throwed later if needed
+        # A warning will anyway be thrown later if needed
 
     if show_warnings and address is None:
         # TODO: Other things could be done to try obtaining the address
