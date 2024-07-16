@@ -6,7 +6,9 @@ Disassembles and analyses the code to detect syscalls.
 
 from os.path import isfile
 
-from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_CALL
+# CS_GRP_CALL is always used with CS_GRP_JUMP because some functions are
+# called with a jump instruction not detected by the group CS_GRP_CALL
+from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_CALL, CS_GRP_JUMP
 from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
@@ -278,7 +280,8 @@ class CodeAnalyser:
     def __analyse_syscall_functions(self, f_to_analyse, list_inst,
                                     syscalls_set):
 
-        if not list_inst[-1].group(CS_GRP_CALL):
+        if not (list_inst[-1].group(CS_GRP_CALL)
+                or list_inst[-1].group(CS_GRP_JUMP)):
             # The function is not called, it is just a function pointer
             # -> not supported
             return
@@ -438,7 +441,8 @@ class CodeAnalyser:
                 return
 
         if detect_local_funs and (list_inst[-1].group(CS_GRP_CALL)
-                                   or utils.search_function_pointers):
+                                  or list_inst[-1].group(CS_GRP_JUMP)
+                                  or utils.search_function_pointers):
             f = self.elf_analyser.get_local_function_called(
                     dest_address.value, show_warnings)
             if f is None:
@@ -539,7 +543,8 @@ class CodeAnalyser:
 
         for f in called_plt_f:
             if (not utils.f_name_from_path(f.library_path).startswith("libc")
-                or not list_inst[-1].group(CS_GRP_CALL)):
+                or not (list_inst[-1].group(CS_GRP_CALL)
+                        or list_inst[-1].group(CS_GRP_JUMP))):
 
                 continue
             # No need to check if self.__lib_analyser is initialised because if

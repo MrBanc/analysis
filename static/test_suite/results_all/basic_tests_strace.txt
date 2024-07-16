@@ -21,7 +21,7 @@ O1_test7.txt: [MISSING 1/45] prlimit64
 O1_test8.txt: [MISSING 1/45] prlimit64  
 O1_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 O2_test10.txt: [MISSING 1/46] prlimit64  
-O2_test11.txt: [MISSING 3/45] mkdir prlimit64 rmdir  
+O2_test11.txt: [MISSING 1/47] prlimit64  
 O2_test1.txt: [MISSING 1/45] prlimit64  
 O2_test2.txt: [MISSING 1/45] prlimit64  
 O2_test3.txt: [MISSING 1/44] prlimit64  
@@ -32,7 +32,7 @@ O2_test7.txt: [MISSING 1/45] prlimit64
 O2_test8.txt: [MISSING 1/45] prlimit64  
 O2_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 O3_test10.txt: [MISSING 1/46] prlimit64  
-O3_test11.txt: [MISSING 3/45] mkdir prlimit64 rmdir  
+O3_test11.txt: [MISSING 1/47] prlimit64  
 O3_test1.txt: [MISSING 1/45] prlimit64  
 O3_test2.txt: [MISSING 1/45] prlimit64  
 O3_test3.txt: [MISSING 1/44] prlimit64  
@@ -54,7 +54,7 @@ Og_test7.txt: [MISSING 1/45] prlimit64
 Og_test8.txt: [MISSING 1/45] prlimit64  
 Og_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 Os_test10.txt: [MISSING 1/46] prlimit64  
-Os_test11.txt: [MISSING 3/45] mkdir prlimit64 rmdir  
+Os_test11.txt: [MISSING 1/47] prlimit64  
 Os_test1.txt: [MISSING 1/45] prlimit64  
 Os_test2.txt: [MISSING 1/45] prlimit64  
 Os_test3.txt: [MISSING 1/44] prlimit64  
