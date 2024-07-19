@@ -1,7 +1,0 @@
-__errno_location
-exit_group
-hcreate
-hdestroy
-hsearch
-printf
-strcmp

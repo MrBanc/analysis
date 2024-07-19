@@ -1,4 +1,0 @@
-exit_group
-__isoc99_sscanf
-printf
-strcmp

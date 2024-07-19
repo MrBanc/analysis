@@ -1,7 +1,0 @@
-atol
-__errno_location
-exit_group
-printf
-strcmp
-strtol
-strtoul

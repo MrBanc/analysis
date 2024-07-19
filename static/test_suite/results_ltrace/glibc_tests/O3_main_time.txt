@@ -1,7 +1,0 @@
-exit_group
-gmtime
-mktime
-printf
-putenv
-strcmp
-tzset

@@ -1,4 +1,0 @@
-exit_group
-printf
-qsort
-strcmp

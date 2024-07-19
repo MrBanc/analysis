@@ -1,6 +1,0 @@
-crypt
-exit_group
-printf
-strcmp
-vsnprintf
-write

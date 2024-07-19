@@ -1,8 +1,12 @@
 #!/bin/bash
+
+# script working directory
+SWD=$(dirname $(realpath "$0"))
+
 basic="basic_tests"
 glibc="glibc_tests"
 build="build"
-results="$PWD/results"
+results="$SWD/results"
 
 array_flags=("O0" "O1" "O2" "O3" "Os" "Og")
 
@@ -29,7 +33,7 @@ build_binaries() {
         make PARAM="-$flag" &> "/dev/null" || die "make failed"
         mkdir -p "${build}_all/$flag" || die "mkdir failed"
         if [ "$dir" == "$basic" ]; then
-            cp ${build}/* "${build}_all/$flag" || die "cp failed"
+            cp -r ${build}/* "${build}_all/$flag" || die "cp failed"
         else
             cp main "${build}_all/$flag" || die "cp failed"
         fi
@@ -79,8 +83,15 @@ benchmark_binaries(){
     echo "Benchmarking ${dir} with ${binary}..."
     for flag in "${array_flags[@]}"; do
         for file in "${build}_all/$flag"/*; do
+            if [ "$(basename $file)" == "lib" ]; then
+                continue
+            fi
             if [ "$binary" == "static_analyser" ]; then
-                timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t|awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                if [[ "$file" =~ /test[0-9]*shrLib ]]; then
+                    LD_LIBRARY_PATH=./${build}_all/${flag}/lib timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t | awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                else
+                    timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t | awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                fi
                 if [ "$debug" == "true" ] && [ "$dir" == "$glibc" ]; then
                     for t in "${glibc_tests[@]}"; do
                         cp "${results}_${binary}/${dir}/${flag}_$(basename $file).txt" "${results}_${binary}/${dir}/${flag}_$(basename $file)_${t}.txt" 
@@ -99,7 +110,13 @@ benchmark_binaries(){
                 # use temporary files because /dev/null would yeild an ioctl
                 # syscall and errors from the $file binary could be mixed with
                 # the $binary output
-                "${binary}" -c -f -o temporary_trace_result "./$file" &> temporary_file_result
+                if [[ "$file" =~ /test[0-9]*shrLib ]]; then
+                    LD_LIBRARY_PATH=./${build}_all/${flag}/lib "${binary}" -c -f -o temporary_trace_result "./$file" &> temporary_file_result
+                    echo "LD_LIBRARY_PATH=./${build}_all/${flag}/lib \"${binary}\" -c -f -o temporary_trace_result \"./$file\" &> temporary_file_result"
+                    exit
+                else
+                    "${binary}" -c -f -o temporary_trace_result "./$file" &> temporary_file_result
+                fi
                 cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
                 rm temporary_file_result temporary_trace_result
             fi

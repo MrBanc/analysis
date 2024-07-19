@@ -1,5 +1,0 @@
-exit_group
-lrint
-lrintf
-printf
-strcmp

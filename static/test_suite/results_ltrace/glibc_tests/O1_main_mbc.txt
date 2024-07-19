@@ -1,7 +1,0 @@
-exit_group
-mbrtowc
-mbsrtowcs
-nl_langinfo
-printf
-setlocale
-strcmp

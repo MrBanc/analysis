@@ -1,5 +1,6 @@
 O0_test10.txt: [MISSING 1/46] prlimit64  
 O0_test11.txt: [MISSING 1/47] prlimit64  
+O0_test12shrLib.txt: [OK 0/46]  
 O0_test1.txt: [MISSING 1/45] prlimit64  
 O0_test2.txt: [MISSING 1/45] prlimit64  
 O0_test3.txt: [MISSING 1/44] prlimit64  
@@ -11,6 +12,7 @@ O0_test8.txt: [MISSING 1/45] prlimit64
 O0_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 O1_test10.txt: [MISSING 1/46] prlimit64  
 O1_test11.txt: [MISSING 1/47] prlimit64  
+O1_test12shrLib.txt: [OK 0/47]  
 O1_test1.txt: [MISSING 1/45] prlimit64  
 O1_test2.txt: [MISSING 1/45] prlimit64  
 O1_test3.txt: [MISSING 1/44] prlimit64  
@@ -22,6 +24,7 @@ O1_test8.txt: [MISSING 1/45] prlimit64
 O1_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 O2_test10.txt: [MISSING 1/46] prlimit64  
 O2_test11.txt: [MISSING 1/47] prlimit64  
+O2_test12shrLib.txt: [OK 0/47]  
 O2_test1.txt: [MISSING 1/45] prlimit64  
 O2_test2.txt: [MISSING 1/45] prlimit64  
 O2_test3.txt: [MISSING 1/44] prlimit64  
@@ -33,6 +36,7 @@ O2_test8.txt: [MISSING 1/45] prlimit64
 O2_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 O3_test10.txt: [MISSING 1/46] prlimit64  
 O3_test11.txt: [MISSING 1/47] prlimit64  
+O3_test12shrLib.txt: [OK 0/47]  
 O3_test1.txt: [MISSING 1/45] prlimit64  
 O3_test2.txt: [MISSING 1/45] prlimit64  
 O3_test3.txt: [MISSING 1/44] prlimit64  
@@ -44,6 +48,7 @@ O3_test8.txt: [MISSING 1/45] prlimit64
 O3_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 Og_test10.txt: [MISSING 1/46] prlimit64  
 Og_test11.txt: [MISSING 1/47] prlimit64  
+Og_test12shrLib.txt: [OK 0/47]  
 Og_test1.txt: [MISSING 1/45] prlimit64  
 Og_test2.txt: [MISSING 1/45] prlimit64  
 Og_test3.txt: [MISSING 1/44] prlimit64  
@@ -55,6 +60,7 @@ Og_test8.txt: [MISSING 1/45] prlimit64
 Og_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 timerfd_create timerfd_settime  
 Os_test10.txt: [MISSING 1/46] prlimit64  
 Os_test11.txt: [MISSING 1/47] prlimit64  
+Os_test12shrLib.txt: [OK 0/47]  
 Os_test1.txt: [MISSING 1/45] prlimit64  
 Os_test2.txt: [MISSING 1/45] prlimit64  
 Os_test3.txt: [MISSING 1/44] prlimit64  

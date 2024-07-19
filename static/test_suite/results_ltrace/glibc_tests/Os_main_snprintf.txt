@@ -1,7 +1,0 @@
-__errno_location
-exit_group
-printf
-snprintf
-strcmp
-strcpy
-strlen
