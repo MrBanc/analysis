@@ -31,6 +31,9 @@ DEFAULT_LIB_DIRS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
                      '/lib/',   '/usr/lib/',   '/usr/local/lib/']
 LD_LIB_DIRS = (list(environment_var.get("LD_LIBRARY_PATH").split(":"))
                 if "LD_LIBRARY_PATH" in environment_var else [])
+for path in LD_LIB_DIRS:
+    if path[-1] != '/':
+        path += '/'
 LIB_DIRS = LD_LIB_DIRS + DEFAULT_LIB_DIRS
 
 @dataclass
