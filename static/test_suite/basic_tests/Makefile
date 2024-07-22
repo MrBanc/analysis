@@ -23,7 +23,7 @@ $(BUILD_DIR)/test%: $(SRC_DIR)/test%.c | $(BUILD_DIR)
 	@if [ "$(shell echo $* | grep -E '^[0-9]+$$')" ]; then \
 		$(CC) $(CFLAGS) -o $@ $< -ldl; \
 	else \
-		$(CC) $(CFLAGS) -o $@ $< -ldl -L$(LIB_BUILD_DIR) -lfptr
+		$(CC) $(CFLAGS) -o $@ $< -ldl -L$(LIB_BUILD_DIR) -lfptr; \
 	fi
 
 $(LIB_BUILD_DIR)/libfptr.so: $(LIB_BUILD_DIR)/libfptr2.so $(LIB_BUILD_DIR)/libfptr.o | $(LIB_BUILD_DIR)
