@@ -27,7 +27,6 @@ prctl
 pread64
 read
 readlinkat
-rmdir
 rseq
 rt_sigaction
 rt_sigprocmask

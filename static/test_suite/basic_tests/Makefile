@@ -2,6 +2,8 @@ CC := gcc
 CFLAGS := $(PARAM)
 BUILD_DIR := build
 
+CURRENT_DIR := $(shell pwd)
+
 # Source files
 SRC_DIR := src
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
@@ -21,22 +23,22 @@ all: $(LIB_SOBJ_FILES) $(OBJ_FILES)
 
 $(BUILD_DIR)/test%: $(SRC_DIR)/test%.c | $(BUILD_DIR)
 	@if [ "$(shell echo $* | grep -E '^[0-9]+$$')" ]; then \
-		$(CC) $(CFLAGS) -o $@ $< -ldl; \
+		cd build && $(CC) $(CFLAGS) -o $(subst build/,,$@) $(addprefix ../,$^) -ldl && cd -; \
 	else \
-		$(CC) $(CFLAGS) -o $@ $< -ldl -L$(LIB_BUILD_DIR) -lfptr; \
+		cd build && $(CC) $(CFLAGS) -o $(subst build/,,$@) $(addprefix ../,$^) -ldl -L$(CURRENT_DIR)/$(LIB_BUILD_DIR) -lfptr -lfptr2 && cd -; \
 	fi
 
 $(LIB_BUILD_DIR)/libfptr.so: $(LIB_BUILD_DIR)/libfptr2.so $(LIB_BUILD_DIR)/libfptr.o | $(LIB_BUILD_DIR)
-	$(CC) $(CFLAGS) -shared -o $@ $^ -L$(LIB_BUILD_DIR) -lfptr2 -Wl,-rpath,'$$ORIGIN'
+	cd build && $(CC) $(CFLAGS) -shared -o $(subst build/,,$@) $(subst build/,,$^) -L$(CURRENT_DIR)/$(LIB_BUILD_DIR) && cd -
 
 $(LIB_BUILD_DIR)/libfptr2.so: $(LIB_BUILD_DIR)/libfptr2.o | $(LIB_BUILD_DIR)
-	$(CC) $(CFLAGS) -shared -o $@ $^
+	cd build && $(CC) $(CFLAGS) -shared -o $(subst build/,,$@) $(subst build/,,$^) && cd -
 
 $(LIB_BUILD_DIR)/libfptr.o: $(LIB_SRC_DIR)/libfptr.c | $(LIB_BUILD_DIR)
-	$(CC) $(CFLAGS) -c -fPIC -o $@ $< -L$(LIB_BUILD_DIR) -lfptr2
+	cd build && $(CC) $(CFLAGS) -c -fPIC -o $(subst build/,,$@) $(addprefix ../,$^) -L$(CURRENT_DIR)/$(LIB_BUILD_DIR) -lfptr2 && cd -
 
 $(LIB_BUILD_DIR)/libfptr2.o: $(LIB_SRC_DIR)/libfptr2.c | $(LIB_BUILD_DIR)
-	$(CC) $(CFLAGS) -c -fPIC -o $@ $<
+	cd build && $(CC) $(CFLAGS) -c -fPIC -o $(subst build/,,$@) $(addprefix ../,$^) && cd -
 
 # Ensure build directories exist
 $(BUILD_DIR) $(LIB_BUILD_DIR):

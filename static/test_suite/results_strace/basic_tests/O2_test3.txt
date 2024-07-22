@@ -1,0 +1,17 @@
+access
+arch_prctl
+brk
+close
+execve
+fstat
+mmap
+mprotect
+munmap
+openat
+pread64
+prlimit64
+read
+rseq
+set_robust_list
+set_tid_address
+write

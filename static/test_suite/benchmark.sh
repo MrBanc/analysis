@@ -101,24 +101,26 @@ benchmark_binaries(){
             elif [ "$debug" == "true" ] && [ "$dir" == "$glibc" ]; then
                 # These result are not fair as the static analyser will only do a single run for all these tests. It is only for a debugging purpose
                 for t in "${glibc_tests[@]}"; do
-                    "${binary}" -c -f -o temporary_trace_result "./$file" $t &> temporary_file_result
+                    cd $(dirname $file) || die "cd failed"
+                    "${binary}" -c -f -o temporary_trace_result "../../$file" $t &> temporary_file_result
                     cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file)_${t}.txt"
                     rm temporary_file_result temporary_trace_result
+                    cd - || die "cd failed"
                 done
             else
                 # TODO: Add $4, and sort -n to have the number of occurences
                 # use temporary files because /dev/null would yeild an ioctl
                 # syscall and errors from the $file binary could be mixed with
                 # the $binary output
+                cd $(dirname $file) || die "cd failed"
                 if [[ "$file" =~ /test[0-9]*shrLib ]]; then
-                    LD_LIBRARY_PATH=./${build}_all/${flag}/lib "${binary}" -c -f -o temporary_trace_result "./$file" &> temporary_file_result
-                    echo "LD_LIBRARY_PATH=./${build}_all/${flag}/lib \"${binary}\" -c -f -o temporary_trace_result \"./$file\" &> temporary_file_result"
-                    exit
+                    LD_LIBRARY_PATH=../../${build}_all/${flag}/lib "${binary}" -c -f -o temporary_trace_result "../../$file" &> temporary_file_result
                 else
-                    "${binary}" -c -f -o temporary_trace_result "./$file" &> temporary_file_result
+                    "${binary}" -c -f -o temporary_trace_result "../../$file" &> temporary_file_result
                 fi
                 cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
                 rm temporary_file_result temporary_trace_result
+                cd - || die "cd failed"
             fi
         done
     done
