@@ -41,9 +41,9 @@ class ELFBinary:
     """
 
     path: str
-    lief_binary: lief._lief.ELF.Binary
-    rodata_sect: lief._lief.ELF.Section
-    text_sect: lief._lief.ELF.Section
+    lief_binary: lief.ELF.Binary
+    rodata_sect: lief.ELF.Section
+    text_sect: lief.ELF.Section
     has_dyn_libraries: bool
 
 
@@ -105,7 +105,7 @@ class ELFAnalyser:
                            has_dyn_libraries=False)
 
         if not self.__is_valid_binary():
-            raise StaticAnalyserException("The given binary is not a CLASS64 "
+            raise StaticAnalyserException("The given binary is not a ELF64 "
                                           "ELF file.")
 
         # may not be used
@@ -153,8 +153,8 @@ class ELFAnalyser:
 
         return (lb is not None
                 and lb.format == lief.Binary.FORMATS.ELF
-                and lb.header.identity_class == lief.ELF.ELF_CLASS.CLASS64
-                and lb.header.machine_type == lief.ELF.ARCH.x86_64)
+                and lb.header.identity_class == lief.ELF.Header.CLASS.ELF64
+                and lb.header.machine_type == lief.ELF.ARCH.X86_64)
 
     def get_syscalls_from_symbols(self, syscalls_set):
         """Try to detect syscalls used in the binary thanks to its symbolic
@@ -168,7 +168,7 @@ class ELFAnalyser:
 
         lb = self.binary.lief_binary
 
-        for sect_it in [lb.dynamic_symbols, lb.static_symbols,
+        for sect_it in [lb.dynamic_symbols, lb.symtab_symbols,
                         lb.symbols]:
             self.__detect_syscalls_in_sym_table(sect_it, syscalls_set)
 
@@ -291,7 +291,7 @@ class ELFAnalyser:
             True if the section is executable
         """
 
-        return (section.flags & lief.ELF.SECTION_FLAGS.EXECINSTR) != 0
+        return (section.flags & lief.ELF.Section.FLAGS.EXECINSTR) != 0
 
     def __get_section_boundaries(self, section):
         """Returns [section_start_address, section_end_address-1]

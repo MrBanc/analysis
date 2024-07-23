@@ -254,8 +254,8 @@ class LibraryUsageAnalyser:
             rel = self.__got_rel[got_rel_addr]
 
         # if it is a call to a library function, this if will be true
-        if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
-                    == lief.ELF.RELOCATION_X86_64.JUMP_SLOT):
+        if (rel and lief.ELF.Relocation.TYPE(rel.type)
+                    == lief.ELF.Relocation.TYPE.X86_64_JUMP_SLOT):
             # auxiliary version seem to indicate the library from which the
             # function come (example value: 'GLIBC_2.2.5')
             # In some (rare) cases, the symbol version is not available
@@ -270,8 +270,8 @@ class LibraryUsageAnalyser:
                                     .get_function_with_name(rel.symbol.name))
             return called_functions
         # if it is a call to a local function, this if will be true
-        if (rel and lief.ELF.RELOCATION_X86_64(rel.type)
-                    == lief.ELF.RELOCATION_X86_64.IRELATIVE):
+        if (rel and lief.ELF.Relocation.TYPE(rel.type)
+                    == lief.ELF.Relocation.TYPE.X86_64_IRELATIVE):
             if rel.addend:
                 called_functions.append(
                         LibFunction(name="",
@@ -661,8 +661,8 @@ class LibraryUsageAnalyser:
     def __lazy_binding_used(self):
 
         for e in self.elf_analyser.binary.lief_binary.dynamic_entries:
-            if (e.tag == lief.ELF.DYNAMIC_TAGS.FLAGS
-                and e.has(lief.ELF.DYNAMIC_FLAGS.BIND_NOW)):
+            if (e.tag == lief.ELF.DynamicEntry.TAG.FLAGS
+                and e.has(lief.ELF.DynamicEntryFlags.FLAG.BIND_NOW)):
 
                 # This could for example be the result of compiling with "-z
                 # now" or using musl
