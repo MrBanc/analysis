@@ -31,9 +31,9 @@ DEFAULT_LIB_DIRS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
                      '/lib/',   '/usr/lib/',   '/usr/local/lib/']
 LD_LIB_DIRS = (list(environment_var.get("LD_LIBRARY_PATH").split(":"))
                 if "LD_LIBRARY_PATH" in environment_var else [])
-for path in LD_LIB_DIRS:
-    if path[-1] != '/':
-        path += '/'
+for lib_id, ld_lib_dir_path in enumerate(LD_LIB_DIRS):
+    if ld_lib_dir_path[-1] != '/':
+        LD_LIB_DIRS[lib_id] += '/'
 LIB_DIRS = LD_LIB_DIRS + DEFAULT_LIB_DIRS
 
 @dataclass
@@ -287,6 +287,9 @@ class LibraryUsageAnalyser:
     def get_libraries_paths_manually(self, lib_names):
         """Helper function to obtain the path of a library from its name.
 
+        ! This function modifies the "lib_names" list provided as argument:
+        when a library is found, it is removed from "lib_names".
+
         Parameters
         ----------
         lib_names : list of str
@@ -305,8 +308,10 @@ class LibraryUsageAnalyser:
             for name in lib_names_copy:
                 if exists(l_dir + name):
                     lib_paths.append(l_dir + name)
-                    if name in lib_names:
-                        lib_names.remove(name)
+                else:
+                    continue
+                if name in lib_names:
+                    lib_names.remove(name)
 
         return lib_paths
 
@@ -1038,7 +1043,7 @@ class LibraryUsageAnalyser:
     def __find_used_libraries_manually(self):
 
         lib_names = [lib for lib in self.__used_libraries
-                     if lib not in self.__libraries]
+                     if utils.f_name_from_path(lib) not in self.__libraries]
 
         # If this is still not enough, adding a subprocess to use `locate` for
         # the other libraries is a possibility.
@@ -1049,11 +1054,32 @@ class LibraryUsageAnalyser:
                 self.add_used_library(path)
 
         if len(lib_names) > 0:
-            utils.print_error(f"[ERROR] The following libraries couldn't be "
-                              f"found and therefore won't be analysed: "
-                              f"{lib_names}")
+            names_w_path = []
+            for lib in lib_names:
+                if "/" in lib:
+                    names_w_path.append(utils.f_name_from_path(lib))
+            new_paths_found = self.get_libraries_paths_manually(names_w_path)
+
+            not_found = [l for l in lib_names
+                         if utils.f_name_from_path(l) in names_w_path]
+            found_directly = [l for l in lib_names
+                              if utils.f_name_from_path(l) not in names_w_path]
+
             self.__used_libraries = [l for l in self.__used_libraries
                                      if l not in lib_names]
+            for path in new_paths_found:
+                if self.elf_analyser.is_valid_binary_path(path):
+                    self.add_used_library(path)
+
+            if not_found:
+                utils.print_error(f"[ERROR] The following libraries couldn't "
+                                  f"be found and therefore won't be analysed: "
+                                  f"{not_found}")
+            if found_directly:
+                utils.print_warning(f"[WARNING] The following libraries were "
+                                    f"found directly within libraries folders "
+                                    f"(without using the given relative path):"
+                                    f" {found_directly}")
 
     def __find_used_libraries_aliases(self, symbols_version_requirement):
 

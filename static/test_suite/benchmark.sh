@@ -120,7 +120,7 @@ benchmark_binaries(){
                 fi
                 cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
                 rm temporary_file_result temporary_trace_result
-                cd - || die "cd failed"
+                cd - > /dev/null || die "cd failed"
             fi
         done
     done
