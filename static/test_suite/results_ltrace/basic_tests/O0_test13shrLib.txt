@@ -1,0 +1,2 @@
+customSyscallsWrapperWithFctPtrTable
+exit_group
