@@ -542,7 +542,7 @@ class LibraryUsageAnalyser:
             reloc_fun = [self.__get_relocation_function_dynamically()]
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] The dynamic analysis of the linker's "
-                              f"relocation function address failed: {e}\n")
+                              f"relocation function address failed: {e}")
 
             reloc_fun = self.__get_relocation_function_hardcoded(linker_bin)
 
@@ -705,8 +705,8 @@ class LibraryUsageAnalyser:
 
         # The following code is commented as the address obtained sometimes
         # corresponds to the virtual address and sometimes to the offset from
-        # the beginning of the mapping. Thus instead, this address is found
-        # using r2 instead.
+        # the beginning of the mapping. Thus, this address is found using r2
+        # instead.
 
         # # Find the address of the .got entry where the relocation function's
         # # address will be stored
@@ -728,7 +728,7 @@ class LibraryUsageAnalyser:
             raise e
 
         try:
-            # Note: I cannot find the meaning ot entry0 in the r2 documentation
+            # Note: I cannot find the meaning of entry0 in the r2 documentation
             # but it seems to be an alias for the entrypoint. If in the future,
             # this does not work, an alternative is to obtain the address of
             # the entrypoint from the command "ie". It is also possible that
@@ -1039,6 +1039,12 @@ class LibraryUsageAnalyser:
                                 " " + e.stderr.decode("utf-8") + "Trying to "
                                 "find the libraries' path manually...")
             self.__find_used_libraries_manually()
+
+        # This cannot be done beforeward as in some (rare) cases, relative
+        # paths are used to find the libraries. However, in the rest of the
+        # program, the libraries are identified by their name only.
+        for i, lib in enumerate(self.__used_libraries):
+            self.__used_libraries[i] = utils.f_name_from_path(lib)
 
     def __find_used_libraries_manually(self):
 
