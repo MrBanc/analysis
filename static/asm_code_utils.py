@@ -114,16 +114,13 @@ def extract_destination_address(list_inst, elf_analyser):
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
-        dest_address = get_assigned_value(list_inst, elf_analyser)
+        dest_address = get_assigned_address(list_inst, elf_analyser)
         # If `assigned` is a register there is no need to backtrack it as
         # the operation at the end of the backtrack which sets the value
         # will already have been inspected as a potential function pointer
         # beforehand
 
         show_warnings = False
-
-    if isinstance(dest_address, int):
-        dest_address = Address(dest_address, True)
 
     if (dest_address is not None and dest_address.value <= 0
                                  and dest_address.f_name is None):
@@ -132,8 +129,8 @@ def extract_destination_address(list_inst, elf_analyser):
     return dest_address, show_warnings
 
 def get_assigned_value(list_inst, elf_analyser):
-    """Returns the value (or register) that is being assigned to the
-    destination operand in the given instruction.
+    """Returns the value that is being assigned to the destination operand in
+    the given instruction.
 
     Important note: because the returned value could be an address, this
     function does not try to translate values represented with 2-th complement
@@ -153,32 +150,7 @@ def get_assigned_value(list_inst, elf_analyser):
         the assigned value (or None in case of error)
     """
 
-    mnemonic = list_inst[-1].mnemonic
-    op_strings = list_inst[-1].op_str.split(",")
-
-    # TODO support add, movsx, movsxd, movl etc et les autres instructions
-    # faciles à supporter
-
-    assigned_val = None
-    if mnemonic not in ("mov", "xor", "lea"):
-        if utils.currently_backtracking:
-            utils.log("[Operation not supported]", "backtrack.log", indent=2)
-        return assigned_val
-
-    op_strings[0] = op_strings[0].strip()
-    op_strings[1] = op_strings[1].strip()
-
-    # __compute_operand_address is used even though it is not an address
-    # that is expected, because it does exactly what is needed
-    if mnemonic == "mov":
-        assigned_val = __compute_operand_address(
-                    op_strings[1], list_inst, elf_analyser, False)
-    elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
-        assigned_val = __compute_operand_address(op_strings[1][1:-1],
-                                                 list_inst,
-                                                 elf_analyser, False)
-    elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
-        assigned_val = 0
+    assigned_val = __get_assigned_object(list_inst, elf_analyser)
 
     # Convert the Address object into an int
     if isinstance(assigned_val, Address):
@@ -186,8 +158,38 @@ def get_assigned_value(list_inst, elf_analyser):
             assigned_val = assigned_val.value
         else:
             assigned_val = None
+    elif isinstance(assigned_val, int) or assigned_val is None:
+        pass
+    else:
+        utils.print_error(f"[ERROR] Assigned value isn't of an expected type: "
+                          f"{assigned_val}: {type(assigned_val)}")
+        assigned_val = None
 
     return assigned_val
+
+def get_assigned_address(list_inst, elf_analyser):
+    """Returns the address that is being assigned to the destination operand in
+    the given instruction.
+
+    Parameters
+    ----------
+    list_inst : capstone instruction
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    assigned_addr : Address or None
+        the assigned address (or None in case of error)
+    """
+
+    assigned_val = __get_assigned_object(list_inst, elf_analyser)
+
+    if isinstance(assigned_val, Address):
+        return assigned_val
+    if isinstance(assigned_val, int):
+        return Address(assigned_val, True)
 
 def backtrack_register(focus_reg, list_inst, elf_analyser):
     """Try to find the value of the given register at the instruction to
@@ -371,6 +373,57 @@ def __contains_reg(string):
                 return True
 
     return False
+
+def __get_assigned_object(list_inst, elf_analyser):
+    """Helper function to obtain the object that is being assigned to the
+    destination operand in the given instruction.
+
+    Beware that the type of the returned object is not determined and should be
+    checked by the calling function (see `get_assigned_value`,
+    `get_assigned_address`...).
+
+    ! If you add a new possible type of assigned object, you should modify the
+    already existing calling functions to handle this new type.
+
+    Parameters
+    ----------
+    list_inst : capstone instruction
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    assigned_val : undefined
+        the assigned object (or None in case of error)
+    """
+
+    mnemonic = list_inst[-1].mnemonic
+    op_strings = list_inst[-1].op_str.split(",")
+
+    # TODO support add, movsx, movsxd, movl etc et les autres instructions
+    # faciles à supporter
+
+    assigned_val = None
+    if mnemonic not in ("mov", "xor", "lea"):
+        if utils.currently_backtracking:
+            utils.log("[Operation not supported]", "backtrack.log", indent=2)
+        return assigned_val
+
+    op_strings[0] = op_strings[0].strip()
+    op_strings[1] = op_strings[1].strip()
+
+    if mnemonic == "mov":
+        assigned_val = __compute_operand_address(
+                    op_strings[1], list_inst, elf_analyser, False)
+    elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
+        assigned_val = __compute_operand_address(op_strings[1][1:-1],
+                                                 list_inst,
+                                                 elf_analyser, False)
+    elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
+        assigned_val = 0
+
+    return assigned_val
 
 def __compute_operand_address(operand, list_inst, elf_analyser,
                                     show_warnings):

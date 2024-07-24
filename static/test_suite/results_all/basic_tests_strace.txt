@@ -1,6 +1,6 @@
 O0_test10.txt: [MISSING 1/46] prlimit64  
 O0_test11.txt: [MISSING 1/47] prlimit64  
-O0_test12shrLib.txt: [MISSING 2/46] prlimit64 rmdir  
+O0_test12shrLib.txt: [MISSING 1/47] prlimit64  
 O0_test1.txt: [MISSING 1/45] prlimit64  
 O0_test2.txt: [MISSING 1/45] prlimit64  
 O0_test3.txt: [MISSING 1/44] prlimit64  
