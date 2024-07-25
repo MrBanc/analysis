@@ -543,10 +543,10 @@ def __compute_operation(operation, list_inst, elf_analyser):
                 if utils.currently_backtracking:
                     utils.log("[Cancel backtracking (stack-related register)]",
                               "backtrack.log", indent=2)
-                raise StaticAnalyserException("[WARNING] Register backtracking"
-                                              " used the value of a stack "
-                                              "related register",
-                                              is_critical=False)
+                raise StaticAnalyserException(
+                        "[WARNING] Computing the operation requires knowing "
+                        "the value of a stack related register",
+                        is_critical=False)
 
             if utils.currently_backtracking:
                 utils.log(f"[Shifting focus to {token}]",

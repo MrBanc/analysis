@@ -23,7 +23,7 @@ all_imported_functions = True
 search_function_pointers = True
 search_raw_data = False
 analyse_linker = False
-user_input = "A"
+user_input = "Y"
 
 cur_depth = -1
 currently_backtracking = False
