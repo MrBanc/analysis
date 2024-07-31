@@ -104,7 +104,7 @@ def parse_arguments():
     functionalities_group.add_argument(
             '--search-function-pointers', '-f', type=utils.str2bool, nargs='?',
             const=True, default=utils.search_function_pointers,
-            help=f'Analyse all values put into register and consider them as '
+            help=f'Analyse all values put into variables and consider them as '
             f'potential pointers to functions (default: '
             f'{utils.search_function_pointers})')
     functionalities_group.add_argument(

@@ -14,7 +14,6 @@ openat
 pread64
 prlimit64
 read
-rmdir
 rseq
 set_robust_list
 set_tid_address

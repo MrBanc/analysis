@@ -304,18 +304,18 @@ class CodeAnalyser:
             utils.log(f"syscall function called: {hex(list_inst[-1].address)} "
                       f"{list_inst[-1].mnemonic} {list_inst[-1].op_str} from "
                       f"{self.elf_analyser.binary.path}", "backtrack.log")
-            nb_syscall = code_utils.backtrack_register("edi", list_inst,
-                                                       self.elf_analyser)
+            nb_syscall = code_utils.value_backtracker("edi", list_inst,
+                                                      self.elf_analyser)
         else:
             utils.log(f"{detect_syscall_type(list_inst[-1])}: "
                       f"{hex(list_inst[-1].address)} {list_inst[-1].mnemonic} "
                       f"{list_inst[-1].op_str} from "
                       f"{self.elf_analyser.binary.path}", "backtrack.log")
-            nb_syscall = code_utils.backtrack_register("eax", list_inst,
-                                                       self.elf_analyser)
+            nb_syscall = code_utils.value_backtracker("eax", list_inst,
+                                                      self.elf_analyser)
 
         # the `syscall` instruction look into `eax` (32 bits), not `rax` (64
-        # bits). Because `backtrack_register` returns a value on 64 bits, there
+        # bits). Because `value_backtracker` returns a value on 64 bits, there
         # may have been an overflow on 32 bits (for example because of negative
         # values in 2-th complement).
         if isinstance(nb_syscall, int):
@@ -491,8 +491,8 @@ class CodeAnalyser:
         try:
             # When calling dlopen, the first argument (in `edi`) contains a
             # pointer to the name of the library
-            lib_name_address = code_utils.backtrack_register("edi", list_inst,
-                                                             self.elf_analyser)
+            lib_name_address = code_utils.value_backtracker("edi", list_inst,
+                                                            self.elf_analyser)
             self.__add_library_from_dlopen(lib_name_address)
 
         except StaticAnalyserException as e:
@@ -507,8 +507,8 @@ class CodeAnalyser:
         try:
             # When calling dlmopen, the second argument (in `esi`) contains a
             # pointer to the name of the library
-            lib_name_address = code_utils.backtrack_register("esi", list_inst,
-                                                             self.elf_analyser)
+            lib_name_address = code_utils.value_backtracker("esi", list_inst,
+                                                            self.elf_analyser)
             # The procedure is the same as for dlopen, thus the function name
             self.__add_library_from_dlopen(lib_name_address)
 
@@ -522,8 +522,8 @@ class CodeAnalyser:
     def __backtrack_dlsym(self, list_inst):
 
         try:
-            fun_name_address = code_utils.backtrack_register("esi", list_inst,
-                                                             self.elf_analyser)
+            fun_name_address = code_utils.value_backtracker("esi", list_inst,
+                                                            self.elf_analyser)
 
             if fun_name_address is None or fun_name_address < 0:
                 raise StaticAnalyserException(

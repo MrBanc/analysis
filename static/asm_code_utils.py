@@ -102,7 +102,7 @@ def extract_destination_address(list_inst, elf_analyser):
     show_warnings = not list_inst[-1].group(CS_GRP_JUMP)
 
     if list_inst[-1].group(CS_GRP_JUMP) or list_inst[-1].group(CS_GRP_CALL):
-        dest_address = __compute_operand_address(list_inst[-1].op_str,
+        dest_address = __compute_address_operand(list_inst[-1].op_str,
                                                  list_inst,
                                                  elf_analyser,
                                                  show_warnings)
@@ -115,10 +115,10 @@ def extract_destination_address(list_inst, elf_analyser):
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
         dest_address = get_assigned_address(list_inst, elf_analyser)
-        # If `assigned` is a register there is no need to backtrack it as
-        # the operation at the end of the backtrack which sets the value
-        # will already have been inspected as a potential function pointer
-        # beforehand
+        # If `assigned` is a register (or another value that can be
+        # backtracked) there is no need to backtrack it as the operation at the
+        # end of the backtrack which sets the value will already have been
+        # inspected as a potential function pointer beforehand
 
         show_warnings = False
 
@@ -191,14 +191,16 @@ def get_assigned_address(list_inst, elf_analyser):
     if isinstance(assigned_val, int):
         return Address(assigned_val, True)
 
-def backtrack_register(focus_reg, list_inst, elf_analyser):
-    """Try to find the value of the given register at the instruction to
-    consider by backtracking its value.
+def value_backtracker(focus_val, list_inst, elf_analyser):
+    """Try to find the content/value of a given "variable" at the instruction
+    to consider by using backtracking. The "variable" can be a register, a
+    stack value or a memory location for example.
 
     Two important notes about this function:
 
-    1. It will be considered that the value is put inside the register in one
-    operation. For example, this type of code is not supported:
+    1. When backtracking registers, it will be considered that the value is put
+    inside the register in one operation. For example, this type of code is not
+    supported:
       mov rdi, 0x1234
       shl rdi, 16
       mov di, 0x5678
@@ -210,8 +212,8 @@ def backtrack_register(focus_reg, list_inst, elf_analyser):
 
     Parameters
     ----------
-    focus_reg : str
-        the register to backtrack
+    focus_val : str
+        the value to backtrack (register or stack value or ...)
     list_inst : list of capstone instructions
         the instructions leading to the one to consider (included)
     elf_analyser : ELFAnalyser
@@ -219,16 +221,17 @@ def backtrack_register(focus_reg, list_inst, elf_analyser):
 
     Returns
     -------
-    register_value : int or None
-        the value of the register (or None in case it couldn't be found)
+    resolved_value : int or None
+        the content (or value) of the tracked "variable" (or None in case it
+        couldn't be found)
     """
-
-    md = Cs(CS_ARCH_X86, CS_MODE_64)
 
     was_already_backtracking = utils.currently_backtracking
     utils.currently_backtracking = True
 
     index = len(list_inst) - 1
+    # TODO try to find the beginning of the function if we are in the main
+    # binary so that we cannot backtrack beyond
     last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
     for i in range(index - 1, last_ins_index - 1, -1):
         if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
@@ -237,20 +240,19 @@ def backtrack_register(focus_reg, list_inst, elf_analyser):
         utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
                   f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
-        regs_write = list_inst[i].regs_access()[1]
-        for r in regs_write:
-            if md.reg_name(r) not in registers[focus_reg]:
-                continue
+        if not __writes_to_focus(focus_val,
+                                 list_inst[last_ins_index:i+1],
+                                 elf_analyser):
+            continue
 
-            assigned_value = get_assigned_value(list_inst[last_ins_index:i+1],
-                                                elf_analyser)
+        assigned_value = get_assigned_value(list_inst[last_ins_index:i+1],
+                                            elf_analyser)
+        ret = None
+        if isinstance(assigned_value, int):
+            ret = assigned_value
 
-            ret = None
-            if isinstance(assigned_value, int):
-                ret = assigned_value
-
-            utils.currently_backtracking = was_already_backtracking
-            return ret
+        utils.currently_backtracking = was_already_backtracking
+        return ret
 
     utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
 
@@ -349,6 +351,41 @@ def is_reg(string):
 
     return False
 
+def __writes_to_focus(focus_val, list_inst, elf_analyser):
+    """TODO"""
+
+    md = Cs(CS_ARCH_X86, CS_MODE_64)
+
+    if is_reg(focus_val):
+        regs_writen = list_inst[-1].regs_access()[1]
+        for r in regs_writen:
+            if md.reg_name(r) in registers[focus_val]:
+                return True
+
+    # The focus could be something else than a register
+    first_operand = list_inst[-1].op_str.split(",")[0].strip()
+    if (not is_reg) and focus_val == __get_backtrack_val_key(
+                                    first_operand, list_inst, elf_analyser):
+        return True
+
+    # There are cases where the second operand is the one written to (e.g. with
+    # xchg). This case is not taken care of (yet?).
+
+    return False
+
+def __contains_value_to_backtrack(string):
+    """TODO"""
+
+    terms_and_operands = __separate_terms_and_operands(string)
+
+    for token in terms_and_operands:
+        if is_reg(token):
+            return True
+        if token == "[":
+            return True
+
+    return False
+
 def __contains_reg(string):
     """Returns true if the given string contains the name of a (x86_64 general
     purpose) register identifier.
@@ -401,8 +438,8 @@ def __get_assigned_object(list_inst, elf_analyser):
     mnemonic = list_inst[-1].mnemonic
     op_strings = list_inst[-1].op_str.split(",")
 
-    # TODO support add, movsx, movsxd, movl etc et les autres instructions
-    # faciles à supporter
+    # TODO support add, xchg, movsx, movsxd, movl etc et les autres
+    # instructions faciles à supporter
 
     assigned_val = None
     if mnemonic not in ("mov", "xor", "lea"):
@@ -414,10 +451,10 @@ def __get_assigned_object(list_inst, elf_analyser):
     op_strings[1] = op_strings[1].strip()
 
     if mnemonic == "mov":
-        assigned_val = __compute_operand_address(
+        assigned_val = __compute_address_operand(
                     op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
-        assigned_val = __compute_operand_address(op_strings[1][1:-1],
+        assigned_val = __compute_address_operand(op_strings[1][1:-1],
                                                  list_inst,
                                                  elf_analyser, False)
     elif mnemonic == "xor" and op_strings[0] == op_strings[1]:
@@ -425,7 +462,7 @@ def __get_assigned_object(list_inst, elf_analyser):
 
     return assigned_val
 
-def __compute_operand_address(operand, list_inst, elf_analyser,
+def __compute_address_operand(operand, list_inst, elf_analyser,
                                     show_warnings):
     """Returns the resulting address of the given operand.
 
@@ -433,7 +470,7 @@ def __compute_operand_address(operand, list_inst, elf_analyser,
     addresses (like constants) as they can be interpreted as addresses.
 
     If the previous instructions are not given, the function will not try to
-    backtrack the value of registers.
+    backtrack the value of registers, stack values, memory addresses etc.
 
     Important note: because the returned value is supposed to be an address,
     this function does not try to translate values represented with 2-th
@@ -470,11 +507,32 @@ def __compute_operand_address(operand, list_inst, elf_analyser,
         if bool(re.search(r'[a-z]+:', operand)): # example: word ptr fs:[...]
             # not supported (yet?)
             pass
-        elif not use_backtracking and __contains_reg(operand): # except rip
-            if utils.currently_backtracking:
-                utils.log("[cannot backtrack further]",
-                          "backtrack.log", indent=2)
         elif bool(brackets_expr):
+            key = None
+            if use_backtracking and any(reg in brackets_expr.group(1)
+                   for reg in (registers["eax"] | {"rip"} | registers["ebp"])):
+                key = __get_backtrack_val_key(operand, list_inst, elf_analyser)
+            if key is not None:
+                if utils.currently_backtracking:
+                    utils.log(f"[Shifting focus to [{brackets_expr.group(1)}]"
+                              f"(key: {key})]", "backtrack.log", indent=2)
+                else:
+                    utils.log(f"Value of interest, start backtracking: "
+                              f"{hex(list_inst[-1].address)} "
+                              f"{list_inst[-1].mnemonic} "
+                              f"{list_inst[-1].op_str} from "
+                              f"{elf_analyser.binary.path}",
+                              "backtrack.log", indent=0)
+                address = value_backtracker(key, list_inst, elf_analyser)
+                if utils.currently_backtracking:
+                    utils.log(f"[{key} value found: {address}]",
+                              "backtrack.log", indent=2)
+                else:
+                    utils.log(f"Value found: {address}\n", "backtrack.log",
+                              indent=0)
+
+                if isinstance(address, int):
+                    return Address(address, True)
             address_location = __compute_operation(brackets_expr.group(1),
                                                        list_inst, elf_analyser)
             reference_byte_size = __operand_byte_size[operand.split()[0]]
@@ -483,6 +541,10 @@ def __compute_operand_address(operand, list_inst, elf_analyser,
             address_location %= 2**64
             address = elf_analyser.resolve_address_stored_at(
                     address_location, reference_byte_size)
+        elif not use_backtracking and __contains_value_to_backtrack(operand):
+            if utils.currently_backtracking:
+                utils.log("[cannot backtrack further]",
+                          "backtrack.log", indent=2)
         else: # does not contains square brackets or register prefixing them
             address_val = __compute_operation(operand, list_inst, elf_analyser)
             # same remark as above
@@ -528,8 +590,7 @@ def __compute_operation(operation, list_inst, elf_analyser):
         If the value couldn't be computed
     """
 
-    terms_and_operands = re.findall(r'[-+*]|[^ -+*]+', operation)
-    terms_and_operands = [token.strip() for token in terms_and_operands]
+    terms_and_operands = __separate_terms_and_operands(operation)
 
     for i, token in enumerate(terms_and_operands):
         if utils.is_number(token):
@@ -557,7 +618,7 @@ def __compute_operation(operation, list_inst, elf_analyser):
                           f"{list_inst[-1].mnemonic} {list_inst[-1].op_str} "
                           f"from {elf_analyser.binary.path}",
                           "backtrack.log", indent=0)
-            reg_value = backtrack_register(reg_key, list_inst, elf_analyser)
+            reg_value = value_backtracker(reg_key, list_inst, elf_analyser)
             if utils.currently_backtracking:
                 utils.log(f"[{token} value found: {reg_value}]",
                           "backtrack.log", indent=2)
@@ -592,6 +653,74 @@ def __compute_operation(operation, list_inst, elf_analyser):
     result = eval("".join(terms_and_operands))
 
     return result
+
+def __separate_terms_and_operands(string):
+
+    terms_and_operands = re.findall(r'[+\-*\[\]]|[^ +\-*\[\]]+', string)
+    return [token.strip() for token in terms_and_operands]
+
+def __get_backtrack_val_key(string, list_inst=None, elf_analyser=None):
+    """Returns the key to identify the value to backtrack. If the value is a
+    register, the key allows to access the register in the `registers`
+    variable.
+
+    Parameters
+    ----------
+    string : str
+        the string that contains the value to backtrack
+
+    Returns
+    -------
+    val_key : str
+        the key for this value
+    """
+
+    brackets_expr = re.search(r'(\[.*\])', string).group(1)
+
+    if is_reg(string):
+        return __get_reg_key(string)
+
+    if ("rip" in brackets_expr) and (list_inst is None):
+        utils.print_error("[ERROR] Computing the value of rip requires knowing"
+                          " the current instruction")
+        return None
+
+    utils.print_debug(f"before: {brackets_expr}")
+    stack_reg_used, brackets_expr = __extract_stack_reg(brackets_expr)
+    utils.print_debug(f"after: {brackets_expr} - {stack_reg_used}")
+
+    try:
+        address_or_offset = __compute_operation(brackets_expr[1:-1],
+                                                list_inst, elf_analyser)
+    except StaticAnalyserException as e:
+        utils.print_error(f"[ERROR] Could not compute the value of the "
+                          f"brackets expression ({brackets_expr}): {e}")
+        return None
+
+    return "mem " + stack_reg_used + " " + str(address_or_offset)
+
+def __extract_stack_reg(brackets_expr):
+
+    stack_reg_used = ""
+
+    terms_and_operands = __separate_terms_and_operands(brackets_expr)
+
+    for i, token in enumerate(terms_and_operands):
+        if is_reg(token):
+            try:
+                reg_key = __get_reg_key(token)
+            except StaticAnalyserException as e:
+                raise e
+            if reg_key in ("ebp", "esp"):
+                stack_reg_used += reg_key
+                if "*" in (terms_and_operands[i-1], terms_and_operands[i+1]):
+                    terms_and_operands[i] = "1"
+                else:
+                    terms_and_operands[i] = "0"
+
+    new_brackets_expr = "".join(terms_and_operands)
+
+    return stack_reg_used, new_brackets_expr
 
 def __get_reg_key(reg_id):
     """Given a register identifier, returns the key to have access to this

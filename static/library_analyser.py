@@ -119,7 +119,7 @@ class LibraryUsageAnalyser:
         used by the analysed binary (self).
     add_used_library(self, lib_path, added_by_ldd=False):
         Adds the library name associated with the library path provided to
-        the list of used libraries of the binary and register the library's
+        the list of used libraries of the binary and registers the library's
         information (in self.__libraries) if it was not already done beforehand
         in the program's execution.
     analyse_linker_functions(self, syscalls_set):
@@ -440,7 +440,7 @@ class LibraryUsageAnalyser:
 
     def add_used_library(self, lib_path, added_by_ldd=False):
         """Adds the library name associated with the library path provided to
-        the list of used libraries of the binary and register the library's
+        the list of used libraries of the binary and registers the library's
         information (in self.__libraries) if it was not already done beforehand
         in the program's execution.
 
@@ -868,7 +868,7 @@ class LibraryUsageAnalyser:
             #         f"function for ld-linux-x86-64.so.2 "
             #         f"(_dl_runtime_resolve_xsavec) instead? [y/N]")
             # reloc_fun_name = "_dl_runtime_resolve_xsavec"
-            # # TODO: add linker to libraries in the static analyser
+            # # (TODO) (if uncommented): add linker to libraries in the static analyser
         utils.print_error(
                     f"The linker used by {self.elf_analyser.binary.path} is "
                     f"{linker_name}. The relocation function for that linker "
