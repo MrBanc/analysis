@@ -114,7 +114,7 @@ def extract_destination_address(list_inst, elf_analyser):
         # function pointer. This slows down the process a bit, is
         # approximative and rarely brings results therefore it can be
         # deactivated with command line args
-        dest_address = get_assigned_address(list_inst, elf_analyser)
+        dest_address = __get_assigned_address(list_inst, elf_analyser)
         # If `assigned` is a register (or another value that can be
         # backtracked) there is no need to backtrack it as the operation at the
         # end of the backtrack which sets the value will already have been
@@ -127,69 +127,6 @@ def extract_destination_address(list_inst, elf_analyser):
         dest_address = None
 
     return dest_address, show_warnings
-
-def get_assigned_value(list_inst, elf_analyser):
-    """Returns the value that is being assigned to the destination operand in
-    the given instruction.
-
-    Important note: because the returned value could be an address, this
-    function does not try to translate values represented with 2-th complement
-    into negative values. If this function is used to obtain values which are
-    not addresses, the calling function should be the one to deal with this.
-
-    Parameters
-    ----------
-    list_inst : capstone instruction
-        the instructions leading to the one to consider (included)
-    elf_analyser : ELFAnalyser
-        instance of ELFAnalyser corresponding to the analysed binary
-
-    Returns
-    -------
-    assigned_val : int or None
-        the assigned value (or None in case of error)
-    """
-
-    assigned_val = __get_assigned_object(list_inst, elf_analyser)
-
-    # Convert the Address object into an int
-    if isinstance(assigned_val, Address):
-        if assigned_val.is_local:
-            assigned_val = assigned_val.value
-        else:
-            assigned_val = None
-    elif isinstance(assigned_val, int) or assigned_val is None:
-        pass
-    else:
-        utils.print_error(f"[ERROR] Assigned value isn't of an expected type: "
-                          f"{assigned_val}: {type(assigned_val)}")
-        assigned_val = None
-
-    return assigned_val
-
-def get_assigned_address(list_inst, elf_analyser):
-    """Returns the address that is being assigned to the destination operand in
-    the given instruction.
-
-    Parameters
-    ----------
-    list_inst : capstone instruction
-        the instructions leading to the one to consider (included)
-    elf_analyser : ELFAnalyser
-        instance of ELFAnalyser corresponding to the analysed binary
-
-    Returns
-    -------
-    assigned_addr : Address or None
-        the assigned address (or None in case of error)
-    """
-
-    assigned_val = __get_assigned_object(list_inst, elf_analyser)
-
-    if isinstance(assigned_val, Address):
-        return assigned_val
-    if isinstance(assigned_val, int):
-        return Address(assigned_val, True)
 
 def value_backtracker(focus_val, list_inst, elf_analyser):
     """Try to find the content/value of a given "variable" at the instruction
@@ -245,7 +182,7 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
                                  elf_analyser):
             continue
 
-        assigned_value = get_assigned_value(list_inst[last_ins_index:i+1],
+        assigned_value = __get_assigned_value(list_inst[last_ins_index:i+1],
                                             elf_analyser)
         ret = None
         if isinstance(assigned_value, int):
@@ -351,6 +288,71 @@ def is_reg(string):
 
     return False
 
+def __get_assigned_value(list_inst, elf_analyser):
+    """Returns the value that is being assigned to the destination operand in
+    the given instruction.
+
+    Important note: because the returned value could be an address, this
+    function does not try to translate values represented with 2-th complement
+    into negative values. If this function is used to obtain values which are
+    not addresses, the calling function should be the one to deal with this.
+
+    Parameters
+    ----------
+    list_inst : capstone instruction
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    assigned_val : int or None
+        the assigned value (or None in case of error)
+    """
+
+    assigned_val = __get_assigned_object(list_inst, elf_analyser)
+
+    # Convert the Address object into an int
+    if isinstance(assigned_val, Address):
+        if assigned_val.is_local:
+            assigned_val = assigned_val.value
+        else:
+            assigned_val = None
+    elif isinstance(assigned_val, int) or assigned_val is None:
+        pass
+    else:
+        utils.print_error(f"[ERROR] Assigned value isn't of an expected type: "
+                          f"{assigned_val}: {type(assigned_val)}")
+        assigned_val = None
+
+    return assigned_val
+
+def __get_assigned_address(list_inst, elf_analyser):
+    """Returns the address that is being assigned to the destination operand in
+    the given instruction.
+
+    Parameters
+    ----------
+    list_inst : capstone instruction
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    assigned_addr : Address or None
+        the assigned address (or None in case of error)
+    """
+
+    assigned_val = __get_assigned_object(list_inst, elf_analyser)
+
+    if isinstance(assigned_val, Address):
+        return assigned_val
+    if isinstance(assigned_val, int):
+        return Address(assigned_val, True)
+
+    return None
+
 def __writes_to_focus(focus_val, list_inst, elf_analyser):
     """TODO"""
 
@@ -416,8 +418,8 @@ def __get_assigned_object(list_inst, elf_analyser):
     destination operand in the given instruction.
 
     Beware that the type of the returned object is not determined and should be
-    checked by the calling function (see `get_assigned_value`,
-    `get_assigned_address`...).
+    checked by the calling function (see `__get_assigned_value`,
+    `__get_assigned_address`...).
 
     ! If you add a new possible type of assigned object, you should modify the
     already existing calling functions to handle this new type.
