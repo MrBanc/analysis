@@ -30,8 +30,8 @@ void callSpecifiedFct(long (*sys_fptr)()) {
 
 void callOneFctFromTable(long (*sys_fptr[])(), int len) {
     // randomly choose a function from the table
-    srand(time(NULL));
     int i = rand() % len;
+    printf("Calling function at index %d\n", i);
 
     long result = sys_fptr[i]();
     printf("Result of syscall: %ld\n", result);
@@ -40,10 +40,13 @@ void callOneFctFromTable(long (*sys_fptr[])(), int len) {
 void customSyscallsWrapperWithFctPtrTable() {
     long (*sys_fptr_table[2])();
 
-    sys_fptr_table[0] = customSyscall1;
-    sys_fptr_table[1] = customSyscall2;
+    sys_fptr_table[0] = customSyscall1; // mkdir
+    sys_fptr_table[1] = customSyscall2; // rmdir
 
     callSpecifiedFct(sys_fptr_table[0]);
 
-    callOneFctFromTable(sys_fptr_table, 2);
+    srand(time(NULL));
+    for (int i = 0; i < 50; i++) {
+        callOneFctFromTable(sys_fptr_table, 2);
+    }
 }

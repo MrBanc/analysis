@@ -396,7 +396,7 @@ class CodeAnalyser:
 
         Parameters
         ----------
-        dest_address : class Destination
+        dest_address : class Address
             destination address to analyse
         list_inst : list of capstone instruction
             the instructions leading to the one to consider (included)

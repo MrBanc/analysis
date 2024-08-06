@@ -87,10 +87,11 @@ benchmark_binaries(){
                 continue
             fi
             if [ "$binary" == "static_analyser" ]; then
+                cmd="timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app \"./$file\" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t --backtrack-memory t --backtrack-potential-values t | awk '{ print \$1}' | sort > \"${results}_${binary}/${dir}/${flag}_$(basename $file).txt\""
                 if [[ "$file" =~ /test[0-9]*shrLib ]]; then
-                    LD_LIBRARY_PATH=./${build}_all/${flag}/lib timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t | awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                    eval LD_LIBRARY_PATH=./${build}_all/${flag}/lib $cmd
                 else
-                    timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app "./$file" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t | awk '{ print $1}' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
+                    eval $cmd
                 fi
                 if [ "$debug" == "true" ] && [ "$dir" == "$glibc" ]; then
                     for t in "${glibc_tests[@]}"; do
@@ -113,10 +114,14 @@ benchmark_binaries(){
                 # syscall and errors from the $file binary could be mixed with
                 # the $binary output
                 cd $(dirname $file) || die "cd failed"
+                if [ -d /tmp/remove_tmp ]; then
+                    rmdir /tmp/remove_tmp
+                fi
+                cmd="\"${binary}\" -c -f -o temporary_trace_result \"../../$file\" &> temporary_file_result"
                 if [[ "$file" =~ /test[0-9]*shrLib ]]; then
-                    LD_LIBRARY_PATH=../../${build}_all/${flag}/lib "${binary}" -c -f -o temporary_trace_result "../../$file" &> temporary_file_result
+                    eval LD_LIBRARY_PATH=../../${build}_all/${flag}/lib $cmd
                 else
-                    "${binary}" -c -f -o temporary_trace_result "../../$file" &> temporary_file_result
+                    eval $cmd
                 fi
                 cat temporary_trace_result | awk '$NF != "total" {print $NF}' | grep -v -e '^--' -e '^usecs/call' -e '^attached' -e '^syscall$'  -e '^function$'| sed '/^$/d' | sort > "${results}_${binary}/${dir}/${flag}_$(basename $file).txt"
                 rm temporary_file_result temporary_trace_result
@@ -153,7 +158,7 @@ fi
 if [ "$1" == "-h" ]; then
     echo "Usage: $0 [-b] [-r] [-i] [-c] [-h] [-a]"
     echo "  -b: build binaries"
-    echo "  -r: run benchmarks"
+    echo "  -r [benchmarks list]: run benchmarks"
     echo "  -i: iterate output"
     echo "  -c: clean"
     echo "  -h: help"
@@ -176,7 +181,11 @@ if [ "$1" == "-a" ] || [ "$1" == "-r" ]; then
     mkdir -p "${results}" || die "mkdir failed"
 
     directories=("basic_tests" "glibc_tests")
-    binaries=("static_analyser" "strace" "ltrace")
+    if [ "$#" -eq 1 ]; then
+        binaries=("static_analyser" "strace" "ltrace")
+    else
+        binaries=("${@:2}")
+    fi
 
     for dir in "${directories[@]}"; do
         for binary in "${binaries[@]}"; do

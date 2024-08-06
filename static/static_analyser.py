@@ -125,6 +125,22 @@ def parse_arguments():
             f'proposition (e.g. do you want to analyse X), Y: Always say yes '
             f'(lead to overestimation), N: Always say no (default: '
             f'{utils.user_input})')
+    functionalities_group.add_argument(
+            '--backtrack-potential-values', '-B', type=utils.str2bool,
+            nargs='?', const=True, default=utils.backtrack_potential_values,
+            help=f'Backtrack values even if knowing them will not be useful '
+            f'(significantly slower) (default: '
+            f'{utils.backtrack_potential_values})')
+    functionalities_group.add_argument(
+            '--backtrack-memory', '-m', type=utils.str2bool, nargs='?',
+            const=True, default=utils.backtrack_memory,
+            help=f'Backtrack writes to memory addresses (default: '
+            f'{utils.backtrack_memory})')
+    functionalities_group.add_argument(
+            '--backtrack-stack', '-S', type=utils.str2bool, nargs='?',
+            const=True, default=utils.backtrack_stack,
+            help=f'Backtrack writes to the stack (default: '
+            f'{utils.backtrack_stack})')
     args = parser.parse_args()
 
     utils.app = args.app
@@ -159,6 +175,9 @@ def parse_arguments():
         raise StaticAnalyserException("Invalid value for user input. Must be "
                                       "either A, Y or N.")
     utils.user_input = args.user_input.lower()
+    utils.backtrack_potential_values = args.backtrack_potential_values
+    utils.backtrack_memory = args.backtrack_memory
+    utils.backtrack_stack = args.backtrack_stack
 
 def launch_analysis():
     """Launch the analysis on the binary

@@ -16,6 +16,7 @@ getrandom
 gettid
 lseek
 madvise
+mkdir
 mmap
 mprotect
 munmap

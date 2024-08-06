@@ -177,7 +177,7 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
         utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
                   f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
-        if not __writes_to_focus(focus_val,
+        if not __is_writing_to_focus(focus_val,
                                  list_inst[last_ins_index:i+1],
                                  elf_analyser):
             continue
@@ -353,8 +353,30 @@ def __get_assigned_address(list_inst, elf_analyser):
 
     return None
 
-def __writes_to_focus(focus_val, list_inst, elf_analyser):
-    """TODO"""
+def __is_writing_to_focus(focus_val, list_inst, elf_analyser):
+    """Returns true if the given instruction (the last one of list_inst) writes
+    to the focus value.
+    
+    Note that a list of instructions is given to allow for backtracking the
+    value written to, if necessary. (e.g. if the focus is at the address
+    0x1234, maybe that writing to [eax] will write to 0x1234. To know that, it
+    is necessary to backtrack eax). This is also why the elf_analyser is given
+    as it is needed for the backtracking.
+
+    Parameters
+    ----------
+    focus_val : str
+        the value to focus on
+    list_inst : list of capstone instructions
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
+
+    Returns
+    -------
+    is_writing : bool
+        True if the instruction writes to the focus value
+    """
 
     md = Cs(CS_ARCH_X86, CS_MODE_64)
 
@@ -366,9 +388,17 @@ def __writes_to_focus(focus_val, list_inst, elf_analyser):
 
     # The focus could be something else than a register
     first_operand = list_inst[-1].op_str.split(",")[0].strip()
-    if (not is_reg) and focus_val == __get_backtrack_val_key(
-                                    first_operand, list_inst, elf_analyser):
-        return True
+    if first_operand and (not is_reg(first_operand)):
+        if utils.backtrack_potential_values:
+            first_op_key = __get_backtrack_val_key(first_operand,
+                                                   list_inst,
+                                                   elf_analyser)
+        else:
+            first_op_key = __get_backtrack_val_key(first_operand,
+                                                   [list_inst[-1]],
+                                                   elf_analyser)
+        if focus_val == first_op_key:
+            return True
 
     # There are cases where the second operand is the one written to (e.g. with
     # xchg). This case is not taken care of (yet?).
@@ -376,7 +406,19 @@ def __writes_to_focus(focus_val, list_inst, elf_analyser):
     return False
 
 def __contains_value_to_backtrack(string):
-    """TODO"""
+    """Returns true if, in order to compute the value of the given string, it
+    would be necessary to backtrack a value (e.g. a register value).
+
+    Parameters
+    ----------
+    string : str
+        the string that may contain a value to backtrack
+    
+    Returns
+    -------
+    contains_val : bool
+        True if the string contains a value to backtrack
+    """
 
     terms_and_operands = __separate_terms_and_operands(string)
 
@@ -661,15 +703,26 @@ def __separate_terms_and_operands(string):
     terms_and_operands = re.findall(r'[+\-*\[\]]|[^ +\-*\[\]]+', string)
     return [token.strip() for token in terms_and_operands]
 
-def __get_backtrack_val_key(string, list_inst=None, elf_analyser=None):
+def __get_backtrack_val_key(string, list_inst, elf_analyser):
     """Returns the key to identify the value to backtrack. If the value is a
     register, the key allows to access the register in the `registers`
     variable.
+
+    Note that a list of instructions is given to allow backtracking the value
+    of the string, if necessary. (e.g. if the string is `qword ptr [eax]`, the
+    key should correspond to the value of eax. To know that, it is necessary to
+    backtrack eax).
+    This is also why the elf_analyser is given as it is needed for the
+    backtracking.
 
     Parameters
     ----------
     string : str
         the string that contains the value to backtrack
+    list_inst : list of capstone instructions
+        the instructions leading to the one to consider (included)
+    elf_analyser : ELFAnalyser
+        instance of ELFAnalyser corresponding to the analysed binary
 
     Returns
     -------
@@ -677,19 +730,26 @@ def __get_backtrack_val_key(string, list_inst=None, elf_analyser=None):
         the key for this value
     """
 
-    brackets_expr = re.search(r'(\[.*\])', string).group(1)
+    brackets_expr = re.search(r'(\[.*\])', string).group(1) if (
+            bool(re.search(r'\[.*\]', string))) else ""
 
     if is_reg(string):
         return __get_reg_key(string)
+
+    if not (utils.backtrack_memory or utils.backtrack_stack):
+        return None
 
     if ("rip" in brackets_expr) and (list_inst is None):
         utils.print_error("[ERROR] Computing the value of rip requires knowing"
                           " the current instruction")
         return None
 
-    utils.print_debug(f"before: {brackets_expr}")
     stack_reg_used, brackets_expr = __extract_stack_reg(brackets_expr)
-    utils.print_debug(f"after: {brackets_expr} - {stack_reg_used}")
+
+    if ((stack_reg_used and not utils.backtrack_stack)
+        or (not stack_reg_used and not utils.backtrack_memory)):
+
+        return None
 
     try:
         address_or_offset = __compute_operation(brackets_expr[1:-1],

@@ -2,9 +2,9 @@
 /bin/newgidmap: 5136
 /bin/pstree: 5084
 /bin/gawk: 18173
-/bin/make: 32735
+/bin/make: 32734
 /bin/ncat: 15584
 /bin/ps: 6676
 /bin/vulkaninfo: 23127
 /bin/mariadb: 17361
-/bin/ibus: 161020
+/bin/ibus: 161021

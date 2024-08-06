@@ -24,6 +24,9 @@ search_function_pointers = True
 search_raw_data = False
 analyse_linker = False
 user_input = "Y"
+backtrack_potential_values = False
+backtrack_memory = False
+backtrack_stack = True
 
 cur_depth = -1
 currently_backtracking = False
