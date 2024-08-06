@@ -385,6 +385,7 @@ def __is_writing_to_focus(focus_val, list_inst, elf_analyser):
         for r in regs_writen:
             if md.reg_name(r) in registers[focus_val]:
                 return True
+        return False
 
     # The focus could be something else than a register
     first_operand = list_inst[-1].op_str.split(",")[0].strip()
