@@ -553,39 +553,8 @@ def __compute_address_operand(operand, list_inst, elf_analyser,
             # not supported (yet?)
             pass
         elif bool(brackets_expr):
-            key = None
-            if use_backtracking and any(reg in brackets_expr.group(1)
-                   for reg in (registers["eax"] | {"rip"} | registers["ebp"])):
-                key = __get_backtrack_val_key(operand, list_inst, elf_analyser)
-            if key is not None:
-                if utils.currently_backtracking:
-                    utils.log(f"[Shifting focus to [{brackets_expr.group(1)}]"
-                              f"(key: {key})]", "backtrack.log", indent=2)
-                else:
-                    utils.log(f"Value of interest, start backtracking: "
-                              f"{hex(list_inst[-1].address)} "
-                              f"{list_inst[-1].mnemonic} "
-                              f"{list_inst[-1].op_str} from "
-                              f"{elf_analyser.binary.path}",
-                              "backtrack.log", indent=0)
-                address = value_backtracker(key, list_inst, elf_analyser)
-                if utils.currently_backtracking:
-                    utils.log(f"[{key} value found: {address}]",
-                              "backtrack.log", indent=2)
-                else:
-                    utils.log(f"Value found: {address}\n", "backtrack.log",
-                              indent=0)
-
-                if isinstance(address, int):
-                    return Address(address, True)
-            address_location = __compute_operation(brackets_expr.group(1),
-                                                       list_inst, elf_analyser)
-            reference_byte_size = __operand_byte_size[operand.split()[0]]
-            # Manipulating negative numbers in 2th complement could lead to
-            # arithmetic overflow which should be ignored
-            address_location %= 2**64
-            address = elf_analyser.resolve_address_stored_at(
-                    address_location, reference_byte_size)
+            address = __compute_address_bracket_operand(operand, list_inst,
+                                                        elf_analyser)
         elif not use_backtracking and __contains_value_to_backtrack(operand):
             if utils.currently_backtracking:
                 utils.log("[cannot backtrack further]",
@@ -605,6 +574,72 @@ def __compute_address_operand(operand, list_inst, elf_analyser,
         utils.print_warning("[WARNING] A function may have been called but"
                             " couln't be found. This is probably due "
                             "to an indirect address call.")
+
+    return address
+
+def __compute_address_bracket_operand(operand, list_inst, elf_analyser):
+    """
+
+    Raises
+    ------
+    StaticAnalyserException
+        If the value couldn't be computed
+    """
+
+    use_backtracking = len(list_inst) > 1
+    brackets_expr = re.search(r'\[(.*)\]', operand)
+
+    address = None
+
+    # First, try to obtain the address directly (looking at the symbols and the
+    # content of the binary)
+    # The address found is returned if a function name could be found.
+    # Otherwise, we try the second method to see if a good result can be
+    # obtained by backtracking. (if not, the value found by the first method is
+    # returned)
+
+    try:
+        address_location = __compute_operation(brackets_expr.group(1),
+                                                   list_inst, elf_analyser)
+        reference_byte_size = __operand_byte_size[operand.split()[0]]
+        # Manipulating negative numbers in 2th complement could lead to
+        # arithmetic overflow which should be ignored
+        address_location %= 2**64
+        address = elf_analyser.resolve_address_stored_at(
+                address_location, reference_byte_size)
+        if address is not None and address.f_name is not None:
+            return address
+    except StaticAnalyserException as e:
+        if e.is_critical:
+            utils.print_error(f"{e}")
+
+    # Second method: backtracking
+
+    key = None
+    if use_backtracking and any(reg in brackets_expr.group(1)
+           for reg in (registers["eax"] | {"rip"} | registers["ebp"])):
+        key = __get_backtrack_val_key(operand, list_inst, elf_analyser)
+    if key is not None:
+        if utils.currently_backtracking:
+            utils.log(f"[Shifting focus to [{brackets_expr.group(1)}]"
+                      f"(key: {key})]", "backtrack.log", indent=2)
+        else:
+            utils.log(f"Value of interest, start backtracking: "
+                      f"{hex(list_inst[-1].address)} "
+                      f"{list_inst[-1].mnemonic} "
+                      f"{list_inst[-1].op_str} from "
+                      f"{elf_analyser.binary.path}",
+                      "backtrack.log", indent=0)
+        address_b_val = value_backtracker(key, list_inst, elf_analyser)
+        if utils.currently_backtracking:
+            utils.log(f"[{key} value found: {address_b_val}]",
+                      "backtrack.log", indent=2)
+        else:
+            utils.log(f"Value found: {address_b_val}\n", "backtrack.log",
+                      indent=0)
+
+        if isinstance(address_b_val, int) and address_b_val >= 0:
+            address = Address(address_b_val, True)
 
     return address
 
