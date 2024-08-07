@@ -87,7 +87,7 @@ benchmark_binaries(){
                 continue
             fi
             if [ "$binary" == "static_analyser" ]; then
-                cmd="timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app \"./$file\" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t --backtrack-memory t --backtrack-potential-values t | awk '{ print \$1}' | sort > \"${results}_${binary}/${dir}/${flag}_$(basename $file).txt\""
+                cmd="timeout 600 python3 ../../static_analyser.py -s ../../syscalls_map --app \"./$file\" --show-warnings f --show-errors f -v f --analyse-linker t --user-input Y --skip-data t --search_raw_data t | awk '{ print \$1}' | sort > \"${results}_${binary}/${dir}/${flag}_$(basename $file).txt\""
                 if [[ "$file" =~ /test[0-9]*shrLib ]]; then
                     eval LD_LIBRARY_PATH=./${build}_all/${flag}/lib $cmd
                 else

@@ -9,7 +9,7 @@ i=1
 for line in $(cat /home/ben/Documents/unif/github/research/analysis/static/tests/scripts/get_syscalls_found.sh  | grep "^/bin/")
 do
     echo "$i/$n_lines: $line"
-    result=$(/usr/bin/time -v timeout 6000 python static_analyser.py --app $line -l $GET_N_FUNCTIONS_FOUND -v t -d f --csv f --analyse-linker t --user-input Y --backtrack-memory t --backtrack-potential-values t 2>&1 | sed -n -e '/^Total number of syscalls:/p' -e '/Elapsed (wall clock) time/p' | awk '{print $NF}' | awk 'BEGIN {RS=""; FS="\n"} { if (NF == 2) {printf("%s\telapsed time: %s", $1, $2)} else {printf("timeout\telapsed time: %s", $1)} }')
+    result=$(/usr/bin/time -v timeout 6000 python static_analyser.py --app $line -l $GET_N_FUNCTIONS_FOUND -v t -d f --csv f --analyse-linker t --user-input Y --backtrack-memory t 2>&1 | sed -n -e '/^Total number of syscalls:/p' -e '/Elapsed (wall clock) time/p' | awk '{print $NF}' | awk 'BEGIN {RS=""; FS="\n"} { if (NF == 2) {printf("%s\telapsed time: %s", $1, $2)} else {printf("timeout\telapsed time: %s", $1)} }')
     echo -e "$line: $(echo $result | awk '{print $1}')" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/nb_syscalls_found
     echo -e "$line: $(echo $result | awk '{print $2, $3, $4}')" >> /home/ben/Documents/unif/github/research/analysis/static/tests/data/execution_time_syscalls_found
     if [ $GET_N_FUNCTIONS_FOUND == "t" ]

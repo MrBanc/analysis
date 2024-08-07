@@ -1,10 +1,10 @@
-/bin/bash: 16086
+/bin/bash: 16091
 /bin/newgidmap: 5136
 /bin/pstree: 5084
-/bin/gawk: 18173
-/bin/make: 32734
-/bin/ncat: 15584
+/bin/gawk: 18176
+/bin/make: 32738
+/bin/ncat: 15588
 /bin/ps: 6676
 /bin/vulkaninfo: 23127
-/bin/mariadb: 17361
-/bin/ibus: 161021
+/bin/mariadb: 17365
+/bin/ibus: 161025
