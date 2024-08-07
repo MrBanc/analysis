@@ -556,6 +556,27 @@ class ELFAnalyser:
         # anyway, I did not try to make it sorted myself.
         return min(k for k in self.__address_to_fun_map if k > from_addr)
 
+    def find_function_start_addr(self, cur_addr):
+        """Returns the address of closest function found before, or at the
+        given address by looking at the symbolic information of the ELF.
+
+        Parameters
+        ----------
+        cur_addr : int
+            address marking the end of the searching area (the given address
+            will be inferior or equal to cur_addr)
+
+        Returns
+        -------
+        cur_function_address : int
+            address of the closest function before, or at from_address
+        """
+
+        if self.__address_to_fun_map is None:
+            self.__initialize_function_map("address")
+
+        return max(k for k in self.__address_to_fun_map if k <= cur_addr)
+
     def find_next_symbol_addr(self, from_addr, shndx=None):
         """Returns the address of closest symbol found after the given
         address by looking at the symbolic information of the ELF.

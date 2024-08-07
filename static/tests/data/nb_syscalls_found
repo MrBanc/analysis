@@ -13,7 +13,7 @@
 /bin/gamemode-simulate-game: 46
 /bin/wine64: 55
 /bin/zsh: 108
-/bin/docker: 80
+/bin/docker: 79
 /bin/vlc: 84
 /bin/nvidia-powerd: 101
 /bin/nvidia-persistenced: 86

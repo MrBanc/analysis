@@ -167,10 +167,21 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
     utils.currently_backtracking = True
 
     index = len(list_inst) - 1
-    # TODO try to find the beginning of the function if we are in the main
-    # binary so that we cannot backtrack beyond
+
+    # It does not make sense to backtrack a value outside of the current
+    # function. This is already guaranteed for libraries but not for the main
+    # binary.
+    if elf_analyser.binary.path == utils.app:
+        stop_at_address = elf_analyser.find_function_start_addr(
+                list_inst[index].address)
+    else:
+        stop_at_address = 0
+
     last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
     for i in range(index - 1, last_ins_index - 1, -1):
+        if list_inst[i].address <= stop_at_address:
+            break
+
         if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
             continue
 
