@@ -5,6 +5,6 @@
 /bin/make: 32739
 /bin/ncat: 15588
 /bin/ps: 6676
-/bin/vulkaninfo: 23127
+/bin/vulkaninfo: 23157
 /bin/mariadb: 17365
-/bin/ibus: 161025
+/bin/ibus: 161057

@@ -783,7 +783,7 @@ def __get_backtrack_val_key(string, list_inst, elf_analyser):
     if is_reg(string):
         return __get_reg_key(string)
 
-    if not (utils.backtrack_memory or utils.backtrack_stack):
+    if (not string) or (not (utils.backtrack_memory or utils.backtrack_stack)):
         return None
 
     if ("rip" in brackets_expr) and (list_inst is None):
@@ -799,8 +799,11 @@ def __get_backtrack_val_key(string, list_inst, elf_analyser):
         return None
 
     try:
-        address_or_offset = __compute_operation(brackets_expr[1:-1],
-                                                list_inst, elf_analyser)
+        if not brackets_expr:
+            address_or_offset = 0
+        else:
+            address_or_offset = __compute_operation(brackets_expr[1:-1],
+                                                    list_inst, elf_analyser)
     except StaticAnalyserException as e:
         utils.print_error(f"[ERROR] Could not compute the value of the "
                           f"brackets expression ({brackets_expr}): {e}")
