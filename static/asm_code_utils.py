@@ -172,14 +172,14 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
     # function. This is already guaranteed for libraries but not for the main
     # binary.
     if elf_analyser.binary.path == utils.app:
-        stop_at_address = elf_analyser.find_function_start_addr(
+        fun_start_address = elf_analyser.find_function_start_addr(
                 list_inst[index].address)
     else:
-        stop_at_address = 0
+        fun_start_address = 0
 
     last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
     for i in range(index - 1, last_ins_index - 1, -1):
-        if list_inst[i].address <= stop_at_address:
+        if list_inst[i].address < fun_start_address:
             break
 
         if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
