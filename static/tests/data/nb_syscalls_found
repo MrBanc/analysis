@@ -3,13 +3,13 @@
 /bin/pstree: 69
 /bin/gawk: 104
 /bin/make: 136
-/bin/ncat: 101
+/bin/ncat: 102
 /bin/ps: 69
 /bin/vulkaninfo: 65
-/bin/mariadb: 107
+/bin/mariadb: 106
 /bin/ibus: 145
 /bin/VBoxClient: 115
-/bin/ssh: 104
+/bin/ssh: 105
 /bin/gamemode-simulate-game: 46
 /bin/wine64: 55
 /bin/zsh: 108
@@ -17,4 +17,4 @@
 /bin/vlc: 84
 /bin/nvidia-powerd: 101
 /bin/nvidia-persistenced: 86
-/bin/nmap: 108
+/bin/nmap: 107
