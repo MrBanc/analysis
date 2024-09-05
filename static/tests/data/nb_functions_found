@@ -3,8 +3,8 @@
 /bin/pstree: 5084
 /bin/gawk: 18176
 /bin/make: 32739
-/bin/ncat: 15588
+/bin/ncat: 15614
 /bin/ps: 6676
-/bin/vulkaninfo: 23157
-/bin/mariadb: 17365
+/bin/vulkaninfo: 23358
+/bin/mariadb: 17278
 /bin/ibus: 161057
