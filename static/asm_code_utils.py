@@ -45,7 +45,8 @@ __operand_byte_size = {"byte": 1,
                        "tword": 10,
                        "oword": 16,
                        "yword": 32,
-                       "zword": 64}
+                       "zword": 64,
+                       "xmmword": 128}
 
 
 @dataclass
@@ -494,11 +495,11 @@ def __get_assigned_object(list_inst, elf_analyser):
     mnemonic = list_inst[-1].mnemonic
     op_strings = list_inst[-1].op_str.split(",")
 
-    # TODO support add, xchg, movsx, movsxd, movl etc et les autres
-    # instructions faciles à supporter
+    # TODO support add, xchg, (+ properly support movsx, movsxd, movl etc) and
+    # other easy to support instructions
 
     assigned_val = None
-    if mnemonic not in ("mov", "xor", "lea"):
+    if mnemonic not in ("xor", "lea") and not mnemonic.startswith("mov"):
         if utils.currently_backtracking:
             utils.log("[Operation not supported]", "backtrack.log", indent=2)
         return assigned_val
@@ -506,7 +507,7 @@ def __get_assigned_object(list_inst, elf_analyser):
     op_strings[0] = op_strings[0].strip()
     op_strings[1] = op_strings[1].strip()
 
-    if mnemonic == "mov":
+    if mnemonic.startswith("mov"):
         assigned_val = __compute_address_operand(
                     op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):

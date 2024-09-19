@@ -29,7 +29,7 @@ O1_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 time
 O2_test10.txt: [MISSING 1/46] prlimit64  
 O2_test11.txt: [MISSING 1/47] prlimit64  
 O2_test12shrLib.txt: [MISSING 1/47] prlimit64  
-O2_test13shrLib.txt: [MISSING 2/47] prlimit64 rmdir  
+O2_test13shrLib.txt: [MISSING 1/48] prlimit64  
 O2_test14.txt: [MISSING 1/45] prlimit64  
 O2_test1.txt: [MISSING 1/45] prlimit64  
 O2_test2.txt: [MISSING 1/45] prlimit64  
@@ -43,7 +43,7 @@ O2_test9.txt: [MISSING 6/61] epoll_create1 epoll_ctl epoll_pwait2 prlimit64 time
 O3_test10.txt: [MISSING 1/46] prlimit64  
 O3_test11.txt: [MISSING 1/47] prlimit64  
 O3_test12shrLib.txt: [MISSING 1/47] prlimit64  
-O3_test13shrLib.txt: [MISSING 2/47] prlimit64 rmdir  
+O3_test13shrLib.txt: [MISSING 1/48] prlimit64  
 O3_test14.txt: [MISSING 1/45] prlimit64  
 O3_test1.txt: [MISSING 1/45] prlimit64  
 O3_test2.txt: [MISSING 1/45] prlimit64  
