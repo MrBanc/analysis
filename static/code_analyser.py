@@ -450,13 +450,14 @@ class CodeAnalyser:
             if f is None:
                 return
             if f.boundaries[0] >= f.boundaries[1]:
-                # TODO: trouver une solution générale pour essayer
-                # d'analyser la fonction même si on a pas la taille ?
-                # TODO: dans tous les cas on devrait pas le hardcoder ici.
+                # TODO: Try to find a general solution to try to analyse the
+                # function even if we don't have the size. (for now, it's
+                # hardcoded for a particular case that was found)
+                # This seems to be a redhat/fedora specific issue.
                 if f.name == "__restore_rt":
-                    # particular case where for some reason the ELF
-                    # indicates that this function's size is 0
-                    syscalls_set.add(syscalls.syscalls_map[0xf])
+                    # Particular case where for some reason the ELF
+                    # indicates that this function's size is 0.
+                    syscalls_set.add("rt_sigreturn")
                 return
 
             f_array = [f]
