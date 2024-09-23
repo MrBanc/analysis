@@ -547,6 +547,8 @@ class ELFAnalyser:
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
 
+        # TODO si c'est la dernière fonction, ça va planter
+
         # If there is a guarantee that the dictionary keys are sorted, then a
         # dictionary sort would be quicker, but I don't know if there is such a
         # guarantee. From Python 3.7, the keys are guaranteed to maintain

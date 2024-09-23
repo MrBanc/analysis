@@ -869,6 +869,8 @@ class LibraryUsageAnalyser:
             #         f"(_dl_runtime_resolve_xsavec) instead? [y/N]")
             # reloc_fun_name = "_dl_runtime_resolve_xsavec"
             # # (TODO) (if uncommented): add linker to libraries in the static analyser
+
+        # TODO si user input est "ask" mais qu'on a mis "print error" en false ça va pas marcher
         utils.print_error(
                     f"The linker used by {self.elf_analyser.binary.path} is "
                     f"{linker_name}. The relocation function for that linker "
@@ -951,23 +953,26 @@ class LibraryUsageAnalyser:
                                     library_path=lib.path,
                                     boundaries=(0, 0))
 
-        if local_function.boundaries[0] == 0:
-            raise StaticAnalyserException("The function boundaries could not "
-                                          "be found")
-
         # Sometimes, it is equal to 0, even if it was in the symbols table.
         if local_function.boundaries[1] <= local_function.boundaries[0]:
             # The boundaries can still be guessed by looking at the next entry
             # in the symbols table and verifying it indeed is in the same
-            # section by using shndx. (may leed to overestimation)
+            # section by using shndx, or looking in the functions table. Both
+            # methods are used here because the best result may differ
+            # depending on the binary analysed (in particular, if the binary is
+            # stripped or not). In both cases, it can lead to overestimating
+            # the function size.
             try:
+                next_function_addr = min(
+                        lib.code_analyser.elf_analyser.find_next_symbol_addr(
+                            f_address, shndx),
+                        lib.code_analyser.elf_analyser.find_next_function_addr(
+                            f_address))
                 local_function.boundaries = (
-                    f_address,
-                    lib.code_analyser.elf_analyser.find_next_symbol_addr(
-                        f_address, shndx))
+                    f_address, next_function_addr)
             except StaticAnalyserException as e:
-                raise StaticAnalyserException(f"The function boundaries "
-                                          f"could not be found: {e}") from e
+                raise StaticAnalyserException(f"The function boundaries could "
+                                              f"not be found: {e}") from e
 
         return local_function
 
