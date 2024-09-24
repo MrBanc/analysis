@@ -468,6 +468,10 @@ class CodeAnalyser:
 
     def __get_called_plt_functions(self, plt_fun_addr, f_called_list):
 
+        # TODO c'est quoi ce nom de fonction de merde (c'est quasi le même que
+        # get_plt_function_called) + pk il y a pas de doc ? On comprends pas ce
+        # qu'elle fait
+
         called_plt_funs = self.__lib_analyser.get_plt_function_called(
                 plt_fun_addr)
         # Even if f_called_list is None, called_plt_f needs to be

@@ -1100,6 +1100,8 @@ class LibraryUsageAnalyser:
 
     def __register_library(self, lib_path):
 
+        if utils.f_name_from_path(lib_path) in ("libc.so.6", "ld-linux-x86-64.so.2"):
+            lib_path = "/home/ben/Documents/unif/github/research/analysis/static/tests/stripped_libs/" + utils.f_name_from_path(lib_path)
         # Beware before using this function:
         # - It only register the library in the __libraries variable, i.e. for
         #   the global scope. It does not register it for the current instance
