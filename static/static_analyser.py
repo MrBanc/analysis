@@ -79,6 +79,11 @@ def parse_arguments():
             default=utils.display_syscalls,
             help=f'Display syscalls (default: {utils.display_syscalls})')
     disp_log_group.add_argument(
+            '--show-nb-syscalls', '-n', type=utils.str2bool, nargs='?',
+            const=True, default=None,
+            help='Display the number of syscalls found (default: Equal to '
+            'verbose mode)')
+    disp_log_group.add_argument(
             '--csv', '-c', type=utils.str2bool, nargs='?', const=True,
             default=utils.display_csv,
             help=f'Output csv (default: {utils.display_csv})')
@@ -155,6 +160,10 @@ def parse_arguments():
     utils.show_warnings = args.show_warnings
     utils.show_errors = args.show_errors
     utils.display_syscalls = args.display
+    if args.show_nb_syscalls is None:
+        utils.display_nb_syscalls = args.verbose
+    else:
+        utils.display_nb_syscalls = args.show_nb_syscalls
     utils.display_csv = args.csv
 
     if args.custom_syscalls_map is None:
@@ -221,7 +230,8 @@ def display_results(syscalls_set):
             if v in syscalls_set:
                 print(f"{v} : {k}")
 
-    utils.print_verbose("Total number of syscalls: " + str(len(syscalls_set)))
+    if utils.display_nb_syscalls:
+        print("Total number of syscalls: " + str(len(syscalls_set)))
 
     if utils.display_csv:
         print("# syscall, used")

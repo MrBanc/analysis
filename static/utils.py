@@ -10,10 +10,11 @@ log_dir_path = "../logs/"
 # global variables with their default values
 app = "redis-server-static"
 sys_map = "syscalls_map"
-verbose = True
+verbose = False
 show_warnings = True
 show_errors = True
 display_syscalls = True
+display_nb_syscalls = False
 display_csv = False
 logging = False
 use_log_file = True
