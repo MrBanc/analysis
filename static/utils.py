@@ -27,6 +27,7 @@ user_input = "Y"
 backtrack_potential_values = False
 backtrack_memory = False
 backtrack_stack = True
+prioritised_library_folder = None
 
 cur_depth = -1
 currently_backtracking = False

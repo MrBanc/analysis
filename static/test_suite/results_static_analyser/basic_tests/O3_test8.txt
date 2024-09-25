@@ -29,6 +29,7 @@ readlinkat
 rseq
 rt_sigaction
 rt_sigprocmask
+rt_sigreturn
 sched_getaffinity
 sched_getparam
 sched_get_priority_max

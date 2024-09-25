@@ -9,6 +9,7 @@ import argparse
 import utils
 import syscalls
 from code_analyser import CodeAnalyser
+from library_analyser import add_to_ld_library_path
 from elf_analyser import ELFAnalyser
 from custom_exception import StaticAnalyserException
 
@@ -141,6 +142,12 @@ def parse_arguments():
             const=True, default=utils.backtrack_stack,
             help=f'Backtrack writes to the stack (default: '
             f'{utils.backtrack_stack})')
+    functionalities_group.add_argument(
+            '--library-path', '-p', default=utils.prioritised_library_folder,
+            help=f'Path to look for libraries (including the linker) in '
+            f'priority. This can for example be useful to prioritize libraries'
+            f' which are not stripped on a system where they are. (default: '
+            f'{utils.prioritised_library_folder})')
     args = parser.parse_args()
 
     utils.app = args.app
@@ -178,6 +185,9 @@ def parse_arguments():
     utils.backtrack_potential_values = args.backtrack_potential_values
     utils.backtrack_memory = args.backtrack_memory
     utils.backtrack_stack = args.backtrack_stack
+    utils.prioritised_library_folder = args.library_path
+    if utils.prioritised_library_folder is not None:
+        add_to_ld_library_path(utils.prioritised_library_folder)
 
 def launch_analysis():
     """Launch the analysis on the binary

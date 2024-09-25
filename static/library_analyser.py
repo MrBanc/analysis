@@ -93,6 +93,29 @@ class Library:
     code_analyser: Any
 
 
+def add_to_ld_library_path(path):
+    """Adds a path to the LD_LIBRARY_PATH environment variable and to the
+    LIB_DIRS list.
+
+    Parameters
+    ----------
+    path : str
+        path to add
+    """
+
+    if path[-1] != '/':
+        path += '/'
+
+    if "LD_LIBRARY_PATH" in environment_var:
+        environment_var.update({"LD_LIBRARY_PATH": path + ":"
+                                + environment_var["LD_LIBRARY_PATH"]})
+    else:
+        environment_var.update({"LD_LIBRARY_PATH": path})
+
+    # Even if the path is already in the list, it is added at the beginning
+    # to be checked first.
+    LIB_DIRS.insert(0, path)
+
 class LibraryUsageAnalyser:
     """LibraryUsageAnalyser(elf_analyser) -> CodeAnalyser
 
@@ -621,9 +644,15 @@ class LibraryUsageAnalyser:
                                 f"{self.elf_analyser.binary.path} does not "
                                 f"have a linker/interpreter/loader. Their "
                                 f"functions won't be analysed.")
-
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)
+
+        # If the linker is in the prioritised library folder, it will be used
+        # instead of the one found by lief.
+        if (utils.prioritised_library_folder is not None
+            and exists(utils.prioritised_library_folder + linker_name)):
+
+            linker_path = utils.prioritised_library_folder + linker_name
 
         if (linker_name in self.__libraries
             and linker_path != self.__libraries[linker_name].path):
@@ -1064,6 +1093,9 @@ class LibraryUsageAnalyser:
             if self.elf_analyser.is_valid_binary_path(path):
                 self.add_used_library(path)
 
+        # TODO commenter le code ci-dessous car c'est pas clair
+        # (le but c'est de détecter les librairies même si elles sont
+        # renseignées avec un path (relatif ?) dans le binaire)
         if len(lib_names) > 0:
             names_w_path = []
             for lib in lib_names:
@@ -1100,8 +1132,6 @@ class LibraryUsageAnalyser:
 
     def __register_library(self, lib_path):
 
-        if utils.f_name_from_path(lib_path) in ("libc.so.6", "ld-linux-x86-64.so.2"):
-            lib_path = "/home/ben/Documents/unif/github/research/analysis/static/tests/stripped_libs/" + utils.f_name_from_path(lib_path)
         # Beware before using this function:
         # - It only register the library in the __libraries variable, i.e. for
         #   the global scope. It does not register it for the current instance
