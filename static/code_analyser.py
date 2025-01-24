@@ -178,8 +178,25 @@ class CodeAnalyser:
                               f"{hex(stopped_at)} (probably due to some data "
                               f"found inside). Trying to continue the analysis"
                               f" at the next function...")
-            start_analyse_at = (self.elf_analyser
-                                .find_next_function_addr(stopped_at))
+            # Most of the time, "find_next_function_addr" will return the same
+            # or a better result than "find_next_symbol_addr". But there are
+            # (rare) cases the opposite is true.
+            try:
+                next_f_addr = self.elf_analyser.find_next_function_addr(stopped_at)
+            except StaticAnalyserException:
+                utils.print_warning(f"[WARNING] {e}")
+                next_f_addr = section.virtual_address + section.size
+            try:
+                next_s_addr = self.elf_analyser.find_next_symbol_addr(stopped_at)
+            except StaticAnalyserException:
+                utils.print_warning(f"[WARNING] {e}")
+                next_s_addr = section.virtual_address + section.size
+            if (next_f_addr == section.virtual_address + section.size
+                            == next_s_addr):
+                utils.print_error(f"[ERROR] No function or symbol found after "
+                                  f"{hex(stopped_at)} -> analysis stopped")
+                break
+            start_analyse_at = min(next_f_addr, next_s_addr)
             bytes_to_skip = start_analyse_at - stopped_at
             utils.print_error(f"[ERROR] {bytes_to_skip} bytes skipped")
 

@@ -547,7 +547,7 @@ class ELFAnalyser:
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
 
-        # TODO si c'est la dernière fonction, ça va planter
+        # TODO gérer les exeption dans la doc et la fonction appelante
 
         # If there is a guarantee that the dictionary keys are sorted, then a
         # dictionary sort would be quicker, but I don't know if there is such a
@@ -556,7 +556,13 @@ class ELFAnalyser:
         # the way they are inserted in __address_to_fun_map is sorted by
         # addresses. Since this code will probably hardly ever be called
         # anyway, I did not try to make it sorted myself.
-        return min(k for k in self.__address_to_fun_map if k > from_addr)
+        funs_after_addr = [k for k in self.__address_to_fun_map
+                           if k > from_addr]
+        if not funs_after_addr:
+            raise StaticAnalyserException(f"No function could be "
+                                          f"found after address {from_addr}")
+
+        return min(funs_after_addr)
 
     def find_function_start_addr(self, cur_addr):
         """Returns the address of closest function found before, or at the
@@ -576,6 +582,8 @@ class ELFAnalyser:
 
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
+
+        # TODO si il trouve rien dans le max ça va planter
 
         return max(k for k in self.__address_to_fun_map if k <= cur_addr)
 
@@ -626,7 +634,7 @@ class ELFAnalyser:
                 min_addr = symbol.value
 
         if min_addr == 2**64:
-            raise StaticAnalyserException(f"[WARNING] No symbol could be "
+            raise StaticAnalyserException(f"No symbol could be "
                                           f"found after address {from_addr}")
 
         return min_addr
