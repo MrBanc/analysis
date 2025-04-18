@@ -222,7 +222,7 @@ class CodeAnalyser:
                   "binary that might not have been found.\n", "backtrack.log")
 
         for f in self.elf_analyser.binary.lief_binary.imported_functions:
-            if "@" in f.name:
+            if "@" in f.name: # TODO: dire pk je skip car là je comprends pas
                 continue
             if (hasattr(f, "symbol_version")
                 and f.symbol_version.has_auxiliary_version):
@@ -488,6 +488,8 @@ class CodeAnalyser:
         # TODO c'est quoi ce nom de fonction de merde (c'est quasi le même que
         # get_plt_function_called) + pk il y a pas de doc ? On comprends pas ce
         # qu'elle fait
+        # update: ça a l'air d'être juste un wrapper mais sois bien sûr de
+        # (re)comprendre ce que fais mov local funs to avant de documenter
 
         called_plt_funs = self.__lib_analyser.get_plt_function_called(
                 plt_fun_addr)
