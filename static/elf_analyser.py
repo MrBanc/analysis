@@ -291,7 +291,7 @@ class ELFAnalyser:
             True if the section is executable
         """
 
-        return (section.flags & lief.ELF.Section.FLAGS.EXECINSTR) != 0
+        return (section.flags & 0x4) != 0
 
     def __get_section_boundaries(self, section):
         """Returns [section_start_address, section_end_address-1]
