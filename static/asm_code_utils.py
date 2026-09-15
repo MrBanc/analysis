@@ -46,7 +46,7 @@ __operand_byte_size = {"byte": 1,
                        "oword": 16,
                        "yword": 32,
                        "zword": 64,
-                       "xmmword": 128}
+                       "xmmword": 16}
 
 
 @dataclass
@@ -167,46 +167,47 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
     was_already_backtracking = utils.currently_backtracking
     utils.currently_backtracking = True
 
-    index = len(list_inst) - 1
+    try:
+        index = len(list_inst) - 1
 
-    # It does not make sense to backtrack a value outside of the current
-    # function. This is already guaranteed for libraries but not for the main
-    # binary.
-    if elf_analyser.binary.path == utils.app:
-        fun_start_address = elf_analyser.find_function_start_addr(
-                list_inst[index].address)
-    else:
-        fun_start_address = 0
+        # It does not make sense to backtrack a value outside of the current
+        # function. This is already guaranteed for libraries but not for the main
+        # binary.
+        if elf_analyser.binary.path == utils.app:
+            fun_start_address = elf_analyser.find_function_start_addr(
+                    list_inst[index].address)
+        else:
+            fun_start_address = 0
 
-    last_ins_index = max(0, index - 1 - utils.max_backtrack_insns)
-    for i in range(index - 1, last_ins_index - 1, -1):
-        if list_inst[i].address < fun_start_address:
-            break
+        last_ins_index = max(0, index - utils.max_backtrack_insns)
+        for i in range(index - 1, last_ins_index - 1, -1):
+            if list_inst[i].address < fun_start_address:
+                break
 
-        if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
-            continue
+            if list_inst[i].id in (X86_INS_DATA16, X86_INS_INVALID):
+                continue
 
-        utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
-                  f" {list_inst[i].op_str}", "backtrack.log", indent=1)
+            utils.log(f"-> {hex(list_inst[i].address)}:{list_inst[i].mnemonic}"
+                      f" {list_inst[i].op_str}", "backtrack.log", indent=1)
 
-        if not __is_writing_to_focus(focus_val,
-                                 list_inst[last_ins_index:i+1],
-                                 elf_analyser):
-            continue
+            if not __is_writing_to_focus(focus_val,
+                                     list_inst[last_ins_index:i+1],
+                                     elf_analyser):
+                continue
 
-        assigned_value = __get_assigned_value(list_inst[last_ins_index:i+1],
-                                            elf_analyser)
-        ret = None
-        if isinstance(assigned_value, int):
-            ret = assigned_value
+            assigned_value = __get_assigned_value(list_inst[last_ins_index:i+1],
+                                                elf_analyser)
+            ret = None
+            if isinstance(assigned_value, int):
+                ret = assigned_value
 
+            return ret
+
+        utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
+
+        return None
+    finally:
         utils.currently_backtracking = was_already_backtracking
-        return ret
-
-    utils.log("[cannot backtrack further]", "backtrack.log", indent=2)
-
-    utils.currently_backtracking = was_already_backtracking
-    return None
 
 def mov_local_funs_to(f_to, f_from, elf_analyser):
     """Move the functions from .plt that lead to an IRELATIVE .got entry
@@ -228,7 +229,7 @@ def mov_local_funs_to(f_to, f_from, elf_analyser):
         instance of ELFAnalyser corresponding to the analysed binary
     """
 
-    for i, f in enumerate(f_from):
+    for f in f_from.copy():
         # no name indicates it wasn't an JUMP_SLOT got entry
         if not f.name:
             if f_to is not None:
@@ -242,7 +243,7 @@ def mov_local_funs_to(f_to, f_from, elf_analyser):
                             f"impossible.")
                     continue
                 f_to.append(local_fun)
-            f_from.pop(i)
+            f_from.remove(f)
 
 def detect_syscall_type(ins):
     """Return the syscall type corresponding to the instruction given: either

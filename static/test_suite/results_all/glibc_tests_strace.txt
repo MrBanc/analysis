@@ -1,6 +1,6 @@
-O0_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
-O1_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
-O2_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
-O3_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
-Og_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
-Os_main.txt: [MISSING 6/89] getegid geteuid getpgrp getppid gettimeofday kill  
+O0_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  
+O1_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  
+O2_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  
+O3_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  
+Og_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  
+Os_main.txt: [MISSING 10/86] clock_nanosleep getegid geteuid getpgrp getppid getresgid getresuid gettimeofday kill wait4  

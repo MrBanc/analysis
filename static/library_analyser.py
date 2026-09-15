@@ -23,7 +23,6 @@ import utils
 import code_analyser as ca
 import elf_analyser as ea
 from custom_exception import StaticAnalyserException
-from elf_analyser import PLT_SECTION, PLT_SEC_SECTION
 
 
 # Ordered so that the first should be checked before the other
@@ -32,7 +31,9 @@ DEFAULT_LIB_DIRS = ['/lib64/', '/usr/lib64/', '/usr/local/lib64/',
 LD_LIB_DIRS = (list(environment_var.get("LD_LIBRARY_PATH").split(":"))
                 if "LD_LIBRARY_PATH" in environment_var else [])
 for lib_id, ld_lib_dir_path in enumerate(LD_LIB_DIRS):
-    if ld_lib_dir_path[-1] != '/':
+    if not ld_lib_dir_path:
+        LD_LIB_DIRS[lib_id] = './'
+    elif ld_lib_dir_path[-1] != '/':
         LD_LIB_DIRS[lib_id] += '/'
 LIB_DIRS = LD_LIB_DIRS + DEFAULT_LIB_DIRS
 
@@ -103,7 +104,9 @@ def add_to_ld_library_path(path):
         path to add
     """
 
-    if path[-1] != '/':
+    if not path:
+        path = './'
+    elif path[-1] != '/':
         path += '/'
 
     if "LD_LIBRARY_PATH" in environment_var:
@@ -153,6 +156,15 @@ class LibraryUsageAnalyser:
         function(s).
     """
 
+    # Known limitation: only one independent analysis per Python process is
+    # supported. These caches are shared by all instances, including dependency
+    # analysers, to avoid repeated work and recursive library registration.
+    # A second analysis with a fresh syscall set would skip previously visited
+    # functions and could reuse libraries from the first analysis. CLI runs
+    # (including benchmark.sh) use separate processes and are unaffected.
+    # Supporting multiple analyses requires resetting both caches at a defined
+    # top-level boundary or sharing an analysis context among dependencies;
+    # resetting them in __init__ would break their sharing during recursion.
     # set of LibFunction
     __analysed_functions = set()
 
@@ -166,8 +178,8 @@ class LibraryUsageAnalyser:
 
         lb = self.elf_analyser.binary.lief_binary
 
-        self.__plt_sec_section = lb.get_section(PLT_SEC_SECTION)
-        self.__plt_section = lb.get_section(PLT_SECTION)
+        self.__plt_sec_section = lb.get_section(ea.PLT_SEC_SECTION)
+        self.__plt_section = lb.get_section(ea.PLT_SECTION)
         if self.__plt_section is None:
             utils.print_warning(f"[WARNING] .plt section not found for "
                                 f"{self.elf_analyser.binary.path}")
@@ -512,8 +524,9 @@ class LibraryUsageAnalyser:
             set of syscalls used by the program analysed
         """
 
-        for lib in self.__libraries.values():
-            lib.code_analyser.analyse_detected_dlsym_functions(syscalls_set)
+        for lib in list(self.__libraries.values()):
+            if lib.code_analyser is not None:
+                lib.code_analyser.analyse_detected_dlsym_functions(syscalls_set)
 
     def analyse_linker_functions(self, syscalls_set):
         """Analyse the linker (aka dynamic linker, loader or interpreter)

@@ -1,7 +1,6 @@
 access
 arch_prctl
 brk
-clock_gettime
 close
 execve
 fstat
@@ -14,6 +13,7 @@ pread64
 prlimit64
 read
 rseq
+rt_sigprocmask
 set_robust_list
 set_tid_address
 unlink

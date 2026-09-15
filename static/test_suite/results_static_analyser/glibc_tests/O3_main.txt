@@ -5,7 +5,6 @@ bind
 brk
 chdir
 clock_gettime
-clock_nanosleep
 clone
 clone3
 close
@@ -20,6 +19,7 @@ fchdir
 fcntl
 fstat
 futex
+getcpu
 getcwd
 getdents64
 getgid
@@ -45,14 +45,12 @@ open
 openat
 pipe
 pipe2
-poll
 prctl
 pread64
 prlimit64
 read
 readlinkat
 recvfrom
-recvmsg
 rseq
 rt_sigaction
 rt_sigprocmask
@@ -83,7 +81,6 @@ time
 uname
 unlink
 utimensat
-wait4
 waitid
 write
 writev

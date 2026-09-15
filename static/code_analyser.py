@@ -183,12 +183,12 @@ class CodeAnalyser:
             # (rare) cases the opposite is true.
             try:
                 next_f_addr = self.elf_analyser.find_next_function_addr(stopped_at)
-            except StaticAnalyserException:
+            except StaticAnalyserException as e:
                 utils.print_warning(f"[WARNING] {e}")
                 next_f_addr = section.virtual_address + section.size
             try:
                 next_s_addr = self.elf_analyser.find_next_symbol_addr(stopped_at)
-            except StaticAnalyserException:
+            except StaticAnalyserException as e:
                 utils.print_warning(f"[WARNING] {e}")
                 next_s_addr = section.virtual_address + section.size
             if (next_f_addr == section.virtual_address + section.size
@@ -512,6 +512,7 @@ class CodeAnalyser:
 
     def __backtrack_dlopen(self, list_inst):
 
+        lib_name_address = None
         try:
             # When calling dlopen, the first argument (in `edi`) contains a
             # pointer to the name of the library
@@ -528,6 +529,7 @@ class CodeAnalyser:
 
     def __backtrack_dlmopen(self, list_inst):
 
+        lib_name_address = None
         try:
             # When calling dlmopen, the second argument (in `esi`) contains a
             # pointer to the name of the library
@@ -545,6 +547,7 @@ class CodeAnalyser:
 
     def __backtrack_dlsym(self, list_inst):
 
+        fun_name_address = None
         try:
             fun_name_address = code_utils.value_backtracker("esi", list_inst,
                                                             self.elf_analyser)

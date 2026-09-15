@@ -3,7 +3,7 @@
 /bin/pstree: 5119
 /bin/gawk: 19148
 /bin/make: 7551
-/bin/ncat: 16702
+/bin/ncat: 16701
 /bin/ps: 9202
 /bin/vulkaninfo: 27831
 /bin/mariadb: 19093

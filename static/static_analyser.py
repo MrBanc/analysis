@@ -244,4 +244,4 @@ def display_results(syscalls_set):
     return 0
 
 if __name__== "__main__":
-    main()
+    raise SystemExit(main())

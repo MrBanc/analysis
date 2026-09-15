@@ -131,7 +131,7 @@ class ELFAnalyser:
         lb = lief.parse(binary_path)
         lief.logging.enable()
 
-        return self.__is_valid_binary(lb)
+        return lb is not None and self.__is_valid_binary(lb)
 
     def __is_valid_binary(self, lb=None):
         """Verifies that the given binary is an ELF binary for the `x86_64`
@@ -294,7 +294,7 @@ class ELFAnalyser:
         return (section.flags & 0x4) != 0
 
     def __get_section_boundaries(self, section):
-        """Returns [section_start_address, section_end_address-1]
+        """Returns the range of addresses contained in the section.
 
         Parameters
         ----------
@@ -303,12 +303,12 @@ class ELFAnalyser:
 
         Returns
         -------
-        boundaries : list of two int
-            the section boundaries
+        boundaries : range
+            section addresses, excluding the end address
         """
 
-        return [section.virtual_address,
-                section.virtual_address + section.size]
+        return range(section.virtual_address,
+                     section.virtual_address + section.size)
 
     def get_string_at_address(self, address):
         """Return the string located at a particular address in a binary.
@@ -334,8 +334,13 @@ class ELFAnalyser:
 
         section_start_offset = address - target_section.virtual_address
         string = bytearray(target_section.content)[section_start_offset:]
-        section_end_offset = string.index(b"\x00") # string terminator
-        return string[:section_end_offset].decode("utf8")
+        try:
+            section_end_offset = string.index(b"\x00") # string terminator
+            return string[:section_end_offset].decode("utf8")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise StaticAnalyserException(
+                    f"No valid UTF-8 string found at address {hex(address)}",
+                    is_critical=False) from e
 
     def resolve_address_stored_at(self, address_location, reference_byte_size):
         """Tries to return the address that would be stored on the given
@@ -355,7 +360,7 @@ class ELFAnalyser:
         address_location : int
             address to look at
         reference_byte_size : int
-            size in bytes of the value that is referenced (1 for word, 2 for
+            size in bytes of the value that is referenced (2 for word, 4 for
             dword etc)
 
         Returns
@@ -398,8 +403,7 @@ class ELFAnalyser:
         # expected by the code (because the code modifies it while running) so
         # it may give invalid results.
         if utils.search_raw_data and address_found is None:
-            value_found = self.__read_raw_value_at_address(self.binary,
-                                                     address_location,
+            value_found = self.__read_raw_value_at_address(address_location,
                                                      reference_byte_size)
             address_found = Address(value_found, True)
 
@@ -445,7 +449,11 @@ class ELFAnalyser:
         section_start_offset = address - target_section.virtual_address
         value = bytearray(target_section.content)[section_start_offset
                                                   :section_start_offset
-                                                   + reference_byte_size * 8]
+                                                   + reference_byte_size]
+        if len(value) != reference_byte_size:
+            raise StaticAnalyserException(
+                    f"Cannot read {reference_byte_size} bytes at address "
+                    f"{hex(address)}", is_critical=False)
         value = int.from_bytes(value, byteorder=endianness, signed=signed)
         return value
 
@@ -566,26 +574,43 @@ class ELFAnalyser:
 
     def find_function_start_addr(self, cur_addr):
         """Returns the address of closest function found before, or at the
-        given address by looking at the symbolic information of the ELF.
+        given address, by looking at the symbolic information of the ELF.
 
         Parameters
         ----------
         cur_addr : int
-            address marking the end of the searching area (the given address
+            address marking the end of the searching area (the returned address
             will be inferior or equal to cur_addr)
 
         Returns
         -------
         cur_function_address : int
-            address of the closest function before, or at from_address
+            address of the closest function before, or at cur_addr, or the
+            containing section's start if no such function is known
+
+        Raises
+        ------
+        StaticAnalyserException
+            If no preceding function and no containing section can be found.
         """
 
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
 
-        # TODO si il trouve rien dans le max ça va planter
-
-        return max(k for k in self.__address_to_fun_map if k <= cur_addr)
+        try:
+            return max(k for k in self.__address_to_fun_map if k <= cur_addr)
+        except ValueError:
+            # Missing symbols/unwind information can leave no known function
+            # before this address. Prefer possible overestimation by allowing
+            # backtracking as far as the section start, still subject to the
+            # configured instruction limit.
+            section_start = self.get_section_from_address(cur_addr).virtual_address
+            utils.print_warning(
+                    f"[WARNING] No function start found at or before "
+                    f"{hex(cur_addr)} in {self.binary.path}. Using section "
+                    f"start {hex(section_start)} as the backtracking boundary; "
+                    f"this may overestimate the syscalls used.")
+            return section_start
 
     def find_next_symbol_addr(self, from_addr, shndx=None):
         """Returns the address of closest symbol found after the given

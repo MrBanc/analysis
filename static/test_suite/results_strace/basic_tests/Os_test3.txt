@@ -4,6 +4,7 @@ brk
 close
 execve
 fstat
+getrandom
 mmap
 mprotect
 munmap

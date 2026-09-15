@@ -1,7 +1,6 @@
 access
 arch_prctl
 brk
-clock_gettime
 close
 execve
 exit
@@ -9,10 +8,10 @@ exit_group
 fcntl
 fstat
 futex
+getcpu
 getcwd
 getdents64
 getpid
-getrandom
 gettid
 lseek
 madvise
@@ -34,6 +33,7 @@ sched_getparam
 sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
+sched_setaffinity
 sched_setscheduler
 setitimer
 set_robust_list

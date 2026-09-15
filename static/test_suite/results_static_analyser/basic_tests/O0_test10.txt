@@ -9,6 +9,7 @@ exit_group
 fcntl
 fstat
 futex
+getcpu
 getcwd
 getdents64
 getpid
@@ -35,6 +36,7 @@ sched_getparam
 sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
+sched_setaffinity
 sched_setscheduler
 setitimer
 set_robust_list

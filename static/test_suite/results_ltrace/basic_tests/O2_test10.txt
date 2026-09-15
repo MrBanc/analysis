@@ -1,6 +1,7 @@
 __errno_location
 exit_group
 malloc
+memset
 mkstemp
 printf
 unlink

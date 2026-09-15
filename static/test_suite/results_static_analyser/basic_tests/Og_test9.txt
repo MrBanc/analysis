@@ -2,9 +2,7 @@ access
 arch_prctl
 brk
 clock_gettime
-clock_nanosleep
 close
-connect
 dup
 execve
 exit
@@ -12,11 +10,11 @@ exit_group
 fcntl
 fstat
 futex
+getcpu
 getcwd
 getdents64
 getpeername
 getpid
-getrandom
 gettid
 ioctl
 lseek
@@ -29,12 +27,10 @@ nanosleep
 newfstatat
 open
 openat
-poll
 prctl
 pread64
 read
 readlinkat
-recvfrom
 rmdir
 rseq
 rt_sigaction
@@ -45,9 +41,8 @@ sched_getparam
 sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
+sched_setaffinity
 sched_setscheduler
-sendmmsg
-sendto
 setitimer
 set_robust_list
 setsockopt

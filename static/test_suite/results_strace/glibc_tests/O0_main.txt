@@ -20,6 +20,8 @@ getpgrp
 getpid
 getppid
 getrandom
+getresgid
+getresuid
 getsockname
 gettimeofday
 getuid

@@ -21,7 +21,6 @@ mprotect
 munmap
 newfstatat
 openat
-prctl
 pread64
 prlimit64
 read
