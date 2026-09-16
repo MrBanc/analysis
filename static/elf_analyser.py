@@ -550,12 +550,15 @@ class ELFAnalyser:
         -------
         next_function_address : int
             address of the function following from_address
+
+        Raises
+        ------
+        StaticAnalyserException
+            If no known function starts strictly after from_addr.
         """
 
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
-
-        # TODO gérer les exeption dans la doc et la fonction appelante
 
         # If there is a guarantee that the dictionary keys are sorted, then a
         # dictionary sort would be quicker, but I don't know if there is such a

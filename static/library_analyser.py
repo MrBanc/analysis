@@ -135,7 +135,7 @@ class LibraryUsageAnalyser:
         Returns the function that would be called by jumping to the address
         given in the `.plt` section.
     get_libraries_paths_manually(self, lib_names) -> list of str
-        elper function to obtain the path of a library from its name.
+        helper function to obtain the path of a library from its name.
     get_lib_from_GNU_ld_script(self, script_path) -> list of str
         Parses a GNU ld script and returns the library paths it leads to.
     get_function_with_name(self, f_name, lib_alias=None,
@@ -1094,6 +1094,13 @@ class LibraryUsageAnalyser:
             self.__used_libraries[i] = utils.f_name_from_path(lib)
 
     def __find_used_libraries_manually(self):
+        """Search LIB_DIRS for dependencies not already registered.
+
+        First search using each dependency's recorded name, then retry names
+        containing a path using only their final component. Register valid ELF
+        candidates and remove unresolved original names from the used-library
+        list.
+        """
 
         lib_names = [lib for lib in self.__used_libraries
                      if utils.f_name_from_path(lib) not in self.__libraries]
@@ -1106,9 +1113,9 @@ class LibraryUsageAnalyser:
             if self.elf_analyser.is_valid_binary_path(path):
                 self.add_used_library(path)
 
-        # TODO commenter le code ci-dessous car c'est pas clair
-        # (le but c'est de détecter les librairies même si elles sont
-        # renseignées avec un path (relatif ?) dans le binaire)
+        # The first lookup removes found names from lib_names in place. For
+        # remaining entries such as "subdir/libexample.so", retry with just
+        # "libexample.so" in LIB_DIRS, ignoring the recorded directory.
         if len(lib_names) > 0:
             names_w_path = []
             for lib in lib_names:
@@ -1116,21 +1123,29 @@ class LibraryUsageAnalyser:
                     names_w_path.append(utils.f_name_from_path(lib))
             new_paths_found = self.get_libraries_paths_manually(names_w_path)
 
-            not_found = [l for l in lib_names
-                         if utils.f_name_from_path(l) in names_w_path]
-            found_directly = [l for l in lib_names
-                              if utils.f_name_from_path(l) not in names_w_path]
+            # This lookup also removes found names in place: names_w_path now
+            # contains only basenames for which no candidate path was found.
 
             self.__used_libraries = [l for l in self.__used_libraries
                                      if l not in lib_names]
+            # Replace the unresolved original entries with the valid candidates
+            # found by basename. add_used_library registers their basenames.
             for path in new_paths_found:
                 if self.elf_analyser.is_valid_binary_path(path):
                     self.add_used_library(path)
 
+            # These diagnostics reflect path lookup, not ELF validation.
+            # TODO: Plain unresolved names never enter names_w_path, so they
+            # are incorrectly classified as found_directly. Correct this
+            # diagnostic separately from documenting the search fallback.
+            not_found = [l for l in lib_names
+                         if utils.f_name_from_path(l) in names_w_path]
             if not_found:
                 utils.print_error(f"[ERROR] The following libraries couldn't "
                                   f"be found and therefore won't be analysed: "
                                   f"{not_found}")
+            found_directly = [l for l in lib_names
+                              if utils.f_name_from_path(l) not in names_w_path]
             if found_directly:
                 utils.print_warning(f"[WARNING] The following libraries were "
                                     f"found directly within libraries folders "
