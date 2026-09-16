@@ -222,7 +222,9 @@ class CodeAnalyser:
                   "binary that might not have been found.\n", "backtrack.log")
 
         for f in self.elf_analyser.binary.lief_binary.imported_functions:
-            if "@" in f.name: # TODO: dire pk je skip car là je comprends pas
+            # TODO: I can't remember why we skip functions with an "@" in their
+            # name. But it seems to hardly ever happen anyway.
+            if "@" in f.name:
                 continue
             if (hasattr(f, "symbol_version")
                 and f.symbol_version.has_auxiliary_version):
@@ -484,12 +486,26 @@ class CodeAnalyser:
                 f_called_list.append(f)
 
     def __get_called_plt_functions(self, plt_fun_addr, f_called_list):
+        """Resolve a PLT slot and separate local from library functions.
 
-        # TODO c'est quoi ce nom de fonction de merde (c'est quasi le même que
-        # get_plt_function_called) + pk il y a pas de doc ? On comprends pas ce
-        # qu'elle fait
-        # update: ça a l'air d'être juste un wrapper mais sois bien sûr de
-        # (re)comprendre ce que fais mov local funs to avant de documenter
+        Wrapper to LibraryUsageAnalyser.get_plt_function_called, but it also
+        processes the unnamed local targets returned for IRELATIVE relocations
+        to place them in f_called_list and remove them from the returned list
+        of library targets. If f_called_list is None, the local targets are
+        simply removed from the returned list.
+
+        Parameters
+        ----------
+        plt_fun_addr : int
+            virtual address of the PLT slot to resolve
+        f_called_list : list of LibFunction or None
+            destination for local functions, modified in place if provided
+
+        Returns
+        -------
+        called_plt_funs : list of LibFunction
+            remaining targets for library analysis
+        """
 
         called_plt_funs = self.__lib_analyser.get_plt_function_called(
                 plt_fun_addr)
