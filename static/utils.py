@@ -2,6 +2,9 @@
 
 import argparse
 import sys
+from pathlib import Path
+
+from custom_exception import StaticAnalyserException
 
 
 DEBUG = True
@@ -9,7 +12,7 @@ log_dir_path = "../logs/"
 
 # global variables with their default values
 app = "redis-server-static"
-sys_map = "syscalls_map"
+sys_map = str(Path(__file__).resolve().with_name("syscalls_map"))
 verbose = False
 show_warnings = True
 show_errors = True
@@ -102,7 +105,7 @@ def log(msg, file_name, indent=0):
         return
 
     if use_log_file:
-        with open(log_dir_path + file_name, "a", encoding="utf-8") as f:
+        with open(Path(log_dir_path) / file_name, "a", encoding="utf-8") as f:
             f.write(indent * " " + msg + "\n")
     else:
         print(indent * "\t" + msg)
@@ -110,13 +113,16 @@ def log(msg, file_name, indent=0):
 def clean_logs():
     """Empties the content of the log files."""
 
-    with open(log_dir_path + "backtrack.log", "w", encoding="utf-8") as f:
-        f.truncate()
-    with open(log_dir_path + "lib_functions.log", "w", encoding="utf-8") as f:
-        f.truncate()
-    if DEBUG:
-        with open(log_dir_path + "debug.log", "w", encoding="utf-8") as f:
-            f.truncate()
+    try:
+        Path(log_dir_path).mkdir(parents=True, exist_ok=True)
+        files = ["backtrack.log", "lib_functions.log"]
+        if DEBUG:
+            files.append("debug.log")
+        for file_name in files:
+            (Path(log_dir_path) / file_name).write_text("", encoding="utf-8")
+    except OSError as e:
+        raise StaticAnalyserException(
+                f"Cannot initialise log files in {log_dir_path}: {e}") from e
 
 def is_hex(s):
     """Returns True if the given string represents an hexadecimal number.

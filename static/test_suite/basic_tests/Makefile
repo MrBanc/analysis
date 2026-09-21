@@ -30,7 +30,7 @@ $(BUILD_DIR)/test%: $(SRC_DIR)/test%.c | $(BUILD_DIR)
 		cd build && $(CC) $(CFLAGS) -o $(subst build/,,$@) $(addprefix ../,$^) -ldl -L$(CURRENT_DIR)/$(LIB_BUILD_DIR) -lfptr -lfptr2 && cd -; \
 	fi
 
-$(BUILD_DIR)/test%: $(SRC_DIR)/test%.s | $(BUIrD_DIR)
+$(BUILD_DIR)/test%: $(SRC_DIR)/test%.s | $(BUILD_DIR)
 	cd build && $(CC) $(CFLAGS) -o $(subst build/,,$@) $(addprefix ../,$^) && cd - > /dev/null
 
 $(LIB_BUILD_DIR)/libfptr.so: $(LIB_BUILD_DIR)/libfptr2.so $(LIB_BUILD_DIR)/libfptr.o | $(LIB_BUILD_DIR)

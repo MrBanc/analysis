@@ -4,6 +4,7 @@ Contains the ELFBinary dataclass and the ELFAnalyser class.
 Utilities to store information about and analyse the ELF 64-bit executable.
 """
 
+from bisect import bisect_right
 from dataclasses import dataclass
 
 import lief
@@ -111,6 +112,7 @@ class ELFAnalyser:
         # may not be used
         self.__address_to_fun_map = None
         self.__f_name_to_addr_map = None
+        self.__function_addresses = None
 
     def is_valid_binary_path(self, binary_path):
         """Verifies that the given binary is an ELF binary for the `x86_64`
@@ -522,6 +524,7 @@ class ELFAnalyser:
                 self.__f_name_to_addr_map[item.name] = item.address
             return self.__f_name_to_addr_map
         if key_type == "address":
+            self.__function_addresses = None
             self.__address_to_fun_map = {}
             for item in self.binary.lief_binary.functions:
                 self.__address_to_fun_map[item.address] = (
@@ -600,20 +603,23 @@ class ELFAnalyser:
         if self.__address_to_fun_map is None:
             self.__initialize_function_map("address")
 
-        try:
-            return max(k for k in self.__address_to_fun_map if k <= cur_addr)
-        except ValueError:
-            # Missing symbols/unwind information can leave no known function
-            # before this address. Prefer possible overestimation by allowing
-            # backtracking as far as the section start, still subject to the
-            # configured instruction limit.
-            section_start = self.get_section_from_address(cur_addr).virtual_address
-            utils.print_warning(
-                    f"[WARNING] No function start found at or before "
-                    f"{hex(cur_addr)} in {self.binary.path}. Using section "
-                    f"start {hex(section_start)} as the backtracking boundary; "
-                    f"this may overestimate the syscalls used.")
-            return section_start
+        if getattr(self, '_ELFAnalyser__function_addresses', None) is None:
+            self.__function_addresses = sorted(self.__address_to_fun_map)
+        index = bisect_right(self.__function_addresses, cur_addr) - 1
+        if index >= 0:
+            return self.__function_addresses[index]
+
+        # Missing symbols/unwind information can leave no known function
+        # before this address. Prefer possible overestimation by allowing
+        # backtracking as far as the section start, still subject to the
+        # configured instruction limit.
+        section_start = self.get_section_from_address(cur_addr).virtual_address
+        utils.print_warning(
+                f"[WARNING] No function start found at or before "
+                f"{hex(cur_addr)} in {self.binary.path}. Using section "
+                f"start {hex(section_start)} as the backtracking boundary; "
+                f"this may overestimate the syscalls used.")
+        return section_start
 
     def find_next_symbol_addr(self, from_addr, shndx=None):
         """Returns the address of closest symbol found after the given

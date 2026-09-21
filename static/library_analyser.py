@@ -6,14 +6,15 @@ import subprocess
 import re
 import sys
 
-from os.path import exists
+from os.path import exists, isfile, join
 from os import environ as environment_var
 from dataclasses import dataclass
 from typing import Dict, Tuple, Any
 from collections import defaultdict
 
 import lief
-from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP
+from capstone.x86_const import X86_OP_MEM, X86_REG_RIP
 try:
     from r2pipe import open as r2_open
     import json
@@ -234,25 +235,17 @@ class LibraryUsageAnalyser:
             True if the result of the instruction is a library function call
         """
 
-        if self.__plt_sec_section:
-            plt_boundaries = (self.__plt_sec_section.virtual_address,
-                              self.__plt_sec_section.virtual_address
-                                        + self.__plt_sec_section.size)
-            plt_sec_offset = address - plt_boundaries[0]
-            endbr64_bytes = b"\xf3\x0f\x1e\xfa"
-            if (bytearray(self.__plt_sec_section.content)
-                           [plt_sec_offset:plt_sec_offset+4] != endbr64_bytes):
-                return False
-        elif self.__plt_section:
-            plt_boundaries = (self.__plt_section.virtual_address,
-                              self.__plt_section.virtual_address
-                                        + self.__plt_section.size)
-            slots_length = 16
-            if (address - plt_boundaries[0]) % slots_length:
-                return False
-        else:
-            return False
-        return plt_boundaries[0] <= address < plt_boundaries[1]
+        for section in (self.__plt_sec_section, self.__plt_section):
+            if section is None:
+                continue
+            offset = address - section.virtual_address
+            if not 0 <= offset < section.size:
+                continue
+            if section is self.__plt_sec_section:
+                return (bytes(section.content[offset:offset+4])
+                        == b"\xf3\x0f\x1e\xfa") # endbr64 instruction
+            return offset % 16 == 0
+        return False
 
     def get_plt_function_called(self, f_address):
         """Returns the function that would be called by jumping to the address
@@ -342,7 +335,7 @@ class LibraryUsageAnalyser:
 
         for l_dir in LIB_DIRS:
             for name in lib_names_copy:
-                if exists(l_dir + name):
+                if isfile(l_dir + name):
                     lib_paths.append(l_dir + name)
                 else:
                     continue
@@ -375,10 +368,12 @@ class LibraryUsageAnalyser:
                 for line in file:
                     if (line.strip().startswith("GROUP")
                         or line.strip().startswith("INPUT")):
-                        path_pattern = r'[\(\s](/[^\s]*)'
+                        path_pattern = r'[\(\s](/[^\s(),;]+)'
                         lib_paths.extend(re.findall(path_pattern, line))
-        except FileNotFoundError:
-            utils.print_error(f"There is no GNU ld script at {script_path}")
+        except OSError as error:
+            utils.print_error(f"[ERROR] Cannot read GNU ld script at "
+                              f"{script_path}: {error}")
+            return []
 
         return lib_paths
 
@@ -431,7 +426,10 @@ class LibraryUsageAnalyser:
             lib_to_check = self.__potentially_used_libraries
 
         for lib_name in lib_to_check:
-            lib = self.__libraries[lib_name]
+            # Version requirements can still refer to a missing dependency.
+            lib = self.__libraries.get(lib_name)
+            if lib is None:
+                continue
             if f_name not in lib.callable_fun_boundaries:
                 continue
             if (len(lib.callable_fun_boundaries[f_name]) != 2
@@ -503,17 +501,45 @@ class LibraryUsageAnalyser:
             # than here.
             return
         lib_name = utils.f_name_from_path(lib_path)
+        if lib_name not in self.__libraries:
+            try:
+                self.__register_library(lib_path)
+            except StaticAnalyserException as e:
+                utils.print_error(f"[ERROR] Cannot register library {lib_path}: {e}")
+                return
+
         if lib_name not in self.__used_libraries:
-            if (added_by_ldd
-                and lib_name not in self.__potentially_used_libraries):
-                self.__potentially_used_libraries.append(lib_name)
+            if added_by_ldd:
+                if lib_name not in self.__potentially_used_libraries:
+                    self.__potentially_used_libraries.append(lib_name)
             else:
                 self.__used_libraries.append(lib_name)
+                if lib_name in self.__potentially_used_libraries:
+                    self.__potentially_used_libraries.remove(lib_name)
 
-        if lib_name in self.__libraries:
-            return
+    def analyse_all_detected_dlsym_functions(self, syscalls_set, main_analyser):
+        """Resolve pending dlsym names across the main binary and libraries.
 
-        self.__register_library(lib_path)
+        Parameters
+        ----------
+        syscalls_set : set of str
+            set of syscalls used by the program analysed
+        main_analyser : CodeAnalyser
+            analyser of the main binary
+        """
+
+        while True:
+            known_libraries = set(self.__libraries)
+            progress = main_analyser.analyse_detected_dlsym_functions(syscalls_set)
+            if self.analyse_detected_dlsym_for_all_libs(syscalls_set):
+                progress = True
+            if not progress and known_libraries == set(self.__libraries):
+                break
+
+        main_analyser.clean_dlsym_f_names()
+        for lib in self.__libraries.values():
+            if lib.code_analyser is not None:
+                lib.code_analyser.clean_dlsym_f_names()
 
     def analyse_detected_dlsym_for_all_libs(self, syscalls_set):
         """Calls the `analyse_detected_dlsym_functions` of CodeAnalyser on all
@@ -523,11 +549,20 @@ class LibraryUsageAnalyser:
         ----------
         syscalls_set : set of str
             set of syscalls used by the program analysed
+
+        Returns
+        -------
+        bool
+            True if at least one library resolved a pending name.
         """
 
-        for lib in list(self.__libraries.values()):
-            if lib.code_analyser is not None:
-                lib.code_analyser.analyse_detected_dlsym_functions(syscalls_set)
+        analysers = [lib.code_analyser for lib in self.__libraries.values()
+                     if lib.code_analyser is not None]
+        progress = False
+        for analyser in analysers:
+            if analyser.analyse_detected_dlsym_functions(syscalls_set):
+                progress = True
+        return progress
 
     def analyse_linker_functions(self, syscalls_set):
         """Analyse the linker (aka dynamic linker, loader or interpreter)
@@ -664,9 +699,9 @@ class LibraryUsageAnalyser:
         # If the linker is in the prioritised library folder, it will be used
         # instead of the one found by lief.
         if (utils.prioritised_library_folder is not None
-            and exists(utils.prioritised_library_folder + linker_name)):
+            and exists(join(utils.prioritised_library_folder, linker_name))):
 
-            linker_path = utils.prioritised_library_folder + linker_name
+            linker_path = join(utils.prioritised_library_folder, linker_name)
 
         if (linker_name in self.__libraries
             and linker_path != self.__libraries[linker_name].path):
@@ -889,6 +924,9 @@ class LibraryUsageAnalyser:
 
         linker_path = self.elf_analyser.binary.lief_binary.interpreter
         linker_name = utils.f_name_from_path(linker_path)
+        # Using the path actually registered keeps the prioritised linker instead of
+        # reusing the one indicated in the executable.
+        linker_path = self.__libraries[linker_name].path
 
         reloc_fun_name = None
 
@@ -1008,57 +1046,48 @@ class LibraryUsageAnalyser:
             # depending on the binary analysed (in particular, if the binary is
             # stripped or not). In both cases, it can lead to overestimating
             # the function size.
-            try:
-                next_function_addr = min(
-                        lib.code_analyser.elf_analyser.find_next_symbol_addr(
-                            f_address, shndx),
-                        lib.code_analyser.elf_analyser.find_next_function_addr(
-                            f_address))
-                local_function.boundaries = (
-                    f_address, next_function_addr)
-            except StaticAnalyserException as e:
-                raise StaticAnalyserException(f"The function boundaries could "
-                                              f"not be found: {e}") from e
+            next_addresses = []
+            elf_analyser = lib.code_analyser.elf_analyser
+            for find_next, args in (
+                    (elf_analyser.find_next_symbol_addr, (f_address, shndx)),
+                    (elf_analyser.find_next_function_addr, (f_address,))):
+                try:
+                    next_addresses.append(find_next(*args))
+                except StaticAnalyserException:
+                    continue
+            if not next_addresses:
+                raise StaticAnalyserException("The function boundaries could "
+                                              "not be found: no following "
+                                              "function or symbol")
+            local_function.boundaries = (f_address, min(next_addresses))
 
         return local_function
 
     def __get_got_rel_address(self, int_operand, is_first_plt_entry=False):
+        """Resolve a PLT jump's GOT address using its signed RIP displacement."""
 
-        jmp_to_got_ins = None
-
-        if self.__plt_section and (not self.__plt_sec_section
-                                   or is_first_plt_entry):
-            # The instruction at the address pointed to by the int_operand is a
-            # jump to a `.got` entry. With the address of this `.got`
-            # relocation entry, it is possible to identify the function that
-            # will be called. The jump instruction is of the form 'qword ptr
-            # [rip + 0x1234]'.
-            plt_offset = int_operand - self.__plt_section.virtual_address
-            insns = self.__md.disasm(
-                    bytearray(self.__plt_section.content)[plt_offset:],
-                    int_operand)
-            # If we try to get the linker call (i.e. we are looking in the
-            # first plt entry), the second instruction is the one we want, so
-            # the first is skipped.
-            if is_first_plt_entry:
-                next(insns)
-            jmp_to_got_ins = next(insns)
-        elif self.__plt_sec_section and not is_first_plt_entry:
-            # The same remark holds but the first instruction is now the
-            # instruction right after the address pointed by the int_operand
-            # and we work with the .plt.sec section instead.
-            plt_sec_offset = (int_operand
-                              - self.__plt_sec_section.virtual_address)
-            insns = self.__md.disasm(
-                    bytearray(self.__plt_sec_section.content)[plt_sec_offset:],
-                    int_operand)
-            next(insns) # skip the first instruction
-            jmp_to_got_ins = next(insns)
-        else:
+        section = next((section for section in (
+                self.__plt_section, self.__plt_sec_section)
+                if section is not None and section.virtual_address <= int_operand
+                < section.virtual_address + section.size), None)
+        if section is None:
             return None
 
-        return (int(jmp_to_got_ins.op_str.split()[-1][:-1], 16)
-                + utils.compute_rip(jmp_to_got_ins))
+        offset = int_operand - section.virtual_address
+        insns = self.__md.disasm(bytes(section.content[offset:]), int_operand)
+        instruction = next(insns, None)
+        if instruction is not None and instruction.mnemonic == "endbr64":
+            instruction = next(insns, None)
+        if is_first_plt_entry:
+            instruction = next(insns, None)  # skip the resolver's push
+        if (instruction is None or not instruction.id
+            or not instruction.group(CS_GRP_JUMP) or not instruction.operands):
+            return None
+        operand = instruction.operands[0]
+        if (operand.type != X86_OP_MEM or operand.mem.base != X86_REG_RIP
+            or operand.mem.index):
+            return None
+        return (utils.compute_rip(instruction) + operand.mem.disp) % (2**64)
 
     def __find_used_libraries(self):
 
@@ -1073,6 +1102,8 @@ class LibraryUsageAnalyser:
                                         check=True, capture_output=True)
             for line in ldd_output.stdout.splitlines():
                 parts = line.decode("utf-8").split()
+                if not parts:
+                    continue
                 if "=>" in parts:
                     self.add_used_library(parts[parts.index("=>") + 1],
                                           added_by_ldd=True)
@@ -1088,6 +1119,10 @@ class LibraryUsageAnalyser:
         except subprocess.CalledProcessError as e:
             utils.print_warning("[WARNING] ldd command returned with an error:"
                                 " " + e.stderr.decode("utf-8") + "Trying to "
+                                "find the libraries' path manually...")
+            self.__find_used_libraries_manually()
+        except OSError as e:
+            utils.print_warning(f"[WARNING] Cannot run ldd: {e}. Trying to "
                                 "find the libraries' path manually...")
             self.__find_used_libraries_manually()
 
@@ -1157,6 +1192,16 @@ class LibraryUsageAnalyser:
                                     f"(without using the given relative path):"
                                     f" {found_directly}")
 
+        # Finding a path is not enough: scripts or invalid ELF candidates can
+        # fail validation and must not remain as unresolved dictionary keys.
+        invalid = [name for name in self.__used_libraries
+                   if utils.f_name_from_path(name) not in self.__libraries]
+        if invalid:
+            self.__used_libraries = [name for name in self.__used_libraries
+                                     if name not in invalid]
+            utils.print_error(f"[ERROR] No valid library was registered for "
+                              f"{invalid}; these dependencies won't be analysed.")
+
     def __find_used_libraries_aliases(self, symbols_version_requirement):
 
         for svr in symbols_version_requirement:
@@ -1164,6 +1209,21 @@ class LibraryUsageAnalyser:
                 self.__used_libraries_aliases[aux_sym.name].append(svr.name)
 
     def __register_library(self, lib_path):
+        """Register an ELF library and create its code analyser.
+
+        Parameters
+        ----------
+        lib_path : str
+            Path to the library to register.
+
+        Raises
+        ------
+        StaticAnalyserException
+            If ELFAnalyser cannot parse or validate lib_path as an x86-64 ELF.
+            Validation fails before the library is inserted into the registry.
+            This exception propagates to add_used_library, or through
+            __register_linker to analyse_linker_functions, which handle it.
+        """
 
         # Beware before using this function:
         # - It only register the library in the __libraries variable, i.e. for
@@ -1175,8 +1235,14 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(lib_path)
 
-        lib_binary = lief.parse(lib_path)
+        elf_analyser = ea.ELFAnalyser(lib_path)
+        lib_binary = elf_analyser.binary.lief_binary
         callable_fun_boundaries = {}
+        # TODO(review): this also registers data symbols such as __environ as
+        # callable functions; following them can disassemble data or fail to
+        # find executable code. Define a symbol-type filter that preserves
+        # IFUNC resolvers (see the strncpy caveat below), and decide separately
+        # how exported function-pointer objects should be followed.
         for item in lib_binary.dynamic_symbols:
             # I could use `item.is_function` to only store functions or even
             # iterate over `lib_binary.exported_functions` but for some reason
@@ -1198,7 +1264,6 @@ class LibraryUsageAnalyser:
                 code_analyser=None)
         code_analyser = None
         try:
-            elf_analyser = ea.ELFAnalyser(lib_path)
             code_analyser = ca.CodeAnalyser(elf_analyser)
         except StaticAnalyserException as e:
             utils.print_error(f"[ERROR] Error during the creation of the code "
@@ -1227,7 +1292,12 @@ class LibraryUsageAnalyser:
 
         lib_name = utils.f_name_from_path(function.library_path)
 
-        target_section = (self.__libraries[lib_name].code_analyser.elf_analyser
+        lib = self.__libraries.get(lib_name)
+        if lib is None or lib.code_analyser is None:
+            raise StaticAnalyserException(
+                    f"No code analyser is available for {function.library_path}")
+
+        target_section = (lib.code_analyser.elf_analyser
                           .get_section_from_address(function.boundaries[0]))
         f_start_offset = (function.boundaries[0]
                           - target_section.virtual_address)

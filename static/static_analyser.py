@@ -235,11 +235,11 @@ def display_results(syscalls_set):
 
     if utils.display_csv:
         print("# syscall, used")
-        for k,v in syscalls.syscalls_map.items():
+        for name in syscalls.syscalls_map.values():
             value = "N"
-            if v in syscalls_set:
+            if name in syscalls_set:
                 value = "Y"
-            print(f"{v},{value}")
+            print(f"{name},{value}")
 
     return 0
 

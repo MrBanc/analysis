@@ -19,10 +19,11 @@ def initialise_syscalls_map(sys_map_path):
         If no values could be read from the given file.
     """
 
+    parsed_map = {}
     try:
         with open(sys_map_path, "r", encoding="utf-8") as f:
             found_header = False
-            for line in f:
+            for line_number, line in enumerate(f, 1):
                 # Ignore comments and empty lines
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -45,23 +46,35 @@ def initialise_syscalls_map(sys_map_path):
 
                     key = int(columns[value_column])
                     value = columns[key_column]
-                    syscalls_map[key] = value
+                    parsed_map[key] = value
                     found_header = True
                 else:
                     # Process data lines
                     columns = line.split()
                     key = int(columns[value_column])
                     value = columns[key_column]
-                    syscalls_map[key] = value
+                    parsed_map[key] = value
     except FileNotFoundError as e:
         raise StaticAnalyserException("The syscalls map file couldn't be "
                                       "found.") from e
+    except (OSError, UnicodeError) as e:
+        raise StaticAnalyserException(
+                f"The syscalls map file couldn't be read: {e}") from e
+    except (ValueError, IndexError) as e:
+        raise StaticAnalyserException(
+                f"Provided syscalls map cannot be parsed at line "
+                f"{line_number}: {e}") from e
 
-    if not syscalls_map:
+    if not parsed_map:
         raise StaticAnalyserException("Provided syscalls map cannot be parsed."
                                       " Please provide a file with two columns"
                                       " with the syscalls and their IDs "
                                       "ordered by their IDs")
+
+    # Replacing the content only after success avoids partial updates and keeps
+    # the global table consistent.
+    syscalls_map.clear()
+    syscalls_map.update(parsed_map)
 
 syscalls_map = {}
 
@@ -76,7 +89,7 @@ alias_syscalls_map = {
     "getrlimit64" : "getrlimit",
     "openat64" : "openat",
     "fstatat64" : "newfstatat",
-    "posix_fadvise64" : "fadvise",
+    "posix_fadvise64" : "fadvise64",
     "pwritev64" : "pwritev",
     "statfs64" : "statfs",
     "lstat64" : "lstat",

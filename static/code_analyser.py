@@ -5,6 +5,7 @@ Disassembles and analyses the code to detect syscalls.
 """
 
 from os.path import isfile
+from itertools import chain
 
 # CS_GRP_CALL is always used with CS_GRP_JUMP because some functions are
 # called with a jump instruction not detected by the group CS_GRP_CALL
@@ -106,19 +107,9 @@ class CodeAnalyser:
             and self.elf_analyser.binary.has_dyn_libraries):
             self.analyse_imported_functions(syscalls_set)
 
-        while self.__dlsym_f_names:
-            # The order of analysis of the code is not the order in which it
-            # will be analysed. It is therefore possible to find a dlsym
-            # instruction before the dlopen instruction that would have loaded
-            # the library needed by dlsym. To avoid such cases, all the
-            # functions called by dlsym are resolved and analysed only here.
-            # The function that are analysed here can, once again, not be
-            # analysed in the correct order, hence this while loop.
-            self.analyse_detected_dlsym_functions(syscalls_set)
-            # It is unlikely that libraries use runtime loading techniques, but
-            # we never know
-            self.__lib_analyser.analyse_detected_dlsym_for_all_libs(
-                    syscalls_set)
+        if self.elf_analyser.binary.has_dyn_libraries:
+            self.__lib_analyser.analyse_all_detected_dlsym_functions(
+                    syscalls_set, self)
 
     # -------------------------- Main Functionalities -------------------------
 
@@ -158,9 +149,12 @@ class CodeAnalyser:
                                                     - bytes_to_analyse:]
             # ---------------- Main part of the function here ----------------
             try:
-                bytes_analysed = self.analyse_code(
-                        self.__md.disasm(to_analyse, start_analyse_at),
-                        syscalls_set)
+                insns = self.__md.disasm(to_analyse, start_analyse_at)
+                first = next(insns, None)
+                # An invalid first byte also needs the recovery below; an
+                # empty disassembly would otherwise raise and stop the section.
+                bytes_analysed = (0 if first is None else self.analyse_code(
+                        chain((first,), insns), syscalls_set))
             except StaticAnalyserException as e:
                 utils.print_error(f"[ERROR] while analysing the code of "
                                   f"{section.name} section of "
@@ -353,20 +347,21 @@ class CodeAnalyser:
     # -------------------- Libraries or Functions Related ---------------------
 
     def analyse_detected_dlsym_functions(self, syscalls_set):
-        """Analyse all the functions inside `self.__dlsym_f_names`. If new
-        functions detected with dlsym are found or if a function in the list
-        couldn't be analysed, they will be analysed in the next iteration.
-        (because new libraries could be found with dlopen during the current
-        iteration)
+        """Resolve this binary's pending dlsym names once and analyse targets.
 
-        The loop stops when no functions could be analysed in an iteration
-        (either because it wasn't found or because it has already been
-        analysed).
+        Keep unresolved and newly discovered names for the next global pass:
+        another analyser may still discover a required library with dlopen.
 
         Parameters
         ----------
         syscalls_set : set of str
             set of syscalls used by the program analysed
+
+        Returns
+        -------
+        bool
+            True if at least one pending name was resolved and removed,
+            even if its target function had already been analysed.
         """
 
         # analysing syscall functions is useless as the syscall ID is given as
@@ -385,16 +380,18 @@ class CodeAnalyser:
             self.__dlsym_f_names.remove(fun_name)
 
         if not f_to_analyse:
-            # If no functions were found, no further analysis can be performed.
-            # The content of __dlsym_f_names thus needs to be emptied to avoid
-            # trying to continue the analysis indefinitely
-            self.__dlsym_f_names.clear()
-            return
+            return False
 
         # loops in the call graph do not cause loops here because if a function
         # has already been analysed, it won't be analysed again and therefore
         # the functions it is calling won't be added to `__dlsym_f_names`
         self.__lib_analyser.get_used_syscalls(syscalls_set, f_to_analyse)
+        return True
+
+    def clean_dlsym_f_names(self):
+        """Clear pending dlsym names after global resolution has finished."""
+
+        self.__dlsym_f_names.clear()
 
     def __init_lib_analyser(self):
         """

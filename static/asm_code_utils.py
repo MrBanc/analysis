@@ -7,17 +7,14 @@ from dataclasses import dataclass
 
 import re
 
-from capstone import (Cs, CS_ARCH_X86, CS_MODE_64, CS_GRP_JUMP, CS_GRP_CALL,
-                      CS_OP_IMM, CS_OP_FP, CS_OP_MEM)
+from capstone import (CS_GRP_JUMP, CS_GRP_CALL,
+                      CS_OP_IMM, CS_OP_FP, CS_OP_MEM, CS_AC_WRITE)
 from capstone.x86_const import X86_INS_INVALID, X86_INS_DATA16
 
 import utils
 from custom_exception import StaticAnalyserException
 
 # Used to detect the syscall identifier.
-# The "high byte" (for example 'ah') is not considered. It could be,
-# to be exhaustive, but it would be unlikely to store the syscall id using
-# this identifier (and the code should be modified).
 registers = {'eax':  {'rax','eax','ax','al'},
              'ebx':  {'rbx','ebx','bx','bl'},
              'ecx':  {'rcx','ecx','cx','cl'},
@@ -35,8 +32,7 @@ registers = {'eax':  {'rax','eax','ax','al'},
              'r14d': {'r14','r14d','r14w','r14b'},
              'r15d': {'r15','r15d','r15w','r15b'}}
 
-# Only used for error message management
-__high_byte_regs = ['ah', 'bh', 'ch', 'dh']
+__high_byte_regs = {'ah': 'eax', 'bh': 'ebx', 'ch': 'ecx', 'dh': 'edx'}
 
 __operand_byte_size = {"byte": 1,
                        "word": 2,
@@ -168,6 +164,10 @@ def value_backtracker(focus_val, list_inst, elf_analyser):
     utils.currently_backtracking = True
 
     try:
+        if not list_inst:
+            return None
+        if is_reg(focus_val):
+            focus_val = __get_reg_key(focus_val)
         index = len(list_inst) - 1
 
         # It does not make sense to backtrack a value outside of the current
@@ -232,6 +232,7 @@ def mov_local_funs_to(f_to, f_from, elf_analyser):
     for f in f_from.copy():
         # no name indicates it wasn't an JUMP_SLOT got entry
         if not f.name:
+            f_from.remove(f)
             if f_to is not None:
                 local_fun = elf_analyser.get_local_function_called(
                         f.boundaries[0])
@@ -243,7 +244,6 @@ def mov_local_funs_to(f_to, f_from, elf_analyser):
                             f"impossible.")
                     continue
                 f_to.append(local_fun)
-            f_from.remove(f)
 
 def detect_syscall_type(ins):
     """Return the syscall type corresponding to the instruction given: either
@@ -391,18 +391,20 @@ def __is_writing_to_focus(focus_val, list_inst, elf_analyser):
         True if the instruction writes to the focus value
     """
 
-    md = Cs(CS_ARCH_X86, CS_MODE_64)
-
     if is_reg(focus_val):
         regs_writen = list_inst[-1].regs_access()[1]
         for r in regs_writen:
-            if md.reg_name(r) in registers[focus_val]:
+            written_reg = list_inst[-1].reg_name(r)
+            if (written_reg in registers[focus_val]
+                or __high_byte_regs.get(written_reg) == focus_val):
                 return True
         return False
 
     # The focus could be something else than a register
     first_operand = list_inst[-1].op_str.split(",")[0].strip()
-    if first_operand and (not is_reg(first_operand)):
+    if (first_operand and list_inst[-1].operands
+        and list_inst[-1].operands[0].type == CS_OP_MEM
+        and list_inst[-1].operands[0].access & CS_AC_WRITE):
         if utils.backtrack_potential_values:
             first_op_key = __get_backtrack_val_key(first_operand,
                                                    list_inst,
@@ -496,8 +498,17 @@ def __get_assigned_object(list_inst, elf_analyser):
     mnemonic = list_inst[-1].mnemonic
     op_strings = list_inst[-1].op_str.split(",")
 
-    # TODO support add, xchg, (+ properly support movsx, movsxd, movl etc) and
+    # TODO support add, xchg, movl etc and
     # other easy to support instructions
+
+    operands = list_inst[-1].operands
+    if operands and operands[0].size < 2:
+        if utils.currently_backtracking:
+            warning = (f"[WARNING] Partial write smaller than 16 bits at "
+                       f"{hex(list_inst[-1].address)} in {elf_analyser.binary.path}: "
+                       f"continuing with an approximation; the result may be incorrect.")
+            utils.print_warning(warning)
+            utils.log(warning, "backtrack.log", indent=2)
 
     assigned_val = None
     if mnemonic not in ("xor", "lea") and not mnemonic.startswith("mov"):
@@ -508,7 +519,22 @@ def __get_assigned_object(list_inst, elf_analyser):
     op_strings[0] = op_strings[0].strip()
     op_strings[1] = op_strings[1].strip()
 
-    if mnemonic.startswith("mov"):
+    if mnemonic in ("movsx", "movsxd"):
+        source = op_strings[1]
+        assigned_val = __compute_address_operand(
+                __high_byte_regs.get(source, source), list_inst,
+                elf_analyser, False)
+        if assigned_val is None or not assigned_val.is_local:
+            return None
+        value = assigned_val.value
+        if source in __high_byte_regs:
+            value >>= 8
+        source_bits = operands[1].size * 8
+        value &= (1 << source_bits) - 1
+        if value & (1 << (source_bits - 1)):
+            value -= 1 << source_bits
+        assigned_val = Address(value % (1 << (operands[0].size * 8)), True)
+    elif mnemonic.startswith("mov"):
         assigned_val = __compute_address_operand(
                     op_strings[1], list_inst, elf_analyser, False)
     elif mnemonic == "lea" and bool(re.fullmatch(r'\[.*\]', op_strings[1])):
@@ -629,8 +655,7 @@ def __compute_address_bracket_operand(operand, list_inst, elf_analyser):
     # Second method: backtracking
 
     key = None
-    if use_backtracking and any(reg in brackets_expr.group(1)
-           for reg in (registers["eax"] | {"rip"} | registers["ebp"])):
+    if use_backtracking:
         key = __get_backtrack_val_key(operand, list_inst, elf_analyser)
     if key is not None:
         if utils.currently_backtracking:
@@ -811,6 +836,7 @@ def __get_backtrack_val_key(string, list_inst, elf_analyser):
                           f"brackets expression ({brackets_expr}): {e}")
         return None
 
+    # stack keys assume the base register stays unchanged.
     return "mem " + stack_reg_used + " " + str(address_or_offset)
 
 def __extract_stack_reg(brackets_expr):
