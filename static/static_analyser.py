@@ -114,7 +114,7 @@ def parse_arguments():
             f'potential pointers to functions (default: '
             f'{utils.search_function_pointers})')
     functionalities_group.add_argument(
-            '--search_raw_data', '-r', type=utils.str2bool, nargs='?',
+            '--search-raw-data', '-r', type=utils.str2bool, nargs='?',
             const=True, default=utils.search_raw_data,
             help=f'Consider the data inside the binary as valid values for '
             f'memory access to an address (ex: when confronted with `call '

@@ -1,0 +1,351 @@
+<mxfile host="app.diagrams.net" compressed="false">
+  <diagram name="Architecture" id="static-architecture-2026">
+    <mxGraphModel dx="3525" dy="2238" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="1420" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="text-1" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=32;fontColor=#17263c;fontStyle=1;" value="Static analyser" vertex="1">
+          <mxGeometry height="43.2" width="1224" x="48" y="22.04" as="geometry" />
+        </mxCell>
+        <mxCell id="text-2" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=19;fontColor=#506278;fontStyle=0;" value="Architecture and principal interactions" vertex="1">
+          <mxGeometry height="25.650000000000002" width="1224" x="48" y="66.43" as="geometry" />
+        </mxCell>
+        <mxCell id="text-3" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=16;fontColor=#506278;fontStyle=0;" value="x86-64 ELF  /  Linux" vertex="1">
+          <mxGeometry height="21.6" width="250" x="1025" y="37.519999999999996" as="geometry" />
+        </mxCell>
+        <mxCell id="entry" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f0f3fc;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="184" width="560" x="48" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="entry-accent" parent="entry" style="fillColor=#385ca0;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-4" parent="entry" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=21;fontColor=#385ca0;fontStyle=1;" value="static_analyser.py" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-5" parent="entry" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Parse options and load the syscall map." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="58.46" as="geometry" />
+        </mxCell>
+        <mxCell id="text-6" parent="entry" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Create ELFAnalyser, then CodeAnalyser." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="83.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-7" parent="entry" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="parse_arguments()  -&gt;  launch_analysis()" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="117.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-8" parent="entry" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="display_results(): names / count / CSV" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="140.52" as="geometry" />
+        </mxCell>
+        <mxCell id="scope" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#fafbfc;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="184" width="560" x="712" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="scope-accent" parent="scope" style="fillColor=#506278;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-9" parent="scope" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=21;fontColor=#506278;fontStyle=1;" value="Analysis scope" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-10" parent="scope" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Main executable and resolved shared libraries" vertex="1">
+          <mxGeometry height="22.950000000000003" width="512" x="24" y="59.489999999999995" as="geometry" />
+        </mxCell>
+        <mxCell id="text-11" parent="scope" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Symbols, syscall instructions and call targets" vertex="1">
+          <mxGeometry height="22.950000000000003" width="512" x="24" y="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="text-12" parent="scope" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Optional loader analysis (--analyse-linker)" vertex="1">
+          <mxGeometry height="22.950000000000003" width="512" x="24" y="109.49" as="geometry" />
+        </mxCell>
+        <mxCell id="text-13" parent="scope" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="Result: a set of potentially used syscall names" vertex="1">
+          <mxGeometry height="22.950000000000003" width="512" x="24" y="141.49" as="geometry" />
+        </mxCell>
+        <mxCell id="code" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f0f5fc;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="302" width="560" x="48" y="386" as="geometry" />
+        </mxCell>
+        <mxCell id="code-accent" parent="code" style="fillColor=#385ca0;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-14" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=21;fontColor=#385ca0;fontStyle=1;" value="code_analyser.py" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-15" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=20;fontColor=#17263c;fontStyle=1;" value="CodeAnalyser" vertex="1">
+          <mxGeometry height="27" width="512" x="24" y="56.4" as="geometry" />
+        </mxCell>
+        <mxCell id="text-16" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Disassembles code with Capstone to detect syscalls." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="92.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-17" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Finds syscall instructions and syscall() calls." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="117.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-18" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Follows calls and possible function pointers." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="142.46" as="geometry" />
+        </mxCell>
+        <mxCell id="text-19" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Recovers arguments to dlopen, dlsym and variants." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="167.46" as="geometry" />
+        </mxCell>
+        <mxCell id="code-divider" parent="code" style="line;strokeColor=#c9d4e0;strokeWidth=1;" value="" vertex="1">
+          <mxGeometry width="512" x="24" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="text-20" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="launch_analysis(syscalls_set)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="215.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-21" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="analyse_code(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="240.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-22" parent="code" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="analyse_detected_dlsym_functions(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="265.52" as="geometry" />
+        </mxCell>
+        <mxCell id="yvPGhkaAkM0Ovp7-n--V-8" edge="1" parent="code" style="endArrow=none;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=0;strokeColor=#999999;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="24" y="204" as="sourcePoint" />
+            <mxPoint x="536" y="204" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="library" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f0f5fc;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="302" width="560" x="712" y="386" as="geometry" />
+        </mxCell>
+        <mxCell id="library-accent" parent="library" style="fillColor=#385ca0;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-23" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=21;fontColor=#385ca0;fontStyle=1;" value="library_analyser.py" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-24" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=20;fontColor=#17263c;fontStyle=1;" value="LibraryUsageAnalyser" vertex="1">
+          <mxGeometry height="27" width="512" x="24" y="56.4" as="geometry" />
+        </mxCell>
+        <mxCell id="text-25" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Finds syscalls in the shared libraries used." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="88.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-26" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Resolves PLT/GOT calls and analyses their targets." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="111.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-27" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Retries dlsym lookups as libraries are discovered." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="134.46" as="geometry" />
+        </mxCell>
+        <mxCell id="text-28" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Optionally analyses loader startup and resolution." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="157.46" as="geometry" />
+        </mxCell>
+        <mxCell id="library-divider" parent="library" style="line;strokeColor=#c9d4e0;strokeWidth=1;" value="" vertex="1">
+          <mxGeometry width="512" x="24" y="215" as="geometry" />
+        </mxCell>
+        <mxCell id="text-29" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="get_function_with_name(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="223.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-30" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="get_used_syscalls(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="246.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-31" parent="library" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="analyse_all_detected_dlsym_functions(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="269.52" as="geometry" />
+        </mxCell>
+        <mxCell id="yvPGhkaAkM0Ovp7-n--V-4" parent="library" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=DejaVu Sans;fontSize=17;" value="Data classes: &lt;b&gt;Library&lt;/b&gt; and &lt;b&gt;LibFunction&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20.25" width="350" x="22" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="yvPGhkaAkM0Ovp7-n--V-7" edge="1" parent="library" style="endArrow=none;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=0;strokeColor=#999999;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="24" y="218" as="sourcePoint" />
+            <mxPoint x="536" y="218" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="asm" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f0f8f6;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="302" width="560" x="48" y="786" as="geometry" />
+        </mxCell>
+        <mxCell id="asm-accent" parent="asm" style="fillColor=#267567;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-32" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=21;fontColor=#267567;fontStyle=1;" value="asm_code_utils.py" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-33" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=1;" value="Address dataclass: value, is_local, f_name" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="60.519999999999996" as="geometry" />
+        </mxCell>
+        <mxCell id="text-34" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Resolves instruction operands and call targets." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="92.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-35" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Backtracks register, stack and memory values." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="117.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-36" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Stops at the instruction limit or function boundary." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="142.46" as="geometry" />
+        </mxCell>
+        <mxCell id="asm-divider" parent="asm" style="line;strokeColor=#c9d4e0;strokeWidth=1;" value="" vertex="1">
+          <mxGeometry width="512" x="24" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="text-37" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="extract_destination_address(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="201.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-38" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="value_backtracker(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="226.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-39" parent="asm" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="detect_syscall_type(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="251.52" as="geometry" />
+        </mxCell>
+        <mxCell id="yvPGhkaAkM0Ovp7-n--V-9" edge="1" parent="asm" style="endArrow=none;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=0;strokeColor=#999999;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="24" y="184" as="sourcePoint" />
+            <mxPoint x="536" y="184" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="elf" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f0f8f6;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="302" width="560" x="712" y="786" as="geometry" />
+        </mxCell>
+        <mxCell id="elf-accent" parent="elf" style="fillColor=#267567;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-40" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=21;fontColor=#267567;fontStyle=1;" value="elf_analyser.py" vertex="1">
+          <mxGeometry height="28.35" width="512" x="24" y="17.37" as="geometry" />
+        </mxCell>
+        <mxCell id="text-41" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=20;fontColor=#17263c;fontStyle=1;" value="ELFAnalyser + ELFBinary" vertex="1">
+          <mxGeometry height="27" width="512" x="24" y="56.4" as="geometry" />
+        </mxCell>
+        <mxCell id="text-42" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="Reads ELF files with LIEF to support code analysis." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="92.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-43" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Looks up sections, symbols, strings and relocations." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="117.46000000000001" as="geometry" />
+        </mxCell>
+        <mxCell id="text-44" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=18;fontColor=#17263c;fontStyle=0;" value="• Resolves stored pointers and function boundaries." vertex="1">
+          <mxGeometry height="24.3" width="512" x="24" y="142.46" as="geometry" />
+        </mxCell>
+        <mxCell id="elf-divider" parent="elf" style="line;strokeColor=#c9d4e0;strokeWidth=1;" value="" vertex="1">
+          <mxGeometry width="512" x="24" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="text-45" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="get_syscalls_from_symbols(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="201.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-46" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="resolve_address_stored_at(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="226.52" as="geometry" />
+        </mxCell>
+        <mxCell id="text-47" parent="elf" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=16;fontColor=#17263c;fontStyle=0;" value="find_function_start_addr(...)" vertex="1">
+          <mxGeometry height="21.6" width="512" x="24" y="251.52" as="geometry" />
+        </mxCell>
+        <mxCell id="yvPGhkaAkM0Ovp7-n--V-10" edge="1" parent="elf" style="endArrow=none;html=1;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;curved=0;strokeColor=#999999;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="24" y="184" as="sourcePoint" />
+            <mxPoint x="536" y="184" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="text-48" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=1;" value="SHARED MODULES" vertex="1">
+          <mxGeometry height="20.25" width="1224" x="48" y="1110.55" as="geometry" />
+        </mxCell>
+        <mxCell id="syscalls" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f7f8fa;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="196" width="388" x="48" y="1148" as="geometry" />
+        </mxCell>
+        <mxCell id="syscalls-accent" parent="syscalls" style="fillColor=#506278;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-49" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=19;fontColor=#506278;fontStyle=1;" value="syscalls.py" vertex="1">
+          <mxGeometry height="25.650000000000002" width="340" x="24" y="19.43" as="geometry" />
+        </mxCell>
+        <mxCell id="text-50" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="Stores syscall IDs, names and wrapper" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="53.489999999999995" as="geometry" />
+        </mxCell>
+        <mxCell id="text-51" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="aliases, and loads the syscall map." vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="76.49" as="geometry" />
+        </mxCell>
+        <mxCell id="text-52" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Syscall map: ID -&gt; syscall name" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="107.49" as="geometry" />
+        </mxCell>
+        <mxCell id="syscalls-alias-example" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Wrapper aliases: open64 -&gt; open" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="132.49" as="geometry" />
+        </mxCell>
+        <mxCell id="syscalls-map-loader" parent="syscalls" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=15;fontColor=#17263c;fontStyle=0;" value="• initialise_syscalls_map(path)" vertex="1">
+          <mxGeometry height="20.25" width="340" x="24" y="159.55" as="geometry" />
+        </mxCell>
+        <mxCell id="utils" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f7f8fa;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="196" width="388" x="466" y="1148" as="geometry" />
+        </mxCell>
+        <mxCell id="utils-accent" parent="utils" style="fillColor=#506278;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-53" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=19;fontColor=#506278;fontStyle=1;" value="utils.py" vertex="1">
+          <mxGeometry height="25.650000000000002" width="340" x="24" y="19.43" as="geometry" />
+        </mxCell>
+        <mxCell id="text-54" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="Provides shared analysis settings and" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="53.489999999999995" as="geometry" />
+        </mxCell>
+        <mxCell id="text-55" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="helper functions used across modules." vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="76.49" as="geometry" />
+        </mxCell>
+        <mxCell id="text-56" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Options, defaults and logging" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="107.49" as="geometry" />
+        </mxCell>
+        <mxCell id="utils-diagnostics" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Diagnostics and value conversions" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="132.49" as="geometry" />
+        </mxCell>
+        <mxCell id="utils-arithmetic" parent="utils" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Address-arithmetic helpers" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="157.49" as="geometry" />
+        </mxCell>
+        <mxCell id="exception" parent="1" style="rounded=1;arcSize=5;whiteSpace=wrap;html=0;fillColor=#f7f8fa;strokeColor=#c9d4e0;strokeWidth=1.4;container=1;collapsible=0;" value="" vertex="1">
+          <mxGeometry height="196" width="388" x="884" y="1148" as="geometry" />
+        </mxCell>
+        <mxCell id="exception-accent" parent="exception" style="fillColor=#506278;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="29" width="4" x="1" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="text-57" parent="exception" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=19;fontColor=#506278;fontStyle=1;" value="custom_exception.py" vertex="1">
+          <mxGeometry height="25.650000000000002" width="340" x="24" y="19.43" as="geometry" />
+        </mxCell>
+        <mxCell id="text-58" parent="exception" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="Defines the exception used to report" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="53.489999999999995" as="geometry" />
+        </mxCell>
+        <mxCell id="text-59" parent="exception" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="analysis errors and their severity." vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="76.49" as="geometry" />
+        </mxCell>
+        <mxCell id="exception-class" parent="exception" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans Mono;fontSize=17;fontColor=#17263c;fontStyle=0;" value="StaticAnalyserException" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="115.49" as="geometry" />
+        </mxCell>
+        <mxCell id="exception-severity" parent="exception" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=17;fontColor=#17263c;fontStyle=0;" value="• Critical or non-critical errors" vertex="1">
+          <mxGeometry height="22.950000000000003" width="340" x="24" y="149.49" as="geometry" />
+        </mxCell>
+        <mxCell id="launch" edge="1" parent="1" source="entry" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="code" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-60" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=0;" value="launch analysis" vertex="1">
+          <mxGeometry height="20.25" width="220" x="305" y="337.55" as="geometry" />
+        </mxCell>
+        <mxCell id="resolve" edge="1" parent="1" source="code" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=1.0;exitY=0.2980132450331126;exitDx=0;exitDy=0;entryX=0.0;entryY=0.2980132450331126;entryDx=0;entryDy=0;" target="library" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-61" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=14;fontColor=#506278;fontStyle=0;" value="find targets" vertex="1">
+          <mxGeometry height="18.900000000000002" width="220" x="550" y="449.58" as="geometry" />
+        </mxCell>
+        <mxCell id="recurse" edge="1" parent="1" source="library" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=0.0;exitY=0.5496688741721855;exitDx=0;exitDy=0;entryX=1.0;entryY=0.5496688741721855;entryDx=0;entryDy=0;" target="code" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-62" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=14;fontColor=#506278;fontStyle=0;" value="scan code" vertex="1">
+          <mxGeometry height="18.900000000000002" width="220" x="550" y="525.58" as="geometry" />
+        </mxCell>
+        <mxCell id="backtrack" edge="1" parent="1" source="code" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=0.3964285714285714;exitY=1.0;exitDx=0;exitDy=0;entryX=0.3964285714285714;entryY=0.0;entryDx=0;entryDy=0;" target="asm" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-63" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=0;" value="backtrack" vertex="1">
+          <mxGeometry height="20.25" width="220" x="95" y="730.55" as="geometry" />
+        </mxCell>
+        <mxCell id="code-context" edge="1" parent="1" source="code" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=0.825;exitY=1.0;exitDx=0;exitDy=0;entryX=0.175;entryY=0.0;entryDx=0;entryDy=0;" target="elf" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="734" />
+              <mxPoint x="810" y="734" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="text-64" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=0;" value="ELF context" vertex="1">
+          <mxGeometry height="20.25" width="220" x="549" y="706.55" as="geometry" />
+        </mxCell>
+        <mxCell id="lib-context" edge="1" parent="1" source="library" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=0.6928571428571428;exitY=1.0;exitDx=0;exitDy=0;entryX=0.6928571428571428;entryY=0.0;entryDx=0;entryDy=0;" target="elf" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-65" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=0;" value="ELF context" vertex="1">
+          <mxGeometry height="20.25" width="220" x="1061" y="730.55" as="geometry" />
+        </mxCell>
+        <mxCell id="read" edge="1" parent="1" source="asm" style="edgeStyle=none;rounded=0;html=0;endArrow=block;endFill=1;endSize=9;strokeColor=#60758e;strokeWidth=1.8;exitX=1.0;exitY=0.7284768211920529;exitDx=0;exitDy=0;entryX=0.0;entryY=0.7284768211920529;entryDx=0;entryDy=0;" target="elf" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="text-66" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=center;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=14;fontColor=#506278;fontStyle=0;" value="read ELF" vertex="1">
+          <mxGeometry height="18.900000000000002" width="220" x="550" y="979.58" as="geometry" />
+        </mxCell>
+        <mxCell id="text-67" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=15;fontColor=#506278;fontStyle=0;" value="Arrows show selected calls. Shared modules support the analysers; not every dependency is drawn." vertex="1">
+          <mxGeometry height="20.25" width="1224" x="48" y="1354.55" as="geometry" />
+        </mxCell>
+        <mxCell id="text-68" parent="1" style="text;html=0;whiteSpace=wrap;overflow=visible;align=left;verticalAlign=middle;spacing=0;strokeColor=none;fillColor=none;fontFamily=DejaVu Sans;fontSize=14;fontColor=#506278;fontStyle=0;" value="21 September 2026  |  commit 431f2a6  |  Eight core modules; representative public entry points." vertex="1">
+          <mxGeometry height="18.900000000000002" width="1224" x="48" y="1381.58" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
